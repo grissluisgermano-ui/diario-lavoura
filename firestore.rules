@@ -1,0 +1,17 @@
+rules_version = '2';
+// Só os e-mails desta lista conseguem ler e gravar no diário.
+// Para dar acesso a mais alguém: crie o usuário em Authentication e acrescente o e-mail aqui (em minúsculas).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function permitido() {
+      return request.auth != null
+        && request.auth.token.email.lower() in [
+          'grissluisgermano@gmail.com',
+          'marigriss@gmail.com'
+        ];
+    }
+    match /{document=**} {
+      allow read, write: if permitido();
+    }
+  }
+}
