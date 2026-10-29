@@ -316,7 +316,13 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .ev time{font-family:var(--f-mono);font-size:.82rem;color:var(--muted);flex:none}
 .empty{text-align:center;padding:28px 12px;color:var(--muted)}
 @media (max-width:420px){.stat b{font-size:1.05rem}h1{font-size:1.8rem}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.bk-alerta{display:flex;gap:10px 16px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--danger);color:#fff;border-radius:var(--r);padding:12px 16px;animation:bkPisca 1.4s ease-in-out infinite}
+.bk-al-txt{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.bk-al-txt b{font-family:var(--f-display);font-size:1.2rem;line-height:1.15}
+.bk-al-txt span{font-size:.88rem;opacity:.92}
+.bk-alerta .btn{background:#fff;color:#8f2a1d;font-weight:700;padding:10px 16px;flex:none}
+@keyframes bkPisca{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(176,58,43,.6)}50%{opacity:.72;box-shadow:0 0 0 7px rgba(176,58,43,0)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.bk-alerta{animation:none}}
 </style>
 <link rel="stylesheet" href="layout.css">
 
@@ -328,6 +334,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </div>
     <div class="hd-dir"><div class="note" id="sync">Conectando…</div><button type="button" class="tema-btn" id="cfg-abrir">Configurações</button></div>
   </header>
+
+  <div class="bk-alerta" id="bk-alerta" role="alert" hidden>
+    <div class="bk-al-txt"><b id="bk-al-tit">Backup do mês ainda não foi feito</b><span id="bk-al-sub"></span></div>
+    <button type="button" class="btn" id="bk-al-btn">Fazer backup agora</button>
+  </div>
 
   <section class="stats" aria-label="Resumo">
     <div class="stat"><b id="st-n">–</b><span>registros</span></div>
@@ -2360,7 +2371,28 @@ function graosTexto(){
 /* ---------- Backup ---------- */
 let downloads=null;
 const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ});
-function bkUltimo(){try{const t=localStorage.getItem("ultimoBackup");$("#bk-status").textContent=t?`Último backup baixado neste aparelho: ${t}`:"Nenhum backup baixado neste aparelho ainda."}catch{}}
+let bkInfo; // undefined = ainda carregando; null = nunca feito
+const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
+function bkUltimo(){
+  if(bkInfo?.ultimo){$("#bk-status").textContent=`Último backup: ${bkFmt(bkInfo)}.`;return}
+  try{const t=localStorage.getItem("ultimoBackup");$("#bk-status").textContent=t?`Último backup baixado neste aparelho: ${t}`:"Nenhum backup registrado ainda."}catch{}
+}
+/* Aviso piscante: aparece enquanto não houver backup completo baixado no mês atual (por qualquer um dos usuários) */
+function bkAlerta(){
+  const el=$("#bk-alerta"); if(!el) return;
+  const temDados=registros.length||estoque.length||graos.length||notas.length||diesel.length||manut.length;
+  const mes=todayISO().slice(0,7);
+  const falta=!!db&&!!temDados&&bkInfo!==undefined&&bkInfo?.mes!==mes;
+  el.hidden=!falta; if(!falta) return;
+  const nomeMes=new Date(mes+"-15T12:00:00").toLocaleString("pt-BR",{month:"long"});
+  $("#bk-al-tit").textContent=`Backup de ${nomeMes} ainda não foi feito`;
+  $("#bk-al-sub").textContent=bkInfo?.ultimo?`Último backup: ${bkFmt(bkInfo)}. Baixe a cópia e guarde no computador, HD externo ou Google Drive.`:"Nenhum backup registrado ainda. Baixe a cópia e guarde no computador, HD externo ou Google Drive.";
+}
+async function bkRegistra(ext){
+  const b={ultimo:new Date().toISOString(),mes:todayISO().slice(0,7),tipo:ext,por:meuId||null,nome:(window.ponte?.perfil?.nome)||null};
+  bkInfo=b; bkAlerta(); bkUltimo();
+  try{await rawDb.collection("config").doc("backup").set(b)}catch{}
+}
 function bkMarca(){try{const d=new Date();localStorage.setItem("ultimoBackup",`${brDate(todayISO())} às ${d.toTimeString().slice(0,5)}`)}catch{} bkUltimo()}
 function planilhaBackup(){
   const wb=XLSX.utils.book_new(), dt=iso=>iso?brDate(iso):"";
@@ -2395,13 +2427,18 @@ async function bkSalvar(btn,fn,ext){
   btn.disabled=true;
   try{
     const data=fn(); const r=await downloads.save({filename:`diario-lavoura-backup-${todayISO()}.${ext}`,data});
-    if(r.status==="saved") bkMarca();
+    if(r.status==="saved"){bkMarca(); bkRegistra(ext)}
   }catch(e){
     if(e?.code!=="declined") $("#bk-status").textContent=e?.code==="rate_limited"?"Já existe um download aguardando confirmação.":"Não foi possível gerar o arquivo. Tente de novo.";
   }finally{btn.disabled=false}
 }
 $("#bk-xlsx").onclick=()=>{ if(typeof XLSX==="undefined"){$("#bk-status").textContent="A planilha não carregou. Verifique a internet e recarregue o app.";return}
   bkSalvar($("#bk-xlsx"),()=>new Blob([planilhaBackup()]),"xlsx")};
+$("#bk-al-btn").onclick=()=>{
+  if(!downloads){show("historico");return}
+  $("#bk-al-sub").textContent="Gerando o backup completo…";
+  bkSalvar($("#bk-al-btn"),()=>JSON.stringify({app:"Diário da Lavoura",versao:1,geradoEm:new Date().toISOString(),colecoes:COLECOES()},null,1),"json").then(()=>{if(!$("#bk-alerta").hidden) bkAlerta()});
+};
 $("#bk-json").onclick=()=>bkSalvar($("#bk-json"),()=>JSON.stringify({app:"Diário da Lavoura",versao:1,geradoEm:new Date().toISOString(),colecoes:COLECOES()},null,1),"json");
 
 /* ---------- Anotações ---------- */
@@ -3380,11 +3417,11 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   db.collection("manutencoes").onSnapshot(snap=>{manut=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderMaquinas()},()=>{});
   db.collection("benfeitorias").onSnapshot(snap=>{benf=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));renderBenf()},()=>{});
   db.collection("servicos_benf").onSnapshot(snap=>{bfServ=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderBenf()},()=>{});
-  db.collection("config").onSnapshot(snap=>{const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grCfg={f1:{nome:d.f1?.nome||"",pct:d.f1?.pct??1.5},f2:{nome:d.f2?.nome||"",pct:d.f2?.pct??1.5},pai:{nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}}; renderGraos()},()=>{});
+  db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grCfg={f1:{nome:d.f1?.nome||"",pct:d.f1?.pct??1.5},f2:{nome:d.f2?.nome||"",pct:d.f2?.pct??1.5},pai:{nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}}; renderGraos()},()=>{});
   db.collection("graos").onSnapshot(snap=>{graos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.data&&g.tipo);renderGraos()},()=>{});
   db.collection("notas").onSnapshot(snap=>{notas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(n=>n.data&&n.texto).sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||"").localeCompare(String(a.hora||""))||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderNotas()},()=>{});
   db.collection("diesel").onSnapshot(snap=>{diesel=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.data&&d.tipo);renderDiesel();renderMaquinas()},()=>{});
-  col.onSnapshot(snap=>{
+  col.onSnapshot(snap=>{ setTimeout(bkAlerta,0);
     registros=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.data&&r.tipo)
       .sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));
     $("#sync").textContent=snap.metadata.fromCache?"Sincronizando…":"Salvo na nuvem";

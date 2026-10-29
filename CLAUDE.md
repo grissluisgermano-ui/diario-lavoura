@@ -32,6 +32,8 @@ Ao mudar arquivos do app, **suba o número do cache em `sw.js`** (`diario-vN`) p
 ## Coleções do Firestore
 `registros` (plantio, aplicacao, adubacao, mecanizacao, colheita, ocorrencia, chuva — com `situacao` executada|programada), `estoque`, `graos`, `maquinas`, `manutencoes`, `diesel`, `benfeitorias`, `servicos_benf`, `notas`, `config` (`propriedade`, `graos`), `fotos`, `usuarios`.
 Backup: Histórico → Excel / JSON (todas as coleções menos fotos) e "Baixar todas as fotos (.zip)". "Restaurar backup" lê o JSON.
+Backup mensal: cada download de backup completo (JSON ou Excel) grava `config/backup` `{ultimo, mes:"AAAA-MM", tipo, por, nome}`. Enquanto `mes` ≠ mês atual (e o app tem dados), aparece o aviso vermelho piscante `#bk-alerta` abaixo do cabeçalho, com botão que baixa o JSON. Vale para os dois usuários (backup feito por um apaga o aviso do outro).
+Layout: `layout.css` + `layout.js` — a partir de 1100 px de largura, menu lateral (`#side`) e formulários numa coluna fixa à direita; no celular nada muda.
 
 ## Como testar antes de publicar
 Não há internet para o Firebase no ambiente do Claude: testar com um Firestore falso em memória (mock da API compat: `initializeApp`, `auth()`, `firestore()` com `collection/doc/set/get/delete/onSnapshot` e `firebase.firestore.Query.prototype`), servindo a pasta por HTTP e usando Playwright em tela de iPhone (430×932). Conferir o console sem erros e mandar prints ao Luis.
