@@ -2562,7 +2562,7 @@ async function resolveNomes(){
   const falta=ids.filter(i=>!(i in nomes)); if(!falta.length) return;
   const ps=await userCap.profiles(falta);
   for(const i of falta){const p=ps[i]; nomes[i]=p?.name||(p?.isMe?"você":"Alguém")}
-  renderLista(); renderNotas(); renderMaquinas(); renderDiesel(); renderBenf(); renderGraos();
+  renderLista(); renderNotas(); renderMaquinas(); renderDiesel(); renderBenf(); renderGraos(); renderChuvas(); renderProgramacao();
 }
 const agendaNomes=()=>{clearTimeout(agendaNomes.t);agendaNomes.t=setTimeout(resolveNomes,300)};
 function envolveDb(raw){
