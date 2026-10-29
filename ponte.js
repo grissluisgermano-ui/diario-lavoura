@@ -273,14 +273,14 @@
     const st = t => { $("#cfg-conta-st").textContent = t };
     const preenche = () => {
       $("#cfg-email").textContent = ponte.usuario?.email || "—";
-      if (document.activeElement !== $("#cfg-nome")) $("#cfg-nome").value = ponte.perfil?.nome || "";
+      if (document.activeElement !== $("#cfg-unome")) $("#cfg-unome").value = ponte.perfil?.nome || "";
       const k = lsGet(LS_KEY);
       $("#cfg-claude-st").textContent = k ? "Chave cadastrada neste aparelho (termina em …" + k.slice(-4) + ")." : "Sem chave: as funções do Claude ficam desligadas neste aparelho.";
       $("#cfg-claude-limpar").hidden = !k;
     };
     document.addEventListener("ponte:pronto", preenche); preenche();
     $("#cfg-abrir")?.addEventListener("click", preenche);
-    $("#cfg-nome-salvar").onclick = async () => { await ponte.salvaNome($("#cfg-nome").value); st("Nome salvo.") };
+    $("#cfg-nome-salvar").onclick = async () => { await ponte.salvaNome($("#cfg-unome").value); st("Nome salvo.") };
     $("#cfg-sair").onclick = () => ponte.sair();
     $("#cfg-senha").onclick = async () => { try { await auth.sendPasswordResetEmail(ponte.usuario.email); st("Enviamos um e-mail para trocar a senha.") } catch { st("Não consegui enviar o e-mail agora.") } };
     $("#cfg-claude-salvar").onclick = async () => {

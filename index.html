@@ -318,6 +318,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 @media (max-width:420px){.stat b{font-size:1.05rem}h1{font-size:1.8rem}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<link rel="stylesheet" href="layout.css">
 
 <div class="wrap">
   <header class="head">
@@ -338,6 +339,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="tabs-g" role="tablist" id="tabs-g"></div>
     <div class="tabs-s" role="tablist" id="tabs-s"></div>
   </nav>
+  <nav id="side" aria-label="Menu"></nav>
 
   <!-- PAINEL -->
   <section class="panel" id="view-painel" hidden>
@@ -394,7 +396,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <h3 class="sub-h">Sua conta</h3>
       <p class="note">Entrou como <b id="cfg-email">—</b>.</p>
       <div class="grid2">
-        <div class="field"><label for="cfg-nome">Seu nome (aparece em “lançado por”)</label><input id="cfg-nome" autocomplete="name"></div>
+        <div class="field"><label for="cfg-unome">Seu nome (aparece em “lançado por”)</label><input id="cfg-unome" autocomplete="name"></div>
         <div class="field"><span class="lbl">&nbsp;</span><button type="button" class="btn" id="cfg-nome-salvar">Salvar nome</button></div>
       </div>
       <div class="row"><button type="button" class="btn ghost" id="cfg-senha">Trocar senha</button><button type="button" class="btn ghost" id="cfg-sair">Sair</button><span class="note" id="cfg-conta-st" role="status"></span></div>
@@ -3390,5 +3392,5 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   },err=>{$("#sync").textContent="Erro de conexão — recarregue a página"});
 })();
 </script>
-
+<script src="layout.js"></script>
 </html>

@@ -1,0 +1,69 @@
+/* Diário da Lavoura — layout para telas grandes (computador e tablet deitado).
+   No celular nada muda: tudo aqui só vale a partir de 1100 px de largura. */
+#side{display:none}
+
+@media (min-width:1100px){
+  html body{padding-left:28px;padding-right:28px;padding-block:24px 48px}
+  .wrap{max-width:1500px;display:grid;grid-template-columns:236px minmax(0,1fr);column-gap:28px;row-gap:0;align-items:start}
+  .wrap>*{grid-column:2;margin-bottom:20px}
+  .wrap>.head{grid-column:1/-1;padding:22px 26px 20px}
+  .wrap>.tabs{display:none}
+  .head h1{font-size:2.5rem}
+
+  /* Menu lateral */
+  #side{display:flex;flex-direction:column;gap:14px;grid-column:1;grid-row:2/span 40;position:sticky;top:20px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 10px;max-height:calc(100vh - 40px);overflow:auto}
+  .sd-g{display:flex;flex-direction:column;gap:2px}
+  .sd-gl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:0 10px 4px}
+  #side button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:8px;
+    font:600 .98rem var(--f-body);color:var(--ink);cursor:pointer}
+  #side button:hover{background:var(--sunk)}
+  #side button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #side button[aria-current="page"]{background:var(--tab-on);color:var(--tab-on-ink)}
+  #side button i{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.35;flex:none}
+  #side button[aria-current="page"] i{opacity:1}
+
+  /* Painéis mais largos e arejados */
+  .panel{padding:24px 28px;gap:18px}
+  h2{font-size:1.6rem}
+  .stat{padding:12px 16px}
+  .stat b{font-size:1.4rem}
+
+  /* Telas com formulário: formulário fixo à direita, listas à esquerda */
+  .panel.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,420px);gap:18px 26px;align-items:start}
+  .panel.split>.sp-top{grid-column:1/-1}
+  .sp-main,.sp-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .sp-side{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto;border-radius:var(--r)}
+  .sp-side>.sub{background:var(--bg)}
+  .sp-side .grid2{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+
+  /* Listas de cartões em colunas */
+  #es-lista,#mq-cards,#bf-cards,#gr-saldos,#gr-pai,#gr-tits,#nt-lista,#pg-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}
+  #lista .day{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:10px;align-items:start}
+  #lista .day>h3{grid-column:1/-1}
+
+  /* Lançar: campos lado a lado */
+  #view-lancar .grid2{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  #view-lancar #campos{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+
+  /* Painel: três gráficos por linha */
+  .pn-filtros{max-width:760px}
+  .pn-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .kpi{padding:14px 16px}
+  .kpi b{font-size:1.45rem}
+
+  /* Configurações em duas colunas */
+  #view-config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+  #view-config>.row{grid-column:1/-1}
+  #cfg-prop{grid-row:span 2}
+
+  /* Fotos maiores */
+  .rec-fotos button{width:96px;height:96px}
+  .thumb{width:96px;height:96px}
+  .chart svg{min-width:0;max-height:360px}
+  .pn-card svg{max-height:380px}
+}
+@media (min-width:1360px){
+  .pn-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .pn-wide{grid-column:1/-1}
+}
