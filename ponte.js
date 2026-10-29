@@ -43,12 +43,22 @@
     });
     return Promise.race([p, new Promise(r => setTimeout(() => { if (!fim) aviso("Sem internet: salvo no aparelho, sobe para a nuvem quando voltar o sinal.", true); r() }, 1500))]);
   }
+  /* Lixeira: tudo o que é excluído pelo app vai antes para a coleção "lixeira" e fica 30 dias */
+  const LIX_DIAS = 30, SEM_LIXEIRA = new Set(["lixeira", "fotos", "usuarios"]);
+  async function paraLixeira(r) {
+    const col = r.parent?.id; if (!col || SEM_LIXEIRA.has(col)) return;
+    let s; try { s = await r.get() } catch { return }
+    if (!s.exists) return;
+    await fs.collection("lixeira").doc().set({ colecao: col, docId: r.id, dados: s.data(), excluidoEm: new Date().toISOString(),
+      por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null });
+    aviso("Excluído. Fica 30 dias na Lixeira (Lavoura → Histórico) caso precise recuperar.", true);
+  }
   const docW = r => ({
     id: r.id, path: r.path,
     get: o => r.get(o),
     set: (d, o) => naoTrava(o ? r.set(d, o) : r.set(d)),
     update: d => naoTrava(r.update(d)),
-    delete: () => naoTrava(r.delete()),
+    delete: () => naoTrava(paraLixeira(r).then(() => r.delete())),
     onSnapshot: (...a) => r.onSnapshot(...a),
   });
   const colW = c => ({
@@ -61,6 +71,33 @@
   });
   const db = { collection: p => colW(fs.collection(p)), doc: p => docW(fs.doc(p)) };
   ponte.fs = fs; ponte.auth = auth;
+
+  ponte.lixeira = {
+    dias: LIX_DIAS,
+    ouvir: (fn) => fs.collection("lixeira").onSnapshot(s => fn(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}),
+    async restaurar(item) {
+      await naoTrava(fs.collection(item.colecao).doc(item.docId).set(item.dados));
+      for (const f of item.dados?.fotos || []) fs.collection("fotos").doc(f).set({ excluidoEm: null }, { merge: true }).catch(() => {});
+      await naoTrava(fs.collection("lixeira").doc(item.id).delete());
+    },
+    async apagar(item) {
+      for (const f of item.dados?.fotos || []) fs.collection("fotos").doc(f).delete().catch(() => {});
+      await naoTrava(fs.collection("lixeira").doc(item.id).delete());
+    },
+  };
+  /* Limpeza: uma vez por dia, apaga de vez o que está na lixeira há mais de 30 dias */
+  async function limpaLixeira() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (lsGet("diario_limpeza") === hoje) return; lsSet("diario_limpeza", hoje);
+    const corte = new Date(Date.now() - LIX_DIAS * 864e5).toISOString();
+    try {
+      const a = await fs.collection("lixeira").where("excluidoEm", "<", corte).get();
+      a.docs.forEach(d => { for (const f of d.data().dados?.fotos || []) fs.collection("fotos").doc(f).delete().catch(() => {}); d.ref.delete().catch(() => {}) });
+      const b = await fs.collection("fotos").where("excluidoEm", "<", corte).get();
+      b.docs.forEach(d => d.ref.delete().catch(() => {}));
+    } catch (e) { console.warn("limpeza da lixeira", e) }
+  }
+  document.addEventListener("ponte:pronto", () => setTimeout(limpaLixeira, 8000));
 
   /* ---------- Avisos ---------- */
   function aviso(t, leve) {
@@ -115,7 +152,8 @@
       await naoTrava(r.set({ d, criadoEm: new Date().toISOString(), criadoPor: ponte.usuario?.uid || null }));
       return { id: r.id, url: d };
     },
-    async delete(id) { cacheFoto.delete(id); return naoTrava(fs.collection("fotos").doc(id).delete()) },
+    // A foto não é apagada na hora: fica marcada e só some depois de 30 dias (para a Lixeira poder recuperar o registro com as fotos)
+    async delete(id) { return naoTrava(fs.collection("fotos").doc(id).set({ excluidoEm: new Date().toISOString() }, { merge: true })) },
   };
 
   /* ---------- Downloads (backup, relatórios, fotos .zip) ---------- */

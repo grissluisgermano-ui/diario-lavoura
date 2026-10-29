@@ -5,7 +5,7 @@
   "use strict";
   const MQ = window.matchMedia("(min-width:1100px)");
   const SPLIT = { chuvas:"#ch-form", estoque:"#es-form", maquinas:"#mq-form", diesel:"#ds-form",
-                  benfeitorias:"#bf-form", graos:"#gr-form", notas:"#nt-form", historico:"#backup-box" };
+                  benfeitorias:"#bf-form", graos:"#gr-form", notas:"#nt-form", historico:"#backup-box, #lx-box" };
   let atual = null;
 
   /* Menu lateral com todos os grupos e telas */
@@ -24,13 +24,13 @@
     for (const [v, sel] of Object.entries(SPLIT)) {
       const sec = document.getElementById("view-" + v); if (!sec) continue;
       if (on && !sec._orig) {
-        const lado = sec.querySelector(":scope > " + sel); if (!lado) continue;
+        const lados = sel.split(",").map(x => sec.querySelector(":scope > " + x.trim())).filter(Boolean); if (!lados.length) continue;
         sec._orig = [...sec.children];
         const topo = sec._orig[0];
         const main = document.createElement("div"); main.className = "sp-main";
         const side = document.createElement("div"); side.className = "sp-side";
         topo.classList.add("sp-top");
-        for (const el of sec._orig.slice(1)) (el === lado ? side : main).appendChild(el);
+        for (const el of sec._orig.slice(1)) (lados.includes(el) ? side : main).appendChild(el);
         sec.append(main, side); sec.classList.add("split");
       } else if (!on && sec._orig) {
         sec._orig[0].classList.remove("sp-top");
