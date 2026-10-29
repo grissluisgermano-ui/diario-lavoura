@@ -2406,6 +2406,22 @@ async function bkRegistra(ext){
   bkInfo=b; bkAlerta(); bkUltimo();
   try{await rawDb.collection("config").doc("backup").set(b)}catch{}
 }
+/* Planilha na nuvem: uma vez por dia o app guarda no banco a mesma planilha Excel do botão de backup,
+   em partes de ~700 KB (coleção planilha_backup). O script do Google Drive copia esse arquivo para o Drive. */
+let bkPl;
+async function planilhaNuvem(){
+  if(planilhaNuvem.feito||!rawDb||typeof XLSX==="undefined") return;
+  const temDados=registros.length||estoque.length||graos.length||notas.length||diesel.length||manut.length;
+  if(!temDados||bkPl===undefined) return;
+  if(bkPl?.dia===todayISO()){planilhaNuvem.feito=true;return}
+  planilhaNuvem.feito=true;
+  try{
+    const u8=new Uint8Array(planilhaBackup()); let bin=""; for(let i=0;i<u8.length;i+=8192) bin+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));
+    const b64=btoa(bin), TAM=700000, partes=Math.ceil(b64.length/TAM);
+    for(let i=0;i<partes;i++) await rawDb.collection("planilha_backup").doc("p"+i).set({d:b64.slice(i*TAM,(i+1)*TAM)});
+    await rawDb.collection("config").doc("planilha").set({dia:todayISO(),geradoEm:new Date().toISOString(),partes,bytes:u8.length,por:meuId||null});
+  }catch(e){console.warn("planilha na nuvem",e)}
+}
 function bkMarca(){try{const d=new Date();localStorage.setItem("ultimoBackup",`${brDate(todayISO())} às ${d.toTimeString().slice(0,5)}`)}catch{} bkUltimo()}
 function planilhaBackup(){
   const wb=XLSX.utils.book_new(), dt=iso=>iso?brDate(iso):"";
@@ -3430,7 +3446,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   db.collection("manutencoes").onSnapshot(snap=>{manut=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderMaquinas()},()=>{});
   db.collection("benfeitorias").onSnapshot(snap=>{benf=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));renderBenf()},()=>{});
   db.collection("servicos_benf").onSnapshot(snap=>{bfServ=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderBenf()},()=>{});
-  db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grCfg={f1:{nome:d.f1?.nome||"",pct:d.f1?.pct??1.5},f2:{nome:d.f2?.nome||"",pct:d.f2?.pct??1.5},pai:{nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}}; renderGraos()},()=>{});
+  db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pl=snap.docs.find(x=>x.id==="planilha"); bkPl=pl?pl.data():null; setTimeout(planilhaNuvem,20000); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grCfg={f1:{nome:d.f1?.nome||"",pct:d.f1?.pct??1.5},f2:{nome:d.f2?.nome||"",pct:d.f2?.pct??1.5},pai:{nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}}; renderGraos()},()=>{});
   db.collection("graos").onSnapshot(snap=>{graos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.data&&g.tipo);renderGraos()},()=>{});
   db.collection("notas").onSnapshot(snap=>{notas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(n=>n.data&&n.texto).sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||"").localeCompare(String(a.hora||""))||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderNotas()},()=>{});
   db.collection("diesel").onSnapshot(snap=>{diesel=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.data&&d.tipo);renderDiesel();renderMaquinas()},()=>{});

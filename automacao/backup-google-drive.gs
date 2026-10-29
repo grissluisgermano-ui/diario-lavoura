@@ -6,6 +6,8 @@
  *   Firebase e grava "diario-lavoura-backup-AAAA-MM.json" na pasta "Diário da Lavoura - Backups" do Drive.
  *   O arquivo é o mesmo formato do botão "Baixar backup completo (.json)" do app e pode ser
  *   restaurado em Histórico → Restaurar backup.
+ * - Planilha Excel: mantém "Diário da Lavoura - dados atuais.xlsx" sempre atualizada (o app gera a planilha
+ *   uma vez por dia quando alguém abre) e guarda uma cópia por mês, "diario-lavoura-planilha-AAAA-MM.xlsx".
  * - Copia as fotos novas (JPG) para a subpasta "Fotos".
  * - Avisa o app que o backup do mês foi feito (o aviso vermelho some).
  *
@@ -51,7 +53,30 @@ function backupDiario(forcar) {
     console.log(`Backup ${nome} já existe.`);
   }
 
+  try { salvarPlanilha(pasta, mes) } catch (e) { console.warn("Planilha: " + e.message) }
   copiarFotos(pegaPasta("Fotos", pasta), inicio);
+}
+
+/* ---------- Planilha Excel (gerada pelo próprio app e guardada no banco em partes) ---------- */
+function salvarPlanilha(pasta, mes) {
+  let info;
+  try { info = deFirestore({ mapValue: { fields: chamar(`${BASE}/config/planilha`).fields || {} } }) } catch (e) { console.log("Ainda não há planilha no banco (o app gera ao ser aberto)."); return }
+  const props = PropertiesService.getScriptProperties();
+  const nomeMes = `diario-lavoura-planilha-${mes}.xlsx`, nomeAtual = "Diário da Lavoura - dados atuais.xlsx";
+  const precisaAtual = props.getProperty("planilhaCopiada") !== info.geradoEm || !pasta.getFilesByName(nomeAtual).hasNext();
+  const precisaMes = !pasta.getFilesByName(nomeMes).hasNext();
+  if (!precisaAtual && !precisaMes) { console.log("Planilha já está em dia."); return }
+  let b64 = "";
+  for (let i = 0; i < info.partes; i++) b64 += chamar(`${BASE}/planilha_backup/p${i}`).fields.d.stringValue;
+  const tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const bytes = Utilities.base64Decode(b64);
+  if (precisaAtual) {
+    const it = pasta.getFilesByName(nomeAtual); while (it.hasNext()) it.next().setTrashed(true);
+    pasta.createFile(Utilities.newBlob(bytes, tipo, nomeAtual));
+    props.setProperty("planilhaCopiada", info.geradoEm);
+  }
+  if (precisaMes) pasta.createFile(Utilities.newBlob(bytes, tipo, nomeMes));
+  console.log(`Planilha de ${info.dia} copiada para o Drive.`);
 }
 
 /* ---------- Fotos ---------- */
