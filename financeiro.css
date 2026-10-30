@@ -1,0 +1,51 @@
+/* Diário da Lavoura — módulo Financeiro (usa as cores e fontes do index.html) */
+.fn-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.fn-cards>.empty{grid-column:1/-1}
+.fn-conta{border:1px solid var(--line);border-top:4px solid var(--c);border-radius:8px;padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:4px;min-width:0}
+.fn-conta .rec-top b{font-weight:600;overflow-wrap:anywhere}
+.fn-conta .note{font-size:.75rem}
+.fn-saldo{font-family:var(--f-mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.fn-saldo.neg,.fn-neg,.kpi.fn-neg b{color:var(--danger)}
+.fn-pos{color:var(--accent)}
+.btn.fn-mini{padding:7px 14px;font-size:.9rem}
+.fn-al{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.fn-al .link{color:var(--danger);font-weight:600}
+.legend i.fn-prev{background:var(--muted);opacity:.35}
+.fn-det summary{cursor:pointer;font-size:.85rem;color:var(--muted);font-weight:600}
+.fn-det[open] summary{margin-bottom:6px}
+.fn-it{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;padding:3px 0;border-bottom:1px dotted var(--line)}
+.fn-it span:last-child{font-family:var(--f-mono);white-space:nowrap}
+#fn-itens{counter-reset:p;display:flex;flex-direction:column;gap:8px}
+#fn-itens:empty{display:none}
+#fn-itens-box .lbl small{text-transform:none;letter-spacing:0;font-weight:500}
+.fn-parc{font-size:.85rem;color:var(--muted);gap:6px}
+.fn-parc input{width:56px;padding:6px 8px;text-align:center}
+#fn-parcs{display:flex;flex-direction:column;gap:8px}
+.fn-parc-row{display:grid;grid-template-columns:40px minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.fn-parc-row .note{text-align:right;font-family:var(--f-mono)}
+.fn-parc-row .pc-v{text-align:right;font-family:var(--f-mono)}
+.fn-baixa{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
+.fn-baixa .chips .chip{font-size:.85rem;padding:6px 10px}
+.fn-nfopt{margin-top:4px;font-weight:600}
+.fn-filt3{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.fn-hoje td{font-weight:600}
+.tbl td.fn-neg{color:var(--danger)}
+.tbl td.fn-pos{color:var(--accent)}
+/* Livro caixa: data | histórico | valor | saldo */
+.fn-lc td{vertical-align:top}
+.fn-lc td.fn-lc-h{text-align:left;white-space:normal;font-family:var(--f-body);font-size:.92rem;min-width:120px;max-width:560px;width:100%}
+.fn-lc td.fn-lc-v span{display:block}
+.fn-lc td.fn-lc-v small{display:block;color:var(--muted);font-size:.74rem;margin-top:2px}
+.fn-lc td.fn-lc-v small.fn-neg{color:var(--danger)}
+@media (max-width:480px){.tbl.fn-lc td,.tbl.fn-lc th{padding:6px 4px}.fn-lc td.fn-lc-v{font-size:.78rem}}
+.fn-lc .fn-lc-sub{display:block;font-size:.78rem;line-height:1.3}
+.fn-lc td.fn-lc-d{font-family:var(--f-mono);font-size:.85rem}
+.fn-lc td.fn-lc-d small{display:block;font-size:.7rem}
+.fn-lc .fn-det{margin-top:4px}
+.fn-lc .fn-it{font-size:.8rem}
+.fn-lc-ini td{color:var(--muted)}
+#lc-tbl .empty{padding:24px 8px;white-space:normal}
+@media (min-width:1100px){
+  .fn-cards{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  #view-fin_resumo .pn-kpis,#view-fin_safra .pn-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+}

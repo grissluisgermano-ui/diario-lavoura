@@ -5,7 +5,7 @@
   "use strict";
   const MQ = window.matchMedia("(min-width:1100px)");
   const SPLIT = { chuvas:"#ch-form", estoque:"#es-form", maquinas:"#mq-form", diesel:"#ds-form",
-                  benfeitorias:"#bf-form", graos:"#gr-form", notas:"#nt-form", historico:"#backup-box, #lx-box" };
+                  benfeitorias:"#bf-form", graos:"#gr-form", notas:"#nt-form", fin_contas:"#fn-form", historico:"#backup-box, #lx-box" };
   let atual = null;
 
   /* Menu lateral com todos os grupos e telas */

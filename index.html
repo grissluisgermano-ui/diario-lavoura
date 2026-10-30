@@ -18,6 +18,7 @@
 <script src="config.js"></script>
 <script src="ponte.js"></script>
 <link rel="stylesheet" href="ponte.css">
+<link rel="stylesheet" href="financeiro.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -178,7 +179,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .tbl tr.tot td{font-weight:600;background:var(--bg)}
 .tabs{display:flex;flex-direction:column;gap:4px}
 .tabs-g,.tabs-s{display:grid;gap:4px}
-.tabs-g{grid-template-columns:repeat(5,minmax(0,1fr))}
+.tabs-g{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (min-width:600px){.tabs-g{grid-template-columns:repeat(6,minmax(0,1fr))}}
 .tabs-g button{font-size:.8rem}
 .tabs-s{border-top:1px solid var(--line);padding-top:4px}
 .tabs-s:empty{display:none}
@@ -825,6 +827,119 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div id="gr-lista" class="es-lista"></div>
   </section>
 
+  <!-- FINANCEIRO (financeiro.js) -->
+  <section class="panel" id="view-fin_resumo" hidden>
+    <h2>Financeiro</h2>
+    <div id="fn-alertas" class="alertas"></div>
+    <div class="pn-kpis" id="fn-kpis"></div>
+    <div class="pn-card"><h3>Fluxo de caixa <small>6 meses para trás e 6 para frente</small></h3><div class="legend" id="fn-fluxo-leg"></div><div id="fn-fluxo"></div><details class="fn-det"><summary>Ver mês a mês</summary><div class="tbl-wrap" id="fn-fluxo-tbl"></div></details></div>
+    <div class="row" style="justify-content:space-between"><h3 class="sub-h">Contas e caixas</h3><button type="button" class="link" id="fn-conta-nova">+ Cadastrar conta</button></div>
+    <form class="sub" id="fn-conta-form" autocomplete="off" hidden>
+      <div class="row" style="justify-content:space-between"><h3 class="sub-h" id="fn-conta-tit">Nova conta</h3><button type="button" class="link" id="fn-conta-cancel">Cancelar</button></div>
+      <div class="grid2">
+        <div class="field"><label for="fc-nome">Nome</label><input id="fc-nome" placeholder="Ex.: Sicredi lavoura, Conta Coamo, Caixinha"></div>
+        <div class="field"><label for="fc-tipo">Tipo</label><select id="fc-tipo"></select></div>
+        <div class="field"><label for="fc-saldo">Saldo na data (R$)</label><input id="fc-saldo" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field"><label for="fc-data">Data do saldo</label><input type="date" id="fc-data"></div>
+      </div>
+      <p class="note">O saldo é o que havia na conta no começo dessa data. Daí para frente o app soma o que entra e tira o que sai. Cartão de crédito: deixe 0 (o saldo negativo é a fatura em aberto).</p>
+      <div class="row"><button class="btn" type="submit" id="fc-salvar">Salvar conta</button><span class="toast" id="fc-toast" role="status"></span></div>
+    </form>
+    <div id="fn-contas" class="fn-cards"></div>
+    <div class="row" style="justify-content:space-between"><h3 class="sub-h">Do Diário para o Financeiro</h3><span class="note" id="fn-pend-n"></span></div>
+    <p class="note" id="fn-pend-txt"></p>
+    <div id="fn-pend" class="es-lista"></div>
+  </section>
+
+  <section class="panel" id="view-fin_contas" hidden>
+    <h2>Contas a pagar e a receber</h2>
+    <div class="stats">
+      <div class="stat"><b id="fn-s-pagar">–</b><span>a pagar</span></div>
+      <div class="stat"><b id="fn-s-receber">–</b><span>a receber</span></div>
+      <div class="stat" style="border-top-color:var(--danger)"><b id="fn-s-venc">–</b><span>vencidas</span></div>
+    </div>
+    <form class="sub" id="fn-form" autocomplete="off">
+      <div class="row" style="justify-content:space-between"><h3 class="sub-h" id="fn-form-tit">Novo lançamento</h3><button type="button" class="link" id="fn-cancel" hidden>Cancelar edição</button></div>
+      <div class="chips" id="fn-nat"></div>
+      <div class="nf-imp" id="fn-xml-box">
+        <div><b>Importar XML da nota</b><div class="note">Lê fornecedor, número, produtos, em nome de quem está e as parcelas com vencimento.</div></div>
+        <label class="btn ghost foto-btn" for="fn-xml">Escolher XML</label>
+        <input id="fn-xml" type="file" accept=".xml,text/xml,application/xml" hidden>
+      </div>
+      <p class="note" id="fn-origem" hidden></p>
+      <div class="grid2" data-fn="norm">
+        <div class="field" style="grid-column:1/-1"><label for="fn-desc">Descrição</label><input id="fn-desc" placeholder="Ex.: Adubo 02-20-20, frete da colheita, salário de outubro"></div>
+        <div class="field"><label for="fn-pessoa" id="fn-pessoa-l">Fornecedor</label><input id="fn-pessoa" list="dl-fn-pessoa"><datalist id="dl-fn-pessoa"></datalist></div>
+        <div class="field"><label for="fn-cat">Categoria</label><select id="fn-cat"></select></div>
+        <div class="field"><label for="fn-data">Data da compra / venda</label><input type="date" id="fn-data"></div>
+        <div class="field"><label for="fn-forma">Forma</label><select id="fn-forma"></select></div>
+        <div class="field"><label for="fn-nf">Nota fiscal nº</label><input id="fn-nf" placeholder="Opcional"></div>
+        <div class="field"><label for="fn-tit">Nota em nome de</label><input id="fn-tit" list="dl-fn-tit" placeholder="Opcional"><datalist id="dl-fn-tit"></datalist></div>
+      </div>
+      <div class="grid2" data-fn="transf" hidden>
+        <div class="field"><label for="fn-de">Sai da conta</label><select id="fn-de"></select></div>
+        <div class="field"><label for="fn-para">Entra na conta</label><select id="fn-para"></select></div>
+        <div class="field"><label for="fn-tdata">Data</label><input type="date" id="fn-tdata"></div>
+        <div class="field"><label for="fn-tval">Valor (R$)</label><input id="fn-tval" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field" style="grid-column:1/-1"><label for="fn-tdesc">Descrição</label><input id="fn-tdesc" placeholder="Ex.: Pagamento da fatura do cartão, saque para o caixa"></div>
+      </div>
+      <div class="field" data-fn="norm" id="fn-itens-box">
+        <span class="lbl">Produtos / itens da nota <small class="note">(opcional — aparecem discriminados no livro caixa)</small></span>
+        <div id="fn-itens"></div>
+        <button type="button" class="link" id="fn-item-add">+ Item</button>
+      </div>
+      <div class="field" data-fn="norm">
+        <div class="row" style="justify-content:space-between"><span class="lbl" id="fn-venc-l">Vencimentos</span><span class="row fn-parc">Parcelas <input id="fn-np" inputmode="numeric" value="1" aria-label="Número de parcelas"> <button type="button" class="link" id="fn-dividir">Dividir</button></span></div>
+        <div id="fn-parcs"></div>
+        <p class="note" id="fn-total-st"></p>
+      </div>
+      <div class="field" data-fn="norm" id="fn-sit-box">
+        <span class="lbl">Situação</span>
+        <div class="chips" id="fn-sit"></div>
+        <div class="grid2" id="fn-pago-box" hidden>
+          <div class="field"><label for="fn-pago-em">Pago em</label><input type="date" id="fn-pago-em"></div>
+          <div class="field"><label for="fn-conta">Conta</label><select id="fn-conta"></select></div>
+        </div>
+      </div>
+      <div class="field"><label for="fn-obs">Observação</label><input id="fn-obs" placeholder="Opcional"></div>
+      <div class="row"><button class="btn" type="submit" id="fn-salvar">Salvar</button><span class="toast" id="fn-toast" role="status"></span></div>
+    </form>
+    <div class="chips" id="fn-filtro"></div>
+    <div class="field"><label for="fn-busca">Buscar</label><input id="fn-busca" type="search" placeholder="Fornecedor, produto, nota, descrição…"></div>
+    <div id="fn-lista" class="es-lista"></div>
+  </section>
+
+  <section class="panel" id="view-fin_caixa" hidden>
+    <h2>Livro caixa</h2>
+    <div class="filters fn-filt3">
+      <div class="field"><label for="lc-per">Período</label><select id="lc-per"></select></div>
+      <div class="field"><label for="lc-conta">Conta</label><select id="lc-conta"></select></div>
+      <div class="field"><label for="lc-tit">Nota em nome de</label><select id="lc-tit"></select></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="lc-ent">–</b><span>entradas</span></div>
+      <div class="stat" style="border-top-color:var(--danger)"><b id="lc-sai">–</b><span>saídas</span></div>
+      <div class="stat"><b id="lc-res">–</b><span>resultado do período</span></div>
+    </div>
+    <div class="tbl-wrap"><table class="tbl fn-lc" id="lc-tbl"></table></div>
+    <div class="row"><button type="button" class="btn ghost" id="lc-xlsx">Baixar planilha do livro caixa</button><span class="note" id="lc-st" role="status"></span></div>
+  </section>
+
+  <section class="panel" id="view-fin_safra" hidden>
+    <h2>Resultado da safra</h2>
+    <div class="filters">
+      <div class="field"><label for="rs-safra">Safra</label><select id="rs-safra"></select></div>
+      <div class="field"><label for="rs-rateio">Custos gerais por talhão</label><select id="rs-rateio"><option value="area">Dividir pela área</option><option value="">Não dividir</option></select></div>
+    </div>
+    <div id="rsf-alertas" class="alertas"></div>
+    <div class="pn-kpis" id="rsf-kpis"></div>
+    <div class="pn-grid">
+      <div class="pn-card"><h3>Custos por categoria <small>pela data da compra ou serviço</small></h3><div id="rsf-cat"></div></div>
+      <div class="pn-card"><h3>Receitas</h3><div id="rsf-rec"></div></div>
+      <div class="pn-card pn-wide"><h3>Por talhão</h3><div class="tbl-wrap"><table class="tbl" id="rsf-tal"></table></div><p class="note" id="rsf-tal-nota"></p></div>
+    </div>
+  </section>
+
   <!-- ANOTAÇÕES -->
   <section class="panel" id="view-notas" hidden>
     <h2>Anotações</h2>
@@ -934,8 +1049,8 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","chuvas","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},notas:{l:"Anotações",v:["notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
-const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",perguntar:"Perguntar"};
+const GRUPOS={painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","chuvas","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Anotações",v:["notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
@@ -950,6 +1065,7 @@ function show(view){
   $("#view-config").hidden=true;
   if(view==="relatorios") requestAnimationFrame(()=>{try{rlMontar()}catch(e){console.error(e)}});
   if(view==="painel") requestAnimationFrame(()=>{try{renderPainel()}catch(e){console.error(e)}});
+  if(view.startsWith("fin_")) requestAnimationFrame(()=>{try{window.finRender?.(view)}catch(e){console.error(e)}});
 }
 show("lancar");
 const h=location.hash.slice(1); if(VIEWS.includes(h)) show(h);
@@ -1108,7 +1224,8 @@ function lerXml(txt){
   if(!dets.length) throw new Error("semitens");
   return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:g(emit,"xFant")||g(emit,"xNome"),
     itens:dets.map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];
-      return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0)}})};
+      return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0)}}),
+    fin:window.finDadosXml?.(doc)};
 }
 async function lerPdf(file){
   const lib=await pdfLib();
@@ -1142,7 +1259,7 @@ async function extrairNota(file){
     const r=await sample.json(`Você ajuda um produtor rural brasileiro a lançar no estoque os insumos de uma NF-e. Os dados abaixo vêm do XML e são exatos: mantenha data, número, origem e os valores. Para cada item, preencha nomeComercial, generico, classe, unidade e converta a quantidade para a unidade de estoque usando a unidade comercial e a descrição (ex.: "GL 5L", "BD 20L", "SC 25KG").${ref}
 Dados da nota: ${JSON.stringify(x)}
 ${NF_FORMATO}`,{modelTier:"default",effort:"low",signal:nfCtl.signal});
-    r.data=x.data; r.numero=x.numero; r.origem=x.origem||r.origem;
+    r.data=x.data; r.numero=x.numero; r.origem=x.origem||r.origem; r.fin=x.fin;
     (r.itens||[]).forEach((it,i)=>{if(x.itens[i]) it.valorTotal=x.itens[i].valorTotal});
     return r;
   }
@@ -1160,7 +1277,7 @@ ${NF_FORMATO}`,{modelTier:"default",signal:nfCtl.signal,images:max&&imgs.length?
 }
 function xmlSemClaude(x){
   const un=u=>{u=String(u||"").toUpperCase(); return /^(L|LT|LTS|LITRO)/.test(u)?"L":/^(KG|QUILO)/.test(u)?"kg":/^(SC|SACO)/.test(u)?"sc":"un"};
-  return {data:x.data,numero:x.numero,origem:x.origem,itens:x.itens.map(it=>{
+  return {data:x.data,numero:x.numero,origem:x.origem,fin:x.fin,itens:x.itens.map(it=>{
     const est=estoque.find(e=>it.descricao.toLowerCase().includes(e.comercial.toLowerCase()));
     return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:est?.classe||"",
       unidade:est?.unidade||un(it.unidade),quantidade:it.quantidade,valorTotal:it.valorTotal,
@@ -1204,6 +1321,7 @@ function renderNfRev(){
       ${it.duvida?`<div class="falta">Confira: ${esc(it.duvida)}</div>`:""}
     </div>`}).join("")}
     <p class="note">Princípio ativo, classe e conversão de embalagens foram sugeridos pelo Claude. Confira no rótulo e na nota.</p>
+    ${r.fin?window.finNfOpcao?.(r.fin)||"":""}
     <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button></div>
   </div>`;
   $("#nf-rev").querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>{
@@ -1229,13 +1347,14 @@ async function nfLancar(){
     const grupos=new Map();
     for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave;
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});
       ok++;
     }
-    $("#nf-rev").hidden=true; nfDados=null; nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.`);
+    let fin=""; if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
+    $("#nf-rev").hidden=true; nfDados=null; nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
   finally{const b=$("#nf-lancar"); if(b) b.disabled=false}
 }
@@ -2394,7 +2513,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{})});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -2459,6 +2578,7 @@ function planilhaBackup(){
   add("Diesel",[...diesel].sort((a,b)=>a.data.localeCompare(b.data)||String(a.criadoEm).localeCompare(String(b.criadoEm))).map(d=>({"Data":dt(d.data),"Tipo":MODOS[d.tipo]||d.tipo,"Máquina":d.maquinaId?nomeMaq(d.maquinaId):"","Litros":d.tipo==="ajuste"?"":(d.tipo==="saida"?-d.litros:d.litros),"Nível medido (L)":d.tipo==="ajuste"?d.nivel:"","Horímetro":d.horimetro??"","Operador":d.operador||"","Valor (R$)":d.valorTotal??"","Fornecedor":d.fornecedor||"","NF":d.nf||"","Tanque após (L)":apos[d.id],"Observação":d.obs||""})));
   add("Benfeitorias",benf.map(b=>({"Benfeitoria":b.nome,"Tipo":b.tipo||"","Local":b.local||""})));
   add("Serviços benfeitorias",[...bfServ].reverse().map(x=>({"Data":dt(x.data),"Benfeitoria":nomeBf(x.benfId),"Serviços":(x.servicos||[]).join(", "),"Situação":STATUS_BF[x.status]||"Concluído","Materiais e mão de obra":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Responsável":x.responsavel||"","Próxima":dt(x.proxData),"Descrição":x.descricao||""})));
+  window.finPlanilha?.(add,dt);
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -2585,11 +2705,11 @@ function assinatura(x){
 }
 async function resolveNomes(){
   if(!userCap) return;
-  const ids=[...new Set([registros,notas,manut,diesel,bfServ,graos].flat().flatMap(x=>[x.criadoPor,x.editadoPor]).filter(Boolean))];
+  const ids=[...new Set([registros,notas,manut,diesel,bfServ,graos,window.finColecoes?.().fin_lanc||[]].flat().flatMap(x=>[x.criadoPor,x.editadoPor]).filter(Boolean))];
   const falta=ids.filter(i=>!(i in nomes)); if(!falta.length) return;
   const ps=await userCap.profiles(falta);
   for(const i of falta){const p=ps[i]; nomes[i]=p?.name||(p?.isMe?"você":"Alguém")}
-  renderLista(); renderNotas(); renderMaquinas(); renderDiesel(); renderBenf(); renderGraos(); renderChuvas(); renderProgramacao();
+  renderLista(); renderNotas(); renderMaquinas(); renderDiesel(); renderBenf(); renderGraos(); renderChuvas(); renderProgramacao(); window.finAgenda?.();
 }
 const agendaNomes=()=>{clearTimeout(agendaNomes.t);agendaNomes.t=setTimeout(resolveNomes,300)};
 function envolveDb(raw){
@@ -2606,7 +2726,7 @@ function envolveDb(raw){
     collection:p=>{const c=raw.collection(p);return {path:c.path,
       add:d=>c.add(meuId?{...d,criadoPor:d.criadoPor||meuId}:d),
       doc:id=>ref(c.doc(id)),
-      onSnapshot:(n,e)=>c.onSnapshot(s=>{n(s);agendaNomes();agendaPainel()},e)}},
+      onSnapshot:(n,e)=>c.onSnapshot(s=>{n(s);agendaNomes();agendaPainel();window.finAgenda?.()},e)}},
     doc:p=>ref(raw.doc(p))
   };
 }
@@ -3145,9 +3265,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{})});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -3458,6 +3578,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
+  window.finInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -3478,6 +3599,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   },err=>{$("#sync").textContent="Erro de conexão — recarregue a página"});
 })();
 </script>
+<script src="financeiro.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>

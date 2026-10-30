@@ -16,7 +16,7 @@
 
 const PROJETO = "diario-lavoura";
 const PASTA = "Diário da Lavoura - Backups";
-const COLECOES = ["config", "registros", "notas", "estoque", "graos", "maquinas", "manutencoes", "diesel", "benfeitorias", "servicos_benf"];
+const COLECOES = ["config", "registros", "notas", "estoque", "graos", "maquinas", "manutencoes", "diesel", "benfeitorias", "servicos_benf", "fin_contas", "fin_lanc"];
 const LIMITE_MS = 5 * 60 * 1000; // o Google corta o script em 6 min; paramos antes e continuamos no dia seguinte
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJETO}/databases/(default)/documents`;
 

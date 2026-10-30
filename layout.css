@@ -38,7 +38,7 @@
   .sp-side .grid2{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 
   /* Listas de cartões em colunas */
-  #es-lista,#mq-cards,#bf-cards,#gr-saldos,#gr-pai,#gr-tits,#nt-lista,#pg-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}
+  #es-lista,#mq-cards,#bf-cards,#gr-saldos,#gr-pai,#gr-tits,#nt-lista,#pg-lista,#fn-lista,#fn-pend{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}
   #lista .day{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:10px;align-items:start}
   #lista .day>h3{grid-column:1/-1}
 
