@@ -530,7 +530,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 
   <!-- PERGUNTAR -->
   <section class="panel" id="view-perguntar" hidden>
-    <h2>Perguntar ao Claude</h2>
+    <h2>Perguntar</h2>
     <div class="field">
       <label for="q">Sua pergunta</label>
       <textarea id="q" placeholder="Escreva ou fale: toque aqui e depois no microfone do teclado"></textarea>
@@ -538,11 +538,13 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </div>
     <div class="chips examples" id="exemplos"></div>
     <div class="row">
-      <button class="btn" id="ask" type="button">Perguntar</button>
+      <button class="btn" id="ask" type="button" hidden>Perguntar</button>
       <button class="btn ghost" id="stop" type="button" hidden>Parar</button>
+      <button class="btn" id="ask-claude" type="button">Perguntar no Claude</button>
     </div>
+    <p class="note" id="ask-claude-st" role="status"></p>
     <div class="answer" id="answer" hidden aria-live="polite"></div>
-    <p class="note" id="ask-note">O Claude responde com base nos registros deste diário e, quando a pergunta pede, olha as fotos anexadas.</p>
+    <p class="note" id="ask-note">Abre uma conversa nova no Claude com a sua pergunta já escrita. O Claude busca a resposta na planilha do Diário no seu Google Drive (dados atualizados até a madrugada de hoje). A pergunta também fica copiada: se não aparecer escrita, toque no campo do Claude e escolha Colar.</p>
   </section>
 
   <!-- PROGRAMAÇÃO -->
@@ -3432,7 +3434,16 @@ Pergunta: ${q}`;
 };
 $("#stop").onclick=()=>ctl?.abort();
 $("#q-falar").onclick=()=>{const q=$("#q"); q.value=""; q.focus(); $("#q-falar-dica").hidden=false};
-$("#q").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))$("#ask").click()});
+$("#q").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))(sample?$("#ask"):$("#ask-claude")).click()});
+/* Perguntar no Claude: abre o Claude (assinatura do usuário) com a pergunta pronta; a habilidade "diario-da-lavoura" busca a planilha no Drive */
+$("#ask-claude").onclick=()=>{
+  const q=$("#q").value.trim(); if(!q){$("#q").focus();$("#ask-claude-st").textContent="Escreva ou fale a pergunta primeiro.";return}
+  const texto=`Diário da Lavoura: ${q}`;
+  try{navigator.clipboard?.writeText(texto).catch(()=>{})}catch{}
+  window.open("https://claude.ai/new?q="+encodeURIComponent(texto),"_blank","noopener");
+  $("#ask-claude-st").textContent="Abrindo o Claude… (a pergunta também foi copiada)";
+  setTimeout(()=>{$("#ask-claude-st").textContent=""},8000);
+};
 
 /* ---------- Boot ---------- */
 chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProgramacao(); renderEstoque(); $("#es-data").value=todayISO(); mqReset(); renderMaquinas(); dsReset(); renderDiesel(); bfReset(); renderBenf(); grSetModo("venda"); $("#gr-data").value=todayISO(); renderGraos(); ntSetCat("geral"); ntReset(); renderNotas();
@@ -3441,7 +3452,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   if(!cl?.use){$("#sync").textContent="Firebase não configurado";$("#nodb").hidden=false;return}
   cl.use("assets").then(a=>{assets=a; $("#fotos-box").hidden=!a; $("#mq-fotos-box").hidden=!a; $("#bf-fotos-box").hidden=!a; $("#nt-fotos-box").hidden=!a});
   cl.use("downloads").then(d=>{downloads=d; $("#backup-box").hidden=!d; bkUltimo()});
-  cl.use("sample").then(s=>{sample=s; if(!s) $("#ask-note").textContent="Para perguntar ao Claude, cadastre a chave em Configurações → Claude."});
+  cl.use("sample").then(s=>{sample=s; if(s){$("#ask").hidden=false; $("#ask-claude").classList.add("ghost"); $("#ask-note").textContent="Perguntar: responde aqui mesmo (chave da API cadastrada neste aparelho). Perguntar no Claude: abre o Claude com a pergunta pronta."}});
   db=await cl.use("db");
   if(!db){$("#sync").textContent="Sem banco de dados";$("#nodb").hidden=false;return}
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
