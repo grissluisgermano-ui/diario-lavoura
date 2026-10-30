@@ -1226,7 +1226,7 @@ function lerXml(txt){
   const ide=doc.getElementsByTagNameNS("*","ide")[0], emit=doc.getElementsByTagNameNS("*","emit")[0];
   const dets=[...doc.getElementsByTagNameNS("*","det")];
   if(!dets.length) throw new Error("semitens");
-  return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:g(emit,"xFant")||g(emit,"xNome"),
+  return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:window.finNomeEmit?window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant")):(g(emit,"xFant")||g(emit,"xNome")),
     itens:dets.map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];
       return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0)}}),
     fin:window.finDadosXml?.(doc)};
@@ -1279,13 +1279,29 @@ ${NF_FORMATO}`,{modelTier:"default",effort:"low",signal:nfCtl.signal});
 ${texto?"Texto da nota:\n"+texto.slice(0,40000):""}
 ${NF_FORMATO}`,{modelTier:"default",signal:nfCtl.signal,images:max&&imgs.length?imgs.slice(0,max):undefined});
 }
+/* Converte a embalagem da nota para a unidade do estoque (sem o Claude): TN → kg, "BAG 1000 KG", "GL 5L", "BD 20L", "PCTE 5/KG", "FR/0,35KG" */
+function converteEmb(desc,uCom,q){
+  const u=String(uCom||"").toUpperCase().trim(), d=String(desc||"").toUpperCase();
+  if(/^(L|LT|LTS|LITRO)/.test(u)) return {un:"L",q};
+  if(/^(KG|QUILO)/.test(u)) return {un:"kg",q};
+  if(/^(TN|TON|T)$/.test(u)) return {un:"kg",q:q*1000,obs:`${num(q)} t = ${num(q*1000)} kg`};
+  const m=d.match(/(\d+(?:[.,]\d+)?)\s*\/?\s*(KG|KGS|L|LT|LTS|LITROS?)\b/);
+  if(m&&u!=="SC"||m&&/(KG|L)\b/.test(m[2])&&!/SEMENTE|^STE\b/.test(d)){
+    const t=parseFloat(m[1].replace(",",".")), un=/^K/.test(m[2])?"kg":"L";
+    if(t>0) return {un,q:+(q*t).toFixed(3),obs:`${num(q)} ${uCom} × ${num(t)} ${un} = ${num(q*t)} ${un}`};
+  }
+  if(/^(SC|SACO)/.test(u)) return {un:"sc",q};
+  return {un:"un",q};
+}
 function xmlSemClaude(x){
-  const un=u=>{u=String(u||"").toUpperCase(); return /^(L|LT|LTS|LITRO)/.test(u)?"L":/^(KG|QUILO)/.test(u)?"kg":/^(SC|SACO)/.test(u)?"sc":"un"};
   return {data:x.data,numero:x.numero,origem:x.origem,fin:x.fin,itens:x.itens.map(it=>{
     const est=estoque.find(e=>it.descricao.toLowerCase().includes(e.comercial.toLowerCase()));
+    const c=converteEmb(it.descricao,it.unidade,it.quantidade);
+    const ok=!est||est.unidade===c.un;
     return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:est?.classe||"",
-      unidade:est?.unidade||un(it.unidade),quantidade:it.quantidade,valorTotal:it.valorTotal,
-      duvida:un(it.unidade)==="un"&&!est?`Unidade da nota: ${it.unidade}. Confira a conversão da embalagem.`:""}})};
+      unidade:est?.unidade||c.un,quantidade:ok?c.q:it.quantidade,valorTotal:it.valorTotal,
+      duvida:!ok?`Na nota: ${num(it.quantidade)} ${it.unidade}; no estoque o produto é em ${est.unidade}. Confira a quantidade.`:
+        c.un==="un"?`Unidade da nota: ${it.unidade}. Confira a conversão da embalagem.`:c.obs?`Convertido: ${c.obs}. Confira.`:""}})};
 }
 let nfCtl=null;
 $("#nf-in").addEventListener("change",async e=>{

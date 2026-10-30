@@ -387,6 +387,14 @@ async function salvarLanc(ev){
 }
 
 /* ---------- XML da NF-e ---------- */
+const titulo=t=>String(t||"").toLowerCase().replace(/(^|[\s\/(-])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g,x=>x.toLowerCase());
+/* Nome do fornecedor: a Coamo põe a unidade (ex.: "S.DOMINGOS") no nome fantasia, então reconhece os depósitos cadastrados pela razão social */
+window.finNomeEmit=function(xNome,xFant){
+  const n=norm(xNome), deps=(typeof DEPOSITOS!=="undefined"?DEPOSITOS:[]);
+  const d=deps.find(x=>{const k=norm(x); return k&&(n===k||n.startsWith(k+" ")||n.includes(" "+k+" "))});
+  return d||titulo(xFant&&norm(xFant).length>3?xFant:xNome);
+};
+const prazoLongo=(emi,venc)=>emi&&venc&&dias(emi,venc)>90;
 window.finDadosXml=function(doc){
   try{
     const g=(el,n)=>el?.getElementsByTagNameNS("*",n)[0]?.textContent?.trim()||"";
@@ -396,10 +404,11 @@ window.finDadosXml=function(doc){
     const dups=[...doc.getElementsByTagNameNS("*","dup")].map(d=>({n:g(d,"nDup"),venc:g(d,"dVenc"),valor:+g(d,"vDup")||0})).filter(d=>d.valor>0);
     const itens=[...doc.getElementsByTagNameNS("*","det")].map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];const q=+g(p,"qCom")||0;
       return {desc:`${g(p,"xProd")} — ${num(q)} ${g(p,"uCom")}`,valor:+(((+g(p,"vProd")||0)-(+g(p,"vDesc")||0)).toFixed(2))}});
-    return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:g(emit,"xFant")||g(emit,"xNome"),
-      dest:g(dest,"xNome"),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens};
+    return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant")),
+      dest:titulo(g(dest,"xNome")),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens};
   }catch{return null}
 };
+const formaNota=fin=>!fin.dups.length?"avista":fin.dups.some(d=>prazoLongo(fin.data,d.venc))?"safra":"prazo";
 const jaLancada=chave=>chave&&fnLanc.find(l=>l.chave===chave);
 window.finNfOpcao=function(fin){
   if(!fin) return "";
@@ -417,7 +426,7 @@ window.finDaNota=async function(fin,{data,nf,origem}){
   if(jaLancada(fin.chave)) return "";
   const parcs=parcelasDaNota(fin,data), agora=new Date().toISOString(), grupo=parcs.length>1?rid():null;
   for(let i=0;i<parcs.length;i++){
-    const b={natureza:"pagar",descricao:`Compra de insumos — NF ${nf||fin.numero}`,pessoa:origem||fin.emit,categoria:"insumos",forma:fin.dups.length?"prazo":"avista",
+    const b={natureza:"pagar",descricao:`Compra de insumos — NF ${nf||fin.numero}`,pessoa:origem||fin.emit,categoria:"insumos",forma:formaNota(fin),
       competencia:data||fin.data,vencimento:parcs[i].venc,valor:parcs[i].valor,status:"aberto",nf:nf||fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",criadoEm:agora};
     if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
     await db.collection("fin_lanc").add(b);
@@ -432,7 +441,7 @@ async function importarXml(file){
     const ja=jaLancada(fin.chave);
     fnReset(); fnSetNat("pagar"); fnChave=fin.chave||null;
     $("#fn-desc").value=`Nota ${fin.numero} — ${fin.emit}`; $("#fn-pessoa").value=fin.emit; $("#fn-data").value=fin.data; $("#fn-nf").value=fin.numero; $("#fn-tit").value=fin.dest;
-    $("#fn-forma").value=fin.dups.length?"prazo":"avista";
+    $("#fn-forma").value=formaNota(fin);
     itensRender(fin.itens); parcsRender(parcelasDaNota(fin));
     const noEst=(typeof estoque!=="undefined"?estoque:[]).some(e=>(e.entradas||[]).some(x=>x.chave&&x.chave===fin.chave));
     origemTxt(ja?`<span class="falta">Atenção: esta nota já foi lançada (${esc(ja.descricao)}).</span>`:
@@ -477,7 +486,7 @@ async function importarLote(files){
       for(const x of loteNotas.filter(x=>!x.erro)){
         const fin=x.fin, parcs=parcelasDaNota(fin), grupo=parcs.length>1?rid():null, agora=new Date().toISOString();
         for(let i=0;i<parcs.length;i++){
-          const b={natureza:"pagar",descricao:`Nota ${fin.numero} — ${fin.emit}`,pessoa:fin.emit,categoria:cat,forma:fin.dups.length?"prazo":"avista",competencia:fin.data,
+          const b={natureza:"pagar",descricao:`Nota ${fin.numero} — ${fin.emit}`,pessoa:fin.emit,categoria:cat,forma:formaNota(fin),competencia:fin.data,
             vencimento:parcs[i].venc,valor:parcs[i].valor,status:pago&&parcs[i].venc<=hoje()?"pago":"aberto",nf:fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",criadoEm:agora};
           if(b.status==="pago"){b.pagoEm=parcs[i].venc; b.contaId=conta}
           if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
