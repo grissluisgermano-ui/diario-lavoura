@@ -12,21 +12,23 @@
 const FN_CAT={
   pagar:{insumos:"Insumos (sementes, adubos, defensivos)",combustivel:"Diesel e combustível",manutencao:"Manutenção de máquinas",
     benfeitorias:"Benfeitorias",maoobra:"Mão de obra e salários",arrendamento:"Arrendamento",servicos:"Serviços de terceiros (frete, colheita…)",
-    impostos:"Impostos e taxas (Funrural, ITR…)",financ:"Parcelas de financiamento e juros",seguro:"Seguros",energia:"Energia, água e telefone",
+    impostos:"Impostos e taxas (Funrural, ITR…)",financ:"Financiamentos (parcela — informe os juros)",seguro:"Seguros",energia:"Energia, água e telefone",
     investimento:"Investimentos (máquinas, equipamentos)",outras_d:"Outras despesas"},
   receber:{graos:"Venda de grãos",financ_r:"Financiamento recebido (custeio)",outras_r:"Outras receitas"}};
 const FN_CAT_CURTO={insumos:"Insumos",combustivel:"Diesel",manutencao:"Manutenção",benfeitorias:"Benfeitorias",maoobra:"Mão de obra",arrendamento:"Arrendamento",
-  servicos:"Serviços",impostos:"Impostos",financ:"Financiamentos",seguro:"Seguros",energia:"Energia/água/tel.",investimento:"Investimentos",outras_d:"Outras despesas",
+  servicos:"Serviços",impostos:"Impostos",financ:"Juros de financiamentos",seguro:"Seguros",energia:"Energia/água/tel.",investimento:"Investimentos",outras_d:"Outras despesas",
   graos:"Venda de grãos",financ_r:"Financiamento recebido",outras_r:"Outras receitas"};
 const FN_FORMAS={avista:"À vista",prazo:"A prazo (boleto/duplicata)",safra:"Para a safra / troca por grãos",financ:"Financiamento / custeio",cartao:"Cartão de crédito"};
 const FN_TIPOS={banco:"Conta bancária",coop:"Conta na cooperativa",especie:"Dinheiro (caixa)",cartao:"Cartão de crédito"};
 const FN_NAT={pagar:"A pagar",receber:"A receber",transf:"Transferência"};
 const FN_FILTROS={abertas:"Em aberto",pagar:"A pagar",receber:"A receber",vencidas:"Vencidas",pagas:"Pagas / recebidas",todas:"Todas"};
 const NAO_CUSTO=new Set(["investimento"]);   // fica fora do custo da safra
+/* Financiamento: só os juros (e o que for pago a mais, como multa ou mora) são custo; o resto da parcela é amortização */
+const jurosDe=l=>Math.min(vp(l),(Number(l.juros)||0)+(l.status==="pago"&&l.valorPago!=null?Math.max(0,Number(l.valorPago)-Number(l.valor)):0));
 const NAO_RECEITA=new Set(["financ_r"]);     // dinheiro emprestado não é receita
 
 let fnContas=[], fnLanc=[], fnCfg={}, fnCarregou=false;
-let fnNat="pagar", fnEdit=null, fnOrigem=null, fnChave=null, fnSit="aberto", fnFiltro="abertas", fnBaixa=null;
+let fnPjAberto=null, fnPendModo="atual", fnNat="pagar", fnEdit=null, fnOrigem=null, fnChave=null, fnSit="aberto", fnFiltro="abertas", fnBaixa=null;
 
 /* ---------- utilidades ---------- */
 const hoje=()=>todayISO();
@@ -67,12 +69,13 @@ const caixaTotal=s=>fnContas.filter(c=>c.tipo!=="cartao").reduce((t,c)=>t+(s[c.i
 const cartaoTotal=s=>fnContas.filter(c=>c.tipo==="cartao").reduce((t,c)=>t+(s[c.id]||0),0);
 
 /* ---------- pendências: o que já está lançado no Diário e ainda não entrou no Financeiro ---------- */
-function pendencias(){
+function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (antes do início) ou "todas"
   const ini=inicio(), ign=new Set(fnCfg.ignorados||[]);
   const origens=new Set(fnLanc.map(l=>l.origem).filter(Boolean));
   const chaves=new Set(fnLanc.map(l=>l.chave).filter(Boolean));
   const nfs=new Set(fnLanc.filter(l=>l.nf).map(l=>l.nf.replace(/^0+/,"")+"|"+norm(l.pessoa).split(" ")[0]));
-  const out=[], livre=(k,d)=>d&&d>=ini&&!ign.has(k)&&!origens.has(k);
+  const naFaixa=d=>modo==="todas"||(modo==="retro"?d<ini:d>=ini);
+  const out=[], livre=(k,d)=>d&&naFaixa(d)&&!ign.has(k)&&!origens.has(k);
   // Estoque: entradas da mesma nota viram uma conta só, com os produtos discriminados
   const g=new Map();
   for(const e of (typeof estoque!=="undefined"?estoque:[])) for(const x of e.entradas||[]){
@@ -113,7 +116,7 @@ function renderResumo(){
   ].join("");
   const al=[];
   if(venc.length) al.push(`<div class="falta fn-al">${venc.length} conta${venc.length===1?"":"s"} vencida${venc.length===1?"":"s"} (${brl(soma(venc))}). <button type="button" class="link" data-fnir="vencidas">Ver</button></div>`);
-  const pend=pendencias();
+  const pendA=pendencias("atual"), pendR=pendencias("retro"), pend=fnPendModo==="retro"?pendR:pendA;
   $("#fn-alertas").innerHTML=al.join("");
   $("#fn-alertas").querySelectorAll("[data-fnir]").forEach(b=>b.onclick=()=>{fnFiltro=b.dataset.fnir;show("fin_contas")});
   // contas
@@ -130,18 +133,53 @@ function renderResumo(){
     confirmar(b,"Confirmar exclusão",async()=>{await db.collection("fin_contas").doc(b.dataset.fcdel).delete()})});
   renderFluxo(s);
   // pendências
-  $("#fn-pend-txt").innerHTML=`Compras, vendas e serviços lançados no Diário a partir de <b>${brDate(inicio())}</b> que ainda não estão no Financeiro. Toque em <b>Lançar</b> para escolher vencimento e forma de pagamento — nada é digitado de novo. <button type="button" class="link" id="fn-ini-ed">Mudar a data</button>`;
-  $("#fn-ini-ed").onclick=iniEditar;
+  const retro=fnPendModo==="retro";
+  $("#fn-pend-modo").innerHTML=[["atual",`A partir de ${brDate(inicio())}`,pendA.length],["retro","Retroativos",pendR.length]].map(([k,l,n])=>`<button type="button" class="chip" aria-pressed="${k===fnPendModo}" data-k="${k}">${l}${n?` <b>${n}</b>`:""}</button>`).join("");
+  $("#fn-pend-modo").querySelectorAll("button").forEach(b=>b.onclick=()=>{fnPendModo=b.dataset.k; renderResumo()});
+  $("#fn-pend-txt").innerHTML=retro?
+    `Lançamentos do Diário <b>anteriores a ${brDate(inicio())}</b>. Para o histórico, o mais rápido é <b>Já pago</b>: entra no livro caixa e no resultado da safra na data do Diário, sem mexer no saldo atual das contas (que conta a partir da data do saldo de cada conta). Se algum ainda estiver em aberto, use <b>Lançar</b>.`:
+    `Compras, vendas e serviços lançados no Diário a partir de <b>${brDate(inicio())}</b> que ainda não estão no Financeiro. Toque em <b>Lançar</b> para escolher vencimento e forma de pagamento — nada é digitado de novo. <button type="button" class="link" id="fn-ini-ed">Mudar a data</button>`;
+  $("#fn-ini-ed")?.addEventListener("click",iniEditar);
   $("#fn-pend-n").textContent=pend.length?`${pend.length} para lançar`:"";
+  $("#fn-lote").hidden=!(retro&&pend.length>1);
+  if(retro&&pend.length>1){
+    const v=$("#fn-lote-c")?.value;
+    $("#fn-lote").innerHTML=`<span>Lançar os <b>${pend.length}</b> como já pagos/recebidos na conta</span><select id="fn-lote-c" style="width:auto">${fnContas.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join("")||`<option value="">Cadastre uma conta acima</option>`}</select><button type="button" class="btn fn-mini" id="fn-lote-ok">Lançar todos</button><span class="note" id="fn-lote-st"></span>`;
+    $("#fn-lote-c").value=v&&fnContas.some(c=>c.id===v)?v:contaPadrao();
+    $("#fn-lote-ok").onclick=()=>confirmar($("#fn-lote-ok"),`Confirmar: lançar ${pend.length}`,async()=>{
+      const c=$("#fn-lote-c").value; if(!c){$("#fn-lote-st").textContent="Cadastre uma conta primeiro.";return}
+      let n=0; for(const p of pend){await jaPago(p,c); n++; if(n%5===0) $("#fn-lote-st").textContent=`Lançando… ${n} de ${pend.length}`}
+    });
+  }
   const max=40;
   $("#fn-pend").innerHTML=pend.length?pend.slice(0,max).map((p,i)=>`<article class="rec" style="--c:var(${p.natureza==="receber"?"--accent":"--t-aplicacao"})">
       <div class="rec-top"><span class="rec-tipo">${esc(p.descricao)}</span><span class="mov-q ${p.natureza==="receber"?"in":"out"}">${p.natureza==="receber"?"+":"−"}${brl(p.valor)}</span></div>
       <div class="rec-campos"><span>${brDate(p.data)}</span><span>De <b>${esc(p.fonte)}</b></span>${p.pessoa?`<span>${p.natureza==="receber"?"Comprador":"Fornecedor"} <b>${esc(p.pessoa)}</b></span>`:""}${p.itens.length>1?`<span>${p.itens.length} itens</span>`:""}</div>
-      <div class="rec-actions"><button type="button" class="btn fn-mini" data-pdl="${i}">Lançar</button><button type="button" class="link" data-pdi="${i}">Ignorar</button></div>
-    </article>`).join("")+(pend.length>max?`<p class="note">Mostrando ${max} de ${pend.length}. Lance ou ignore estes para ver os outros.</p>`:""):`<div class="empty">Tudo em dia: nada do Diário esperando para entrar no Financeiro.</div>`;
+      <div class="fn-baixa" id="pj-${i}" hidden></div>
+      <div class="rec-actions"><button type="button" class="btn fn-mini" data-pdl="${i}">Lançar</button><button type="button" class="btn ghost fn-mini" data-pdp="${i}">${p.natureza==="receber"?"Já recebido":"Já pago"}</button><button type="button" class="link" data-pdi="${i}">Ignorar</button></div>
+    </article>`).join("")+(pend.length>max?`<p class="note">Mostrando ${max} de ${pend.length}. Lance ou ignore estes para ver os outros.</p>`:""):
+    `<div class="empty">${retro?"Nenhum lançamento antigo do Diário esperando.":"Tudo em dia: nada do Diário esperando para entrar no Financeiro."}</div>`;
   $("#fn-pend").querySelectorAll("[data-pdl]").forEach(b=>b.onclick=()=>{const p=pend[+b.dataset.pdl]; show("fin_contas"); formDePendencia(p)});
+  const abrePj=i=>{
+    const p=pend[i], box=$("#pj-"+i); fnPjAberto=p.k;
+    box.hidden=false;
+    box.innerHTML=`<div class="grid2"><div class="field"><label>${p.natureza==="receber"?"Recebido":"Pago"} em</label><input type="date" class="pj-d" value="${p.data}"></div>
+      <div class="field"><label>Conta</label><select class="pj-c">${fnContas.map(c=>`<option value="${c.id}"${c.id===contaPadrao()?" selected":""}>${esc(c.nome)}</option>`).join("")||`<option value="">Cadastre uma conta acima</option>`}</select></div></div>
+      <div class="row"><button type="button" class="btn fn-mini pj-ok">Confirmar</button><span class="falta pj-st"></span></div>`;
+    box.querySelector(".pj-ok").onclick=async()=>{const c=box.querySelector(".pj-c").value; if(!c){box.querySelector(".pj-st").textContent="Cadastre uma conta primeiro.";return}
+      box.querySelector(".pj-ok").disabled=true; fnPjAberto=null; try{await jaPago(p,c,box.querySelector(".pj-d").value||p.data); lembraConta(c)}catch(err){box.querySelector(".pj-st").textContent=erroTxt(err); box.querySelector(".pj-ok").disabled=false}};
+  };
+  $("#fn-pend").querySelectorAll("[data-pdp]").forEach(b=>b.onclick=()=>{const i=+b.dataset.pdp; if(!$("#pj-"+i).hidden){$("#pj-"+i).hidden=true; fnPjAberto=null; return} abrePj(i)});
+  {const i=pend.slice(0,max).findIndex(p=>p.k===fnPjAberto); if(i>=0) abrePj(i)}
   $("#fn-pend").querySelectorAll("[data-pdi]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: não lançar",async()=>{
     const p=pend[+b.dataset.pdi]; await salvaCfg({ignorados:[...(fnCfg.ignorados||[]),p.k]})}));
+}
+/* Lança uma pendência do Diário direto como já paga/recebida (histórico) */
+async function jaPago(p,conta,data){
+  const d=data||p.data, b={natureza:p.natureza,descricao:p.descricao,pessoa:p.pessoa||"",categoria:p.categoria,forma:"avista",competencia:p.data,vencimento:d,
+    valor:+Number(p.valor).toFixed(2),status:"pago",pagoEm:d,contaId:conta,nf:p.nf||"",titular:"",itens:p.itens||[],origem:p.k,obs:"",criadoEm:new Date().toISOString()};
+  if(p.chave) b.chave=p.chave;
+  await db.collection("fin_lanc").add(b);
 }
 async function salvaCfg(mud){fnCfg={...fnCfg,...mud}; await db.collection("config").doc("financeiro").set({inicio:fnCfg.inicio||null,ignorados:fnCfg.ignorados||[]})}
 function iniEditar(){
@@ -219,10 +257,12 @@ function fnSetNat(n){
   const cats=FN_CAT[n==="receber"?"receber":"pagar"], atual=$("#fn-cat").value;
   $("#fn-cat").innerHTML=Object.entries(cats).map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
   if(atual in cats) $("#fn-cat").value=atual;
+  jurosVis();
   $("#fn-venc-l").textContent=n==="receber"?"Recebimentos":"Vencimentos";
   fnSetSit(fnSit);
   $("#fn-salvar").textContent=fnEdit?"Salvar alterações":tr?"Lançar transferência":n==="receber"?"Lançar conta a receber":"Lançar conta a pagar";
 }
+function jurosVis(){$("#fn-juros-box").hidden=$("#fn-cat").value!=="financ"}
 function fnSetSit(s){
   fnSit=s;
   const r=fnNat==="receber";
@@ -261,7 +301,7 @@ function dividir(){
 }
 function fnReset(){
   fnEdit=null; fnOrigem=null; fnChave=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
-  ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em"].forEach(s=>$(s).value="");
+  ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em","#fn-juros"].forEach(s=>$(s).value="");
   $("#fn-data").value=hoje(); $("#fn-tdata").value=hoje(); $("#fn-forma").value="prazo";
   $("#fn-form-tit").textContent="Novo lançamento"; $("#fn-cancel").hidden=true; $("#fn-origem").hidden=true;
   itensRender([]); parcsRender([{venc:hoje(),valor:null}]);
@@ -287,7 +327,7 @@ function formEditar(l){
   if(l.natureza==="transf"){opcoesConta("#fn-de",l.contaId); opcoesConta("#fn-para",l.contaDestino); $("#fn-tdata").value=l.pagoEm||l.vencimento; $("#fn-tval").value=f2(Number(l.valor)); $("#fn-tdesc").value=l.descricao||""}
   else{
     $("#fn-desc").value=l.descricao||""; $("#fn-pessoa").value=l.pessoa||""; $("#fn-cat").value=l.categoria||""; $("#fn-data").value=l.competencia||l.vencimento;
-    $("#fn-forma").value=l.forma||"prazo"; $("#fn-nf").value=l.nf||""; $("#fn-tit").value=l.titular||"";
+    $("#fn-forma").value=l.forma||"prazo"; $("#fn-nf").value=l.nf||""; $("#fn-tit").value=l.titular||""; $("#fn-juros").value=l.juros!=null?f2(Number(l.juros)):""; jurosVis();
     itensRender(l.itens||[]); parcsRender([{venc:l.vencimento,valor:l.valor}]);
     if(l.status==="pago"){$("#fn-pago-em").value=l.pagoEm||""; opcoesConta("#fn-conta",l.contaId)}
     fnSetSit(fnSit);
@@ -321,6 +361,7 @@ async function salvarLanc(ev){
   const base={natureza:fnNat,descricao,pessoa:$("#fn-pessoa").value.trim(),categoria:$("#fn-cat").value,forma:$("#fn-forma").value,competencia:comp,
     nf:$("#fn-nf").value.trim(),titular:$("#fn-tit").value.trim(),itens:itensLer(),obs};
   if(fnOrigem) base.origem=fnOrigem; if(fnChave) base.chave=fnChave;
+  if(base.categoria==="financ"){const j=parseNum($("#fn-juros").value); base.juros=j>=0?+j.toFixed(2):null} else base.juros=null;
   const pago=fnSit==="pago"?{status:"pago",pagoEm:$("#fn-pago-em").value||parcs[0].venc,contaId:$("#fn-conta").value}:{status:"aberto"};
   $("#fn-salvar").disabled=true;
   try{
@@ -400,6 +441,56 @@ async function importarXml(file){
   }catch{flash("#fn-toast","Não consegui ler o XML. Confira se é o XML da NF-e.")}
 }
 
+/* Várias notas de uma vez (histórico): só no Financeiro, sem mexer no estoque */
+let loteNotas=[];
+async function importarLote(files){
+  const box=$("#fn-lxml"); box.hidden=false; box.innerHTML=`<p class="note">Lendo ${files.length} notas…</p>`;
+  const vistas=new Set(); loteNotas=[];
+  for(const f of files){
+    let fin=null; try{const doc=new DOMParser().parseFromString(await f.text(),"application/xml"); if(!doc.querySelector("parsererror")) fin=window.finDadosXml(doc)}catch{}
+    if(!fin||!fin.itens.length){loteNotas.push({arq:f.name,erro:"não é XML de NF-e"});continue}
+    if(fin.chave&&vistas.has(fin.chave)){loteNotas.push({arq:f.name,fin,erro:"repetida na seleção"});continue}
+    vistas.add(fin.chave);
+    if(jaLancada(fin.chave)){loteNotas.push({arq:f.name,fin,erro:"já está no Financeiro"});continue}
+    loteNotas.push({arq:f.name,fin});
+  }
+  loteNotas.sort((a,b)=>String(a.fin?.data||"").localeCompare(String(b.fin?.data||"")));
+  const boas=loteNotas.filter(x=>!x.erro), tot=boas.reduce((t,x)=>t+x.fin.total,0);
+  box.innerHTML=`<div class="row" style="justify-content:space-between"><b>${boas.length} nota${boas.length===1?"":"s"} para lançar · ${brl(tot)}</b><button type="button" class="link" id="lx-fecha">Cancelar</button></div>
+    <div class="fn-lx-lista">${loteNotas.map(x=>`<div class="fn-lx${x.erro?" off":""}"><div><b>${x.fin?`NF ${esc(x.fin.numero)} · ${esc(x.fin.emit)}`:esc(x.arq)}</b>
+      <small>${x.erro?`<span class="falta">${esc(x.erro)}</span>`:`${x.fin.data?brDate(x.fin.data):""}${x.fin.dest?" · "+esc(x.fin.dest):""} · ${x.fin.dups.length||1} parcela${(x.fin.dups.length||1)===1?"":"s"}`}</small></div>
+      <span class="mono">${x.fin?brl(x.fin.total):""}</span></div>`).join("")}</div>
+    <div class="grid2">
+      <div class="field"><label for="lx-cat">Categoria</label><select id="lx-cat">${Object.entries(FN_CAT.pagar).map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></div>
+      <div class="field"><label for="lx-sit">Situação</label><select id="lx-sit"><option value="pago">Já pagas na data do vencimento (as que vencem depois de hoje ficam em aberto)</option><option value="aberto">Em aberto</option></select></div>
+      <div class="field" id="lx-conta-box"><label for="lx-conta">Conta</label><select id="lx-conta">${fnContas.map(c=>`<option value="${c.id}"${c.id===contaPadrao()?" selected":""}>${esc(c.nome)}</option>`).join("")||`<option value="">Cadastre uma conta no Resumo</option>`}</select></div>
+    </div>
+    <p class="note">Vão só para o Financeiro (contas e livro caixa), com os produtos discriminados. O estoque não muda — notas novas de insumo continuam sendo importadas pela aba Estoque.</p>
+    <div class="row"><button type="button" class="btn" id="lx-ok"${boas.length?"":" disabled"}>Lançar ${boas.length} nota${boas.length===1?"":"s"}</button><span class="note" id="lx-st"></span></div>`;
+  $("#lx-fecha").onclick=()=>{box.hidden=true;box.innerHTML="";loteNotas=[]};
+  $("#lx-sit").onchange=()=>{$("#lx-conta-box").hidden=$("#lx-sit").value!=="pago"};
+  $("#lx-ok").onclick=async()=>{
+    const cat=$("#lx-cat").value, pago=$("#lx-sit").value==="pago", conta=$("#lx-conta").value;
+    if(pago&&!conta){$("#lx-st").textContent="Cadastre uma conta no Resumo primeiro.";return}
+    $("#lx-ok").disabled=true; let n=0;
+    try{
+      for(const x of loteNotas.filter(x=>!x.erro)){
+        const fin=x.fin, parcs=parcelasDaNota(fin), grupo=parcs.length>1?rid():null, agora=new Date().toISOString();
+        for(let i=0;i<parcs.length;i++){
+          const b={natureza:"pagar",descricao:`Nota ${fin.numero} — ${fin.emit}`,pessoa:fin.emit,categoria:cat,forma:fin.dups.length?"prazo":"avista",competencia:fin.data,
+            vencimento:parcs[i].venc,valor:parcs[i].valor,status:pago&&parcs[i].venc<=hoje()?"pago":"aberto",nf:fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",criadoEm:agora};
+          if(b.status==="pago"){b.pagoEm=parcs[i].venc; b.contaId=conta}
+          if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
+          await db.collection("fin_lanc").add(b);
+        }
+        n++; $("#lx-st").textContent=`Lançando… ${n} de ${loteNotas.filter(x=>!x.erro).length}`;
+      }
+      if(pago) lembraConta(conta);
+      box.innerHTML=`<p class="toast">${n} nota${n===1?"":"s"} lançada${n===1?"":"s"} no Financeiro.</p>`; setTimeout(()=>{box.hidden=true},5000); loteNotas=[];
+    }catch(err){$("#lx-st").textContent=`Parei em ${n} notas: ${erroTxt(err)} Escolha os arquivos de novo — as já lançadas são puladas.`; $("#lx-ok").disabled=false}
+  };
+}
+
 /* ---------- LISTA de contas a pagar e a receber ---------- */
 function situacao(l){
   const h=hoje();
@@ -429,7 +520,7 @@ function renderContas(){
     return `<article class="rec fn-rec" style="--c:var(${cor})">
       <div class="rec-top"><span class="rec-tipo">${esc(l.descricao)}${l.parcela?` <small class="note">parcela ${esc(l.parcela)}</small>`:""}</span><span class="mov-q ${r?"in":"out"}">${tr?"":r?"+":"−"}${brl(vp(l))}</span></div>
       <div class="rec-top">${tr?`<span>${esc(nomeConta(l.contaId))} → ${esc(nomeConta(l.contaDestino))} · ${brDate(l.pagoEm)}</span>`:situacao(l)}<span class="note">${tr?"Transferência":esc(catNome(l.categoria))}</span></div>
-      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
+      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
       ${(l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(i.desc)}</span><span class="mono">${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:""}
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
       ${assinatura(l)}
@@ -525,19 +616,23 @@ function lcLinhas(){
     const d=l.pagoEm||l.vencimento, v=vp(l);
     if(l.natureza==="transf"){
       if(!conta) continue; // transferências entre contas não mudam o caixa total
-      if(l.contaId===conta) movs.push({l,d,v:-v}); if(l.contaDestino===conta) movs.push({l,d,v});
+      if(l.contaId===conta) movs.push({l,d,v:-v,c:conta}); if(l.contaDestino===conta) movs.push({l,d,v,c:conta});
       continue;
     }
     if(conta&&l.contaId!==conta) continue;
     if(tit&&norm(l.titular)!==tit) continue;
-    movs.push({l,d,v:l.natureza==="receber"?v:-v});
+    movs.push({l,d,v:l.natureza==="receber"?v:-v,c:l.contaId});
   }
   movs.sort((x,y)=>x.d.localeCompare(y.d)||String(x.l.criadoEm).localeCompare(String(y.l.criadoEm)));
   // saldo antes do período (só faz sentido sem filtro de nome)
   let saldo=null;
   if(!tit){
-    const iniTot=fnContas.filter(c=>!conta||c.id===conta).reduce((t,c)=>t+(Number(c.saldoInicial)||0),0);
-    saldo=iniTot+movs.filter(m=>m.d<a).reduce((t,m)=>t+m.v,0);
+    // o saldo só existe a partir da data do saldo inicial das contas; antes disso (histórico) a coluna some
+    const cs=fnContas.filter(c=>!conta||c.id===conta), ini=Object.fromEntries(cs.map(c=>[c.id,c.dataInicial||""]));
+    const primeiro=cs.map(c=>c.dataInicial||"").sort()[0];
+    if(cs.length&&a>=(primeiro||"")){
+      saldo=cs.reduce((t,c)=>t+(Number(c.saldoInicial)||0),0)+movs.filter(m=>m.d<a&&m.c in ini&&m.d>=ini[m.c]).reduce((t,m)=>t+m.v,0);
+    }
   }
   const dentro=movs.filter(m=>m.d>=a&&m.d<=b);
   return {dentro,saldo,per,a,b};
@@ -599,7 +694,13 @@ function renderSafra(){
     return f(vendas)??f(grMovs().filter(m=>m.tipo==="venda"))};
   // custos por categoria (competência)
   const cat={};
-  for(const l of lan) if(l.natureza==="pagar"&&!NAO_CUSTO.has(l.categoria)) cat[l.categoria]=(cat[l.categoria]||0)+vp(l);
+  let amort=0, semJuros=0;
+  for(const l of lan){
+    if(l.natureza!=="pagar"||NAO_CUSTO.has(l.categoria)) continue;
+    let v=vp(l);
+    if(l.categoria==="financ"){const j=jurosDe(l); amort+=v-j; v=j; if(l.juros==null) semJuros++}
+    if(v>0) cat[l.categoria]=(cat[l.categoria]||0)+v;
+  }
   const invest=lan.filter(l=>l.natureza==="pagar"&&NAO_CUSTO.has(l.categoria)).reduce((t,l)=>t+vp(l),0);
   // arrendamento pago em sacas (Grãos), avaliado pelo preço médio, se não houver lançamento em dinheiro
   const arr=grMovs().filter(m=>m.tipo==="arrendamento"&&naS(m.data));
@@ -610,9 +711,10 @@ function renderSafra(){
   const area=TALHOES.reduce((t,x)=>t+x.ha,0);
   const kpi=(l,v,sub,cls)=>`<div class="kpi${cls?" "+cls:""}"><span>${l}</span><b>${v}</b>${sub?`<small>${sub}</small>`:""}</div>`;
   $("#rsf-kpis").innerHTML=[kpi("Receitas",brlC(receita),`${vendas.length} venda${vendas.length===1?"":"s"} de grãos`),kpi("Custos",brlC(custo),area?`${brl(custo/area)}/ha`:""),
-    kpi("Resultado",brlC(receita-custo),receita?`${num((receita-custo)/receita*100)}% da receita`:"",receita-custo<0?"fn-neg":""),kpi("Investimentos",brlC(invest),"fora do custo")].join("");
-  const pend=pendencias().filter(p=>naS(p.data)), al=[];
+    kpi("Resultado",brlC(receita-custo),receita?`${num((receita-custo)/receita*100)}% da receita`:"",receita-custo<0?"fn-neg":""),kpi("Fora do custo",brlC(invest+amort),"investimentos e amortizações")].join("");
+  const pend=pendencias("todas").filter(p=>naS(p.data)), al=[];
   if(pend.length) al.push(`<div class="falta fn-al">${pend.length} lançamento${pend.length===1?"":"s"} do Diário desta safra ainda não ${pend.length===1?"está":"estão"} no Financeiro — os custos podem estar incompletos. <button type="button" class="link" data-fnres>Ver no Resumo</button></div>`);
+  if(semJuros) al.push(`<p class="note">${semJuros} parcela${semJuros===1?"":"s"} de financiamento desta safra sem os juros informados: ${semJuros===1?"conta":"contam"} como amortização (fora do custo). Edite a parcela em Contas e informe os juros.</p>`);
   if(arrTxt) al.push(`<p class="note">Arrendamento: ${esc(arrTxt)}.</p>`);
   $("#rsf-alertas").innerHTML=al.join(""); $("#rsf-alertas").querySelector("[data-fnres]")?.addEventListener("click",()=>show("fin_resumo"));
   const cores=["--s1","--s2","--s3","--s4","--t-adubacao","--t-mecanizacao","--t-diesel","--t-benf","--t-maquina","--t-chuva"];
@@ -642,7 +744,7 @@ window.finPlanilha=function(add,dt){
     "Valor (R$)":Number(l.valor)||0,"Situação":l.status==="pago"?(l.quitGraos?"Quitada em grãos":l.natureza==="receber"?"Recebido":"Pago"):(l.vencimento<hoje()?"Vencida":"Em aberto"),
     "Pago/recebido em":dt(l.pagoEm),"Valor pago (R$)":l.status==="pago"?vp(l):"","Conta":l.natureza==="transf"?`${nomeConta(l.contaId)} → ${nomeConta(l.contaDestino)}`:nomeConta(l.contaId),
     "Grãos (sc)":l.quitGraos?`${l.quitGraos.sacas} sc ${l.quitGraos.cultura}`:"","NF":l.nf||"","Em nome de":l.titular||"",
-    "Itens":(l.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Observação":l.obs||"","Lançado por":quem(l.criadoPor)})));
+    "Juros (R$)":l.categoria==="financ"?jurosDe(l):"","Itens":(l.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Observação":l.obs||"","Lançado por":quem(l.criadoPor)})));
   const s=saldos();
   add("Contas bancárias",fnContas.map(c=>({"Conta":c.nome,"Tipo":FN_TIPOS[c.tipo]||c.tipo,"Saldo inicial (R$)":Number(c.saldoInicial)||0,"Data do saldo inicial":dt(c.dataInicial),"Saldo atual (R$)":+(s[c.id]||0).toFixed(2)})));
 };
@@ -677,8 +779,9 @@ $("#fn-cancel").onclick=()=>fnReset();
 {const tip=$("#pn-tip"); if(tip&&tip.parentElement!==document.body) document.body.appendChild(tip)}
 $("#fn-item-add").onclick=()=>{itensRender([...itensLer(),{desc:"",valor:null}]); const r=[...document.querySelectorAll("#fn-itens .i-desc")].pop(); r?.focus()};
 $("#fn-dividir").onclick=dividir;
+$("#fn-cat").addEventListener("change",jurosVis);
 $("#fn-np").addEventListener("change",dividir);
-$("#fn-xml").addEventListener("change",e=>{const f=e.target.files[0]; e.target.value=""; if(f) importarXml(f)});
+$("#fn-xml").addEventListener("change",e=>{const fs=[...e.target.files]; e.target.value=""; if(fs.length===1) importarXml(fs[0]); else if(fs.length>1) importarLote(fs)});
 $("#fn-busca").addEventListener("input",renderContas);
 $("#fn-data").addEventListener("change",()=>{const r=parcsLer(); if(r.length===1&&!r[0].valor&&!fnEdit) parcsRender([{venc:$("#fn-data").value,valor:null}])});
 $("#fn-conta-nova").onclick=()=>contaForm(null);

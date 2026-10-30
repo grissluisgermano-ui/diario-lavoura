@@ -49,3 +49,11 @@
   .fn-cards{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
   #view-fin_resumo .pn-kpis,#view-fin_safra .pn-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
+.fn-lote{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.92rem}
+
+.fn-lx-lista{display:flex;flex-direction:column}
+.fn-lx{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dotted var(--line);font-size:.92rem}
+.fn-lx b{font-weight:600}
+.fn-lx small{display:block;color:var(--muted);font-size:.8rem}
+.fn-lx.off{opacity:.65}
+.fn-lx .mono{white-space:nowrap}

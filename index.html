@@ -847,7 +847,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </form>
     <div id="fn-contas" class="fn-cards"></div>
     <div class="row" style="justify-content:space-between"><h3 class="sub-h">Do Diário para o Financeiro</h3><span class="note" id="fn-pend-n"></span></div>
+    <div class="chips" id="fn-pend-modo"></div>
     <p class="note" id="fn-pend-txt"></p>
+    <div class="row fn-lote" id="fn-lote" hidden></div>
     <div id="fn-pend" class="es-lista"></div>
   </section>
 
@@ -862,15 +864,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="row" style="justify-content:space-between"><h3 class="sub-h" id="fn-form-tit">Novo lançamento</h3><button type="button" class="link" id="fn-cancel" hidden>Cancelar edição</button></div>
       <div class="chips" id="fn-nat"></div>
       <div class="nf-imp" id="fn-xml-box">
-        <div><b>Importar XML da nota</b><div class="note">Lê fornecedor, número, produtos, em nome de quem está e as parcelas com vencimento.</div></div>
+        <div><b>Importar XML da nota</b><div class="note">Lê fornecedor, número, produtos, em nome de quem está e as parcelas com vencimento. Pode escolher várias notas de uma vez (notas antigas).</div></div>
         <label class="btn ghost foto-btn" for="fn-xml">Escolher XML</label>
-        <input id="fn-xml" type="file" accept=".xml,text/xml,application/xml" hidden>
+        <input id="fn-xml" type="file" accept=".xml,text/xml,application/xml" multiple hidden>
       </div>
+      <div id="fn-lxml" class="fn-baixa" hidden></div>
       <p class="note" id="fn-origem" hidden></p>
       <div class="grid2" data-fn="norm">
         <div class="field" style="grid-column:1/-1"><label for="fn-desc">Descrição</label><input id="fn-desc" placeholder="Ex.: Adubo 02-20-20, frete da colheita, salário de outubro"></div>
         <div class="field"><label for="fn-pessoa" id="fn-pessoa-l">Fornecedor</label><input id="fn-pessoa" list="dl-fn-pessoa"><datalist id="dl-fn-pessoa"></datalist></div>
         <div class="field"><label for="fn-cat">Categoria</label><select id="fn-cat"></select></div>
+        <div class="field" id="fn-juros-box" hidden><label for="fn-juros">Juros desta parcela (R$)</label><input id="fn-juros" inputmode="decimal" placeholder="0,00"><small class="note">Só os juros contam como custo; o resto é amortização da dívida.</small></div>
         <div class="field"><label for="fn-data">Data da compra / venda</label><input type="date" id="fn-data"></div>
         <div class="field"><label for="fn-forma">Forma</label><select id="fn-forma"></select></div>
         <div class="field"><label for="fn-nf">Nota fiscal nº</label><input id="fn-nf" placeholder="Opcional"></div>
