@@ -18,7 +18,7 @@ App de gestão da lavoura do **Luis** (sócio com a irmã; o pai, **Nestor Griss
 
 ## Publicação
 Hospedado no **GitHub Pages** (repositório do Luis). Publicar = commit + push na branch `main`; em ~1 min está no ar.
-Ao mudar arquivos do app, **suba o número do cache em `sw.js`** (`diario-vN`) para os celulares pegarem a versão nova.
+Ao publicar mudança no app: **suba o número em `versao.js`** (`n` e `data`, mostrados em Configurações → "Versão N") **e o cache em `sw.js`** (`diario-vN`, mesmo N). O botão "Procurar atualização" compara com `versao.js` do servidor, limpa o cache e recarrega.
 
 ## Regras do negócio (não quebrar)
 - Safra vai de **julho a junho** (`safraDe(iso)`).
