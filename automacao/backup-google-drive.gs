@@ -40,7 +40,7 @@ function backupDiario(forcar) {
     const colecoes = {};
     for (const c of COLECOES) {
       let docs = lerColecao(c, 300);
-      if (c === "config") docs = docs.filter(d => d.id === "graos" || d.id === "propriedade");
+      if (c === "config") docs = docs.filter(d => d.id === "graos" || d.id === "propriedade" || d.id === "financeiro");
       colecoes[c] = docs;
     }
     const total = Object.values(colecoes).reduce((s, l) => s + l.length, 0);
