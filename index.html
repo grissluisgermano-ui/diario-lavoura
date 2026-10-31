@@ -846,11 +846,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="row"><button class="btn" type="submit" id="fc-salvar">Salvar conta</button><span class="toast" id="fc-toast" role="status"></span></div>
     </form>
     <div id="fn-contas" class="fn-cards"></div>
+    <div id="fn-fam-box" hidden><h3 class="sub-h">Contas com a família</h3><p class="note">Dinheiro que saiu da lavoura para a família ou entrou dela. Fica fora do custo da safra.</p><div id="fn-fam" class="fn-cards"></div></div>
+    <div id="fn-ctr-box" hidden><div class="row" style="justify-content:space-between"><h3 class="sub-h">Contratos e pedidos em aberto</h3><span class="note" id="fn-ctr-n"></span></div><div class="fn-lx-lista" id="fn-ctr"></div></div>
+    <div id="fn-recs-box" hidden><h3 class="sub-h">Contas que se repetem todo mês</h3><p class="note">O app cria a conta de cada mês sozinho; você só confirma o pagamento.</p><div id="fn-recs" class="es-lista"></div></div>
     <div class="row" style="justify-content:space-between"><h3 class="sub-h">Do Diário para o Financeiro</h3><span class="note" id="fn-pend-n"></span></div>
     <div class="chips" id="fn-pend-modo"></div>
     <p class="note" id="fn-pend-txt"></p>
     <div class="row fn-lote" id="fn-lote" hidden></div>
     <div id="fn-pend" class="es-lista"></div>
+    <details class="sub fn-catbox" id="fn-catbox"><summary class="sub-h">Categorias</summary>
+      <p class="note">Renomeie, crie categorias e diga como cada uma entra no Resultado da safra. Categoria em uso não pode ser apagada.</p>
+      <div id="fn-cats"></div>
+      <div class="row"><button type="button" class="btn" id="fn-cats-salvar">Salvar categorias</button><span class="toast" id="fn-cats-st" role="status"></span></div>
+    </details>
   </section>
 
   <section class="panel" id="view-fin_contas" hidden>
@@ -869,6 +877,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <input id="fn-xml" type="file" accept=".xml,text/xml,application/xml" multiple hidden>
       </div>
       <div id="fn-lxml" class="fn-baixa" hidden></div>
+      <div class="nf-imp" id="fn-aegro-box">
+        <div><b>Importar planilha do Aegro</b><div class="note">O arquivo "Consolidado" (.xlsx) exportado do Aegro. Junta as linhas de cada nota e parcela, usa as categorias e agrupadores de vocês e não lança nada duas vezes.</div></div>
+        <label class="btn ghost foto-btn" for="fn-aegro">Escolher planilha</label>
+        <input id="fn-aegro" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      </div>
+      <div id="fn-aeg" class="fn-baixa" hidden></div>
       <p class="note" id="fn-origem" hidden></p>
       <div class="grid2" data-fn="norm">
         <div class="field" style="grid-column:1/-1"><label for="fn-desc">Descrição</label><input id="fn-desc" placeholder="Ex.: Adubo 02-20-20, frete da colheita, salário de outubro"></div>
@@ -879,6 +893,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <div class="field"><label for="fn-forma">Forma</label><select id="fn-forma"></select></div>
         <div class="field"><label for="fn-nf">Nota fiscal nº</label><input id="fn-nf" placeholder="Opcional"></div>
         <div class="field"><label for="fn-tit">Nota em nome de</label><input id="fn-tit" list="dl-fn-tit" placeholder="Opcional"><datalist id="dl-fn-tit"></datalist></div>
+        <div class="field"><label for="fn-contrato">Contrato / pedido</label><input id="fn-contrato" list="dl-fn-contrato" placeholder="Ex.: 84586 ou Pedido 3754"><datalist id="dl-fn-contrato"></datalist></div>
+      </div>
+      <div class="field" data-fn="norm" id="fn-dest-box">
+        <span class="lbl">Destino do gasto <small class="note">(opcional — liga o lançamento à safra, cultura e talhão no Resultado)</small></span>
+        <div class="grid2">
+          <div class="field"><label for="fn-safra">Safra</label><select id="fn-safra"></select></div>
+          <div class="field"><label for="fn-cult">Cultura</label><select id="fn-cult"></select></div>
+        </div>
+        <div class="chips fn-tal" id="fn-tal" aria-label="Talhões"></div>
       </div>
       <div class="grid2" data-fn="transf" hidden>
         <div class="field"><label for="fn-de">Sai da conta</label><select id="fn-de"></select></div>
@@ -906,6 +929,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         </div>
       </div>
       <div class="field"><label for="fn-obs">Observação</label><input id="fn-obs" placeholder="Opcional"></div>
+      <label class="nf-chk" id="fn-rec-box" data-fn="norm"><input type="checkbox" id="fn-rec"> Repetir todo mês (salário, internet, luz, consórcio…)</label>
       <div class="row"><button class="btn" type="submit" id="fn-salvar">Salvar</button><span class="toast" id="fn-toast" role="status"></span></div>
     </form>
     <div class="chips" id="fn-filtro"></div>
@@ -940,6 +964,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="pn-grid">
       <div class="pn-card"><h3>Custos por categoria <small>pela data da compra ou serviço</small></h3><div id="rsf-cat"></div></div>
       <div class="pn-card"><h3>Receitas</h3><div id="rsf-rec"></div></div>
+      <div class="pn-card pn-wide"><h3>Por cultura</h3><div class="tbl-wrap"><table class="tbl" id="rsf-cult"></table></div><p class="note" id="rsf-cult-nota"></p></div>
+      <div class="pn-card pn-wide"><h3>Fora do custo da lavoura</h3><div class="tbl-wrap"><table class="tbl" id="rsf-fora"></table></div></div>
       <div class="pn-card pn-wide"><h3>Por talhão</h3><div class="tbl-wrap"><table class="tbl" id="rsf-tal"></table></div><p class="note" id="rsf-tal-nota"></p></div>
     </div>
   </section>

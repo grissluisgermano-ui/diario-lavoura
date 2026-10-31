@@ -57,3 +57,38 @@
 .fn-lx small{display:block;color:var(--muted);font-size:.8rem}
 .fn-lx.off{opacity:.65}
 .fn-lx .mono{white-space:nowrap}
+
+/* Contas com a família */
+.fn-fam-l{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;color:var(--muted)}
+.fn-fam-l b{color:var(--ink);font-weight:500;white-space:nowrap}
+.fn-fam-t{border-top:1px solid var(--line);padding-top:4px;color:var(--ink);font-weight:600}
+#fn-fam-box,#fn-ctr-box,#fn-recs-box{display:flex;flex-direction:column;gap:8px}
+.fn-ctr-l{font-size:.92rem;color:var(--ink);font-weight:600;text-decoration:none;padding:0}
+.fn-ctr-l:hover{text-decoration:underline}
+/* Destino do gasto */
+#fn-dest-box .lbl small{text-transform:none;letter-spacing:0;font-weight:500}
+.fn-tal .chip{font-size:.85rem;padding:5px 10px}
+/* Editor de categorias */
+.fn-catbox summary{cursor:pointer}
+.fn-cat-h{margin:6px 0 2px;font:600 .8rem var(--f-body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.fn-cat-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 40px;gap:8px;align-items:center}
+.fn-cat-row .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:42px;font-size:1.1rem;cursor:pointer}
+.fn-cat-row .rm:disabled{opacity:.3;cursor:not-allowed}
+#fn-cats{display:flex;flex-direction:column;gap:8px}
+@media (max-width:540px){.fn-cat-row{grid-template-columns:minmax(0,1fr) 40px}.fn-cat-row .fc-p{grid-column:1;grid-row:2}}
+/* Importação do Aegro */
+.fn-aeg-st .stat b{font-size:1.05rem}
+.fn-aeg-l{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow:auto;padding-right:4px}
+.fn-aeg-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;font-size:.86rem;padding:4px 0;border-bottom:1px dotted var(--line)}
+.fn-aeg-r span{overflow-wrap:anywhere}
+.fn-aeg-r small{display:block}
+.fn-aeg-r select,.fn-aeg-r input{font-size:.86rem;padding:6px 8px}
+@media (max-width:540px){.fn-aeg-r{grid-template-columns:1fr}}
+.fn-ctr-i{all:unset;box-sizing:border-box;cursor:pointer;width:100%}
+.fn-ctr-i:hover b{text-decoration:underline}
+.fn-ctr-i:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fn-ctr-i .mono{text-align:right}
+.fn-ctr-i .mono small{display:block;font-family:var(--f-body)}
+.fn-ctr-i{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dotted var(--line);font-size:.92rem}
+.fn-lc-sub{display:block;font-size:.78rem;line-height:1.3;white-space:normal}
+#rsf-fora td:first-child,#fn-ctr td:first-child{white-space:normal;min-width:180px}
