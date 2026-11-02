@@ -351,7 +351,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="hd-st" aria-label="Resumo">
       <span class="hd-i"><span id="st-mes-l">Chuva no mês</span> <b id="st-mes">–</b></span>
       <span class="hd-i"><span id="st-safra-l">Safra</span> <b id="st-safra">–</b></span>
-      <span class="hd-i"><b id="st-n">–</b> registros</span>
+      <span class="hd-i">Última chuva <b id="st-ult">–</b></span>
     </div>
   </header>
 
@@ -1744,7 +1744,9 @@ function renderStats(){
   const ini=(m>=7?y:y-1)+"-07-01";
   const chuvas=registros.filter(r=>r.tipo==="chuva");
   const soma=f=>chuvas.filter(f).reduce((a,r)=>a+(Number(r.campos?.mm)||0),0);
-  $("#st-n").textContent=registros.length;
+  // última chuva: soma o que caiu no dia mais recente com chuva
+  const dUlt=chuvas.filter(r=>Number(r.campos?.mm)>0&&r.data<=hoje).reduce((d,r)=>r.data>d?r.data:d,"");
+  $("#st-ult").textContent=dUlt?`${brDate(dUlt).slice(0,5)} · ${num(soma(r=>r.data===dUlt))} mm`:"–";
   $("#st-mes").textContent=num(soma(r=>r.data.startsWith(ym)))+" mm";
   $("#st-safra").textContent=num(soma(r=>r.data>=ini&&r.data<=hoje))+" mm";
   const sy=m>=7?y:y-1; $("#st-safra-l").textContent=`Safra ${String(sy).slice(2)}/${String(sy+1).slice(2)}`;
