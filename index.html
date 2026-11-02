@@ -614,6 +614,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="es-valor">–</b><span>valor em estoque</span></div>
       <div class="stat"><b id="es-zero">–</b><span>sem saldo</span></div>
     </div>
+    <div id="ne-box" class="ne-box" hidden></div>
     <form class="sub" id="es-form" autocomplete="off">
       <h3 class="sub-h">Lançar entrada no estoque</h3>
       <div class="nf-imp">
@@ -839,6 +840,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <section class="panel" id="view-fin_resumo" hidden>
     <h2>Financeiro</h2>
     <div id="fn-alertas" class="alertas"></div>
+    <div id="fn-ne" class="ne-aviso" hidden></div>
     <div class="pn-kpis" id="fn-kpis"></div>
     <div class="pn-card"><h3>Fluxo de caixa <small>6 meses para trás e 6 para frente</small></h3><div class="legend" id="fn-fluxo-leg"></div><div id="fn-fluxo"></div><details class="fn-det"><summary>Ver mês a mês</summary><div class="tbl-wrap" id="fn-fluxo-tbl"></div></details></div>
     <div class="row" style="justify-content:space-between"><h3 class="sub-h">Contas e caixas</h3><button type="button" class="link" id="fn-conta-nova">+ Cadastrar conta</button></div>
@@ -1340,8 +1342,9 @@ function xmlSemClaude(x){
         c.un==="un"?`Unidade da nota: ${it.unidade}. Confira a conversão da embalagem.`:c.obs?`Convertido: ${c.obs}. Confira.`:""}})};
 }
 let nfCtl=null;
-$("#nf-in").addEventListener("change",async e=>{
-  const file=e.target.files[0]; e.target.value=""; if(!file) return;
+$("#nf-in").addEventListener("change",e=>{const file=e.target.files[0]; e.target.value=""; if(file) nfProcessar(file)});
+window.nfImportarArquivo=f=>nfProcessar(f);
+async function nfProcessar(file){
   nfCtl?.abort(); nfCtl=new AbortController(); $("#nf-rev").hidden=true;
   nfXmlTxt=/xml$/i.test(file.name)||/xml/.test(file.type)?await file.text().catch(()=>null):null;
   nfSt(`Lendo ${file.name}…`);
@@ -1354,7 +1357,7 @@ $("#nf-in").addEventListener("change",async e=>{
     const c=err?.code;
     nfSt(c==="cancelled"?"":c==="sem_claude"?"A leitura de PDF ou foto da nota precisa do Claude: cadastre a chave em Configurações. O XML funciona sem ele.":c==="not_granted"?"A chave do Claude foi recusada. Confira em Configurações.":c==="sem_imagem"?"Este PDF não tem texto e as imagens não podem ser enviadas aqui. Tente o XML da nota.":err?.message==="xml"?"O arquivo XML não pôde ser lido. Confira se é o XML da NF-e.":err?.message==="semitens"?"O XML não tem produtos (é mesmo uma NF-e?).":err?.message==="script"?"Não consegui carregar o leitor de PDF. Verifique a internet ou use o XML.":c==="invalid_json"?"Não consegui organizar os dados da nota. Tente de novo ou use o XML.":c==="rate_limited"?"Muitas leituras seguidas. Tente de novo em instantes.":"Não consegui ler a nota. Tente de novo ou use o XML.");
   }
-});
+}
 function renderNfRev(){
   const r=nfDados, un=["L","kg","sc","un"];
   $("#nf-rev").hidden=false;
@@ -1473,6 +1476,7 @@ function renderEstoque(){
     const [id,i]=b.dataset.rment.split(":"); const e=estoque.find(x=>x.id===id); if(!e) return;
     const {id:_,...doc}=e; doc.entradas=(e.entradas||[]).filter((_,k)=>k!==+i); await db.collection("estoque").doc(id).set(doc);
   }));
+  window.nePintar?.();
 }
 function confirmar(b,txt,fn){
   if(!b.dataset.armed){const orig=b.textContent;b.dataset.armed="1";b.textContent=txt;setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=orig}},4000);return}

@@ -1136,6 +1136,7 @@ function renderSafra(){
 }
 
 /* ---------- ligação com o app ---------- */
+window.finImportarXml=f=>importarXml(f);
 window.finColecoes=()=>({fin_contas:fnContas,fin_lanc:fnLanc});
 window.finPlanilha=function(add,dt){
   const ord=[...fnLanc].sort((a,b)=>String(a.vencimento).localeCompare(String(b.vencimento)));
@@ -1158,6 +1159,7 @@ window.finRender=function(view){
 };
 window.finAgenda=()=>{clearTimeout(window.finAgenda.t); window.finAgenda.t=setTimeout(()=>{
   gerarRecorrentes();
+  window.nePintar?.();
   for(const v of ["fin_resumo","fin_contas","fin_caixa","fin_safra"]) if(visivel(v)){try{window.finRender(v)}catch(e){console.error(e)}}
   const dl=[...new Set(fnLanc.map(l=>l.pessoa).filter(Boolean))]; $("#dl-fn-pessoa").innerHTML=dl.map(p=>`<option value="${esc(p)}">`).join("");
   $("#dl-fn-tit").innerHTML=[...new Set(fnLanc.map(l=>l.titular).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");

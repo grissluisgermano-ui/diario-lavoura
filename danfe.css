@@ -61,3 +61,12 @@ html.dn-aberta,html.dn-aberta body{overflow:hidden}
   .dn-area{overflow:visible;padding:0}
   .dn-folha{box-shadow:none;zoom:1!important;width:auto;padding:0}
 }
+
+/* Notas recebidas por e-mail */
+.ne-box{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r);padding:14px}
+.ne-nota{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.ne-nota .rec-top b{font-weight:600;overflow-wrap:anywhere}
+.ne-nota .rec-actions{flex-wrap:wrap;align-items:center}
+.ne-canc{border-left-color:var(--danger);opacity:.85}
+.ne-aviso{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:.92rem}
+.ne-aviso .link{color:var(--accent);font-weight:600}

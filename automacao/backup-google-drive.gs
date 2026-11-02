@@ -22,7 +22,7 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJETO}/databases/
 
 /** Rode esta função UMA vez: autoriza o acesso e agenda a execução diária (entre 3h e 4h). */
 function instalar() {
-  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === "backupDiario").forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger("backupDiario").timeBased().everyDays(1).atHour(3).create();
   backupDiario(true);
 }

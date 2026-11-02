@@ -133,9 +133,42 @@ window.danfeTem=chave=>!!chave&&nfeDocs.some(d=>d.id===chave);
 window.danfeColecao=()=>nfeDocs;
 window.danfeInicia=function(){
   if(window.danfeInicia.ok||typeof db==="undefined"||!db) return; window.danfeInicia.ok=true;
-  db.collection("nfe").onSnapshot(s=>{nfeDocs=s.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.xml); window.finAgenda?.(); if(typeof renderEstoque==="function") try{renderEstoque()}catch{}},()=>{});
+  db.collection("nfe").onSnapshot(s=>{nfeDocs=s.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.xml); window.finAgenda?.(); if(typeof renderEstoque==="function") try{renderEstoque()}catch{} window.nePintar()},()=>{});
 };
 if(typeof col!=="undefined"&&col) window.danfeInicia();
+/* ---------- Notas recebidas por e-mail (o script do Google grava em nfe/{chave} com origem "email") ---------- */
+function lancada(chave){
+  if((typeof estoque!=="undefined"?estoque:[]).some(p=>(p.entradas||[]).some(x=>x.chave===chave))) return true;
+  return (window.finColecoes?.().fin_lanc||[]).some(l=>l.chave===chave);
+}
+const pendentes=()=>nfeDocs.filter(d=>d.origem==="email"&&!d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+const arquivo=d=>new File([d.xml],`NFe${d.id}.xml`,{type:"text/xml"});
+function resumoNota(d){
+  let fin=null; try{fin=window.finDadosXml?.(new DOMParser().parseFromString(d.xml,"application/xml"))}catch{}
+  return {emit:fin?.emit||d.emit||"Fornecedor",dest:fin?.dest||d.dest||"",total:fin?.total??d.total??0,parc:fin?.dups?.length||1,itens:fin?.itens?.length||0,
+    venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:""};
+}
+window.nePintar=function(){
+  const box=document.getElementById("ne-box"), av=document.getElementById("fn-ne"); if(!box) return;
+  const ps=pendentes();
+  box.hidden=!ps.length; if(av) av.hidden=!ps.length;
+  if(av&&ps.length){av.innerHTML=`<span><b>${ps.length} nota${ps.length===1?"":"s"} recebida${ps.length===1?"":"s"} por e-mail</b> esperando lançamento.</span><button type="button" class="link" id="ne-ir">Ver em Estoque</button>`;
+    av.querySelector("#ne-ir").onclick=()=>{show("estoque"); document.getElementById("ne-box")?.scrollIntoView({block:"start",behavior:"smooth"})}}
+  if(!ps.length){box.innerHTML="";return}
+  const br=x=>Number(x||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  box.innerHTML=`<div class="row" style="justify-content:space-between"><h3 class="sub-h">Notas recebidas por e-mail</h3><span class="note">${ps.length} para lançar</span></div>
+    <p class="note">Chegaram com o XML anexado. Lance no estoque (entra também no Financeiro) ou só no Financeiro, quando não for produto de estoque.</p>
+    ${ps.slice(0,30).map(d=>{const r=resumoNota(d); return `<article class="ne-nota${d.cancelada?" ne-canc":""}">
+      <div class="rec-top"><b>NF ${e(d.numero||"")} · ${e(r.emit)}</b><span class="mono">${br(r.total)}</span></div>
+      <div class="rec-campos"><span>${d.data?dt(d.data):""}</span>${r.dest?`<span>Em nome de <b>${e(r.dest)}</b></span>`:""}<span>${r.itens} ite${r.itens===1?"m":"ns"}</span><span>${r.parc} parcela${r.parc===1?"":"s"}${r.venc?` · vence ${dt(r.venc)}`:""}</span>${d.cancelada?`<span class="pill venc">Nota cancelada</span>`:""}</div>
+      <div class="rec-actions">${d.cancelada?"":`<button type="button" class="btn fn-mini" data-nee="${d.id}">Lançar no estoque</button><button type="button" class="btn ghost fn-mini" data-nef="${d.id}">Só no Financeiro</button>`}<button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link" data-nei="${d.id}">Ignorar</button></div>
+    </article>`}).join("")}${ps.length>30?`<p class="note">Mostrando 30 de ${ps.length}.</p>`:""}`;
+  const doc=id=>nfeDocs.find(x=>x.id===id);
+  box.querySelectorAll("[data-nee]").forEach(b=>b.onclick=()=>{show("estoque"); window.nfImportarArquivo?.(arquivo(doc(b.dataset.nee))); setTimeout(()=>document.getElementById("nf-rev")?.scrollIntoView({block:"start",behavior:"smooth"}),300)});
+  box.querySelectorAll("[data-nef]").forEach(b=>b.onclick=()=>{show("fin_contas"); window.finImportarXml?.(arquivo(doc(b.dataset.nef)))});
+  box.querySelectorAll("[data-nei]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: ignorar",async()=>{const {id,...d}=doc(b.dataset.nei); await db.collection("nfe").doc(id).set({...d,ignorada:true})}));
+};
+
 /* abre a DANFE de qualquer botão com data-danfe="<chave>" */
 document.addEventListener("click",ev=>{const b=ev.target.closest?.("[data-danfe]"); if(!b) return; ev.preventDefault(); window.danfeDeChave(b.dataset.danfe)});
 })();
