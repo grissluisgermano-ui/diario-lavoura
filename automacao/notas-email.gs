@@ -3,7 +3,8 @@
  *
  * Roda sozinho nos servidores do Google, na conta do Luis, no MESMO projeto do backup
  * (usa as funções chamar() e paraFirestore() de backup-google-drive.gs).
- * - A cada 30 minutos procura no Gmail e-mails com XML de NF-e anexado.
+ * - A cada 30 minutos procura no Gmail e-mails com XML de NF-e anexado (solto ou dentro de um .zip).
+ *   O PDF da nota é ignorado: o app monta a DANFE a partir do XML.
  * - Guarda cada nota no banco do app (coleção "nfe", com origem "email"). No app ela aparece em
  *   Estoque → "Notas recebidas por e-mail", com os botões Lançar no estoque / Só no Financeiro / DANFE / Ignorar.
  * - Marca o e-mail com a etiqueta "Diário/Notas importadas" para não ler de novo.
@@ -14,7 +15,7 @@
  */
 
 const NOTAS_ETIQUETA = "Diário/Notas importadas";
-const NOTAS_BUSCA = 'has:attachment filename:xml newer_than:120d -label:"Diário/Notas importadas"';
+const NOTAS_BUSCA = 'has:attachment (filename:xml OR filename:zip) newer_than:120d -label:"Diário/Notas importadas"';
 
 /** Rode UMA vez: autoriza o Gmail e agenda a leitura a cada 30 minutos (não mexe no agendamento do backup). */
 function instalarNotas() {
@@ -30,15 +31,28 @@ function importarNotasEmail() {
   for (const conversa of conversas) {
     for (const msg of conversa.getMessages()) {
       for (const anexo of msg.getAttachments()) {
-        if (!/\.xml$/i.test(anexo.getName()) && !/xml/i.test(anexo.getContentType())) continue;
-        let xml; try { xml = anexo.getDataAsString("UTF-8") } catch (e) { continue }
-        const r = guardarXmlNota(xml, msg);
-        if (r === "nova") novas++; else if (r === "repetida") repetidas++; else if (r === "cancelada") canceladas++;
+        for (const xml of xmlsDoAnexo(anexo)) {
+          const r = guardarXmlNota(xml, msg);
+          if (r === "nova") novas++; else if (r === "repetida") repetidas++; else if (r === "cancelada") canceladas++;
+        }
       }
     }
     conversa.addLabel(etiqueta);
   }
   console.log(`${conversas.length} e-mails lidos: ${novas} notas novas, ${repetidas} já estavam no app, ${canceladas} cancelamentos.`);
+}
+
+/** Textos XML de um anexo: o próprio .xml, ou os .xml de dentro de um .zip (inclusive em subpastas). */
+function xmlsDoAnexo(anexo) {
+  const nome = anexo.getName() || "", tipo = anexo.getContentType() || "";
+  try {
+    if (/\.xml$/i.test(nome) || /xml/i.test(tipo)) return [anexo.getDataAsString("UTF-8")];
+    if (/\.zip$/i.test(nome) || /zip/i.test(tipo)) {
+      const blob = anexo.copyBlob(); blob.setContentType("application/zip");
+      return Utilities.unzip(blob).filter(b => /\.xml$/i.test(b.getName() || "")).map(b => b.getDataAsString("UTF-8"));
+    }
+  } catch (e) { console.log(`Não consegui abrir o anexo ${nome}: ${e}`) }
+  return [];
 }
 
 /** Lê um XML anexado. Devolve "nova", "repetida", "cancelada" ou "" (não é NF-e). */
