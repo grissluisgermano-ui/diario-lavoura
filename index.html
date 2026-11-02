@@ -19,6 +19,7 @@
 <script src="ponte.js"></script>
 <link rel="stylesheet" href="ponte.css">
 <link rel="stylesheet" href="financeiro.css">
+<link rel="stylesheet" href="danfe.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1247,7 +1248,7 @@ function reservaBox(e,s){
 
 /* ---------- Importar nota fiscal (XML, PDF ou foto) ---------- */
 const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
-let nfDados=null;
+let nfDados=null, nfXmlTxt=null;
 const nfSt=t=>{$("#nf-st").textContent=t};
 function carregaScript(src){return new Promise((ok,err)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>err(new Error("script"));document.head.appendChild(s)})}
 async function pdfLib(){
@@ -1342,6 +1343,7 @@ let nfCtl=null;
 $("#nf-in").addEventListener("change",async e=>{
   const file=e.target.files[0]; e.target.value=""; if(!file) return;
   nfCtl?.abort(); nfCtl=new AbortController(); $("#nf-rev").hidden=true;
+  nfXmlTxt=/xml$/i.test(file.name)||/xml/.test(file.type)?await file.text().catch(()=>null):null;
   nfSt(`Lendo ${file.name}…`);
   try{
     const r=await extrairNota(file);
@@ -1377,14 +1379,15 @@ function renderNfRev(){
     </div>`}).join("")}
     <p class="note">Princípio ativo, classe e conversão de embalagens foram sugeridos pelo Claude. Confira no rótulo e na nota.</p>
     ${r.fin?window.finNfOpcao?.(r.fin)||"":""}
-    <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button></div>
+    <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
   $("#nf-rev").querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>{
     const box=inp.closest(".nf-it"), ex=prodEstoque(inp.value);
     box.querySelector(".pill").className="pill "+(ex?"ok":"prox"); box.querySelector(".pill").textContent=ex?"Já no estoque":"Produto novo";
     const u=box.querySelector(".nf-un"); u.disabled=!!ex; if(ex){u.value=ex.unidade; if(ex.generico) box.querySelector(".nf-gen").value=ex.generico; if(ex.classe) box.querySelector(".nf-cla").value=ex.classe}
   }));
-  $("#nf-cancel").onclick=()=>{$("#nf-rev").hidden=true;nfDados=null;nfSt("")};
+  $("#nf-cancel").onclick=()=>{$("#nf-rev").hidden=true;nfDados=null;nfXmlTxt=null;nfSt("")};
+  if($("#nf-danfe")) $("#nf-danfe").onclick=()=>window.danfeAbrir?.(nfXmlTxt);
   $("#nf-lancar").onclick=nfLancar;
   $("#nf-rev").scrollIntoView({block:"start"});
 }
@@ -1409,7 +1412,8 @@ async function nfLancar(){
       ok++;
     }
     let fin=""; if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
-    $("#nf-rev").hidden=true; nfDados=null; nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
+    if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
+    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
   finally{const b=$("#nf-lancar"); if(b) b.disabled=false}
 }
@@ -1459,7 +1463,7 @@ function renderEstoque(){
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
   </article>`).join("");
@@ -2570,7 +2574,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{})});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -3322,9 +3326,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{})});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -3635,7 +3639,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
-  window.finInicia?.();
+  window.finInicia?.(); window.danfeInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -3657,6 +3661,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 })();
 </script>
 <script src="financeiro.js"></script>
+<script src="danfe.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>

@@ -450,7 +450,7 @@ function dividir(){
   parcsRender(Array.from({length:n},(_,i)=>({venc:addMes(v0,i),valor:total>0?(i===n-1?+(total-cada*(n-1)).toFixed(2):cada):null})));
 }
 function fnReset(){
-  fnEdit=null; fnOrigem=null; fnChave=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
+  fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
   ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em","#fn-juros","#fn-contrato"].forEach(s=>$(s).value="");
   $("#fn-rec").checked=false; destinoRender(); delete $("#fn-conta").dataset.ok;
   $("#fn-data").value=hoje(); $("#fn-tdata").value=hoje(); $("#fn-forma").value="prazo";
@@ -538,6 +538,7 @@ async function salvarLanc(ev){
         if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
         await db.collection("fin_lanc").add(b);
       }
+      if(fnXmlTxt) window.danfeGuardar?.(fnXmlTxt);
       flash("#fn-toast",parcs.length>1?`${parcs.length} parcelas lançadas.`:"Lançamento salvo.");
     }
     fnReset();
@@ -608,13 +609,15 @@ window.finDaNota=async function(fin,{data,nf,origem,itens}){
   }
   return ` ${parcs.length>1?parcs.length+" parcelas lançadas":"Conta a pagar lançada"} no Financeiro.`;
 };
+let fnXmlTxt=null;
 async function importarXml(file){
   try{
-    const doc=new DOMParser().parseFromString(await file.text(),"application/xml");
+    const txt=await file.text();
+    const doc=new DOMParser().parseFromString(txt,"application/xml");
     if(doc.querySelector("parsererror")) throw 0;
     const fin=window.finDadosXml(doc); if(!fin||!fin.itens.length) throw 0;
     const ja=jaLancada(fin.chave,fin.numero,fin.emit);
-    fnReset(); fnSetNat("pagar"); fnChave=fin.chave||null;
+    fnReset(); fnSetNat("pagar"); fnChave=fin.chave||null; fnXmlTxt=txt;
     $("#fn-desc").value=`Nota ${fin.numero} — ${fin.emit}`; $("#fn-pessoa").value=fin.emit; $("#fn-data").value=fin.data; $("#fn-nf").value=fin.numero; $("#fn-tit").value=fin.dest;
     $("#fn-cat").value=fin.categoria; jurosVis(); $("#fn-contrato").value=fin.contrato||"";
     $("#fn-forma").value=formaNota(fin);
@@ -622,7 +625,9 @@ async function importarXml(file){
     const noEst=(typeof estoque!=="undefined"?estoque:[]).some(e=>(e.entradas||[]).some(x=>x.chave&&x.chave===fin.chave));
     origemTxt(ja?`<span class="falta">Atenção: esta nota já foi lançada (${esc(ja.descricao)}).</span>`:
       `Nota ${esc(fin.numero)} lida: ${fin.itens.length} ite${fin.itens.length===1?"m":"ns"}, ${fin.dups.length||1} parcela(s). Confira a categoria e salve.`+
-      (noEst?"":` <span class="note">Se forem insumos para o estoque, importe pela aba <b>Estoque</b>: lá entra no estoque e no Financeiro de uma vez.</span>`));
+      (noEst?"":` <span class="note">Se forem insumos para o estoque, importe pela aba <b>Estoque</b>: lá entra no estoque e no Financeiro de uma vez.</span>`)+
+      ` <button type="button" class="link" id="fn-danfe">Ver DANFE</button>`);
+    $("#fn-danfe").onclick=()=>window.danfeAbrir?.(fnXmlTxt);
   }catch{flash("#fn-toast","Não consegui ler o XML. Confira se é o XML da NF-e.")}
 }
 
@@ -632,19 +637,19 @@ async function importarLote(files){
   const box=$("#fn-lxml"); box.hidden=false; box.innerHTML=`<p class="note">Lendo ${files.length} notas…</p>`;
   const vistas=new Set(); loteNotas=[];
   for(const f of files){
-    let fin=null; try{const doc=new DOMParser().parseFromString(await f.text(),"application/xml"); if(!doc.querySelector("parsererror")) fin=window.finDadosXml(doc)}catch{}
+    let fin=null, txt=""; try{txt=await f.text(); const doc=new DOMParser().parseFromString(txt,"application/xml"); if(!doc.querySelector("parsererror")) fin=window.finDadosXml(doc)}catch{}
     if(!fin||!fin.itens.length){loteNotas.push({arq:f.name,erro:"não é XML de NF-e"});continue}
     if(fin.chave&&vistas.has(fin.chave)){loteNotas.push({arq:f.name,fin,erro:"repetida na seleção"});continue}
     vistas.add(fin.chave);
     if(jaLancada(fin.chave,fin.numero,fin.emit)){loteNotas.push({arq:f.name,fin,erro:"já está no Financeiro"});continue}
-    loteNotas.push({arq:f.name,fin});
+    loteNotas.push({arq:f.name,fin,txt});
   }
   loteNotas.sort((a,b)=>String(a.fin?.data||"").localeCompare(String(b.fin?.data||"")));
   const boas=loteNotas.filter(x=>!x.erro), tot=boas.reduce((t,x)=>t+x.fin.total,0);
   box.innerHTML=`<div class="row" style="justify-content:space-between"><b>${boas.length} nota${boas.length===1?"":"s"} para lançar · ${brl(tot)}</b><button type="button" class="link" id="lx-fecha">Cancelar</button></div>
     <div class="fn-lx-lista">${loteNotas.map(x=>`<div class="fn-lx${x.erro?" off":""}"><div><b>${x.fin?`NF ${esc(x.fin.numero)} · ${esc(x.fin.emit)}`:esc(x.arq)}</b>
       <small>${x.erro?`<span class="falta">${esc(x.erro)}</span>`:`${x.fin.data?brDate(x.fin.data):""}${x.fin.dest?" · "+esc(x.fin.dest):""} · ${x.fin.dups.length||1} parcela${(x.fin.dups.length||1)===1?"":"s"}`}</small></div>
-      <span class="mono">${x.fin?brl(x.fin.total):""}</span></div>`).join("")}</div>
+      <span class="mono">${x.fin?brl(x.fin.total):""}${x.txt&&x.fin?`<button type="button" class="link fn-lx-dn" data-lxdn="${loteNotas.indexOf(x)}">DANFE</button>`:""}</span></div>`).join("")}</div>
     <div class="grid2">
       <div class="field"><label for="lx-cat">Categoria</label><select id="lx-cat"><option value="">Pela classe dos produtos (automático)</option>${cats("pagar").map(c=>`<option value="${c.k}">${esc(c.l)}</option>`).join("")}</select></div>
       <div class="field"><label for="lx-sit">Situação</label><select id="lx-sit"><option value="pago">Já pagas na data do vencimento (as que vencem depois de hoje ficam em aberto)</option><option value="aberto">Em aberto</option></select></div>
@@ -653,6 +658,7 @@ async function importarLote(files){
     <p class="note">Vão só para o Financeiro (contas e livro caixa), com os produtos discriminados. O estoque não muda — notas novas de insumo continuam sendo importadas pela aba Estoque.</p>
     <div class="row"><button type="button" class="btn" id="lx-ok"${boas.length?"":" disabled"}>Lançar ${boas.length} nota${boas.length===1?"":"s"}</button><span class="note" id="lx-st"></span></div>`;
   $("#lx-fecha").onclick=()=>{box.hidden=true;box.innerHTML="";loteNotas=[]};
+  box.querySelectorAll("[data-lxdn]").forEach(b=>b.onclick=()=>window.danfeAbrir?.(loteNotas[+b.dataset.lxdn].txt));
   $("#lx-sit").onchange=()=>{$("#lx-conta-box").hidden=$("#lx-sit").value!=="pago"};
   $("#lx-ok").onclick=async()=>{
     const cat=$("#lx-cat").value, pago=$("#lx-sit").value==="pago", conta=$("#lx-conta").value;
@@ -668,6 +674,7 @@ async function importarLote(files){
           if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
           await db.collection("fin_lanc").add(b);
         }
+        if(x.txt) window.danfeGuardar?.(x.txt);
         n++; $("#lx-st").textContent=`Lançando… ${n} de ${loteNotas.filter(x=>!x.erro).length}`;
       }
       if(pago) lembraConta(conta);
@@ -859,7 +866,7 @@ function renderContas(){
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
       ${assinatura(l)}
       <div class="fn-baixa" id="bx-${l.id}" hidden></div>
-      <div class="rec-actions">${!tr&&l.status!=="pago"?`<button type="button" class="btn fn-mini" data-fbx="${l.id}">${r?"Receber":"Pagar"}</button>`:""}${!tr&&l.status==="pago"?`<button type="button" class="link" data-fdes="${l.id}">Desfazer ${r?"recebimento":"pagamento"}</button>`:""}<button type="button" class="link" data-fed="${l.id}">Editar</button><button type="button" class="link danger" data-fdel="${l.id}">Excluir</button></div>
+      <div class="rec-actions">${!tr&&l.status!=="pago"?`<button type="button" class="btn fn-mini" data-fbx="${l.id}">${r?"Receber":"Pagar"}</button>`:""}${!tr&&l.status==="pago"?`<button type="button" class="link" data-fdes="${l.id}">Desfazer ${r?"recebimento":"pagamento"}</button>`:""}${l.chave?`<button type="button" class="link" data-danfe="${l.chave}">DANFE</button>`:""}<button type="button" class="link" data-fed="${l.id}">Editar</button><button type="button" class="link danger" data-fdel="${l.id}">Excluir</button></div>
     </article>`}).join("")+(vis.length>300?`<p class="note">Mostrando 300 de ${vis.length}. Use a busca para achar os outros.</p>`:""):
     `<div class="empty">${fnLanc.length?"Nada com esse filtro.":"Nenhuma conta lançada ainda.<br>Use o formulário, importe o XML de uma nota ou traga do Diário pelo Resumo."}</div>`;
   const L=$("#fn-lista");

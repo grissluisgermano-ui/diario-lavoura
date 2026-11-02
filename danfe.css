@@ -1,0 +1,63 @@
+/* DANFE: tela por cima do app. A folha é sempre branca com texto preto (é a imagem de um documento impresso). */
+#danfe-ov{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html.dn-aberta,html.dn-aberta body{overflow:hidden}
+.dn-bar-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--hd-bg);color:var(--hd-ink);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+.dn-bar-top b{font-family:var(--f-display);font-size:1.15rem;min-width:0;overflow-wrap:anywhere}
+.dn-acoes{display:flex;gap:8px}
+.dn-acoes .btn{padding:8px 14px;font-size:.9rem}
+.dn-acoes .btn.ghost{background:transparent;color:var(--hd-ink);border-color:color-mix(in srgb,var(--hd-ink) 50%,transparent)}
+.dn-acoes .btn:not(.ghost){background:var(--hd-ink);color:var(--hd-bg)}
+.dn-area{flex:1;overflow:auto;padding:12px 8px 24px;-webkit-overflow-scrolling:touch}
+.dn-erro{max-width:520px;margin:24px auto;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+
+.dn-folha{--p:#111;width:820px;margin:0 auto;background:#fff;color:var(--p);padding:18px;font:10px/1.25 Arial,Helvetica,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.18);position:relative;display:flex;flex-direction:column;gap:3px}
+.dn-folha h4{margin:4px 0 0;font:700 9px Arial,sans-serif;text-transform:uppercase;letter-spacing:.02em}
+.dn-c{border:1px solid var(--p);border-radius:3px;padding:2px 4px;display:flex;flex-direction:column;min-width:0}
+.dn-c>span{font-size:7px;text-transform:uppercase;line-height:1.2}
+.dn-c>b{font-weight:600;font-size:10px;overflow-wrap:anywhere;min-height:12px}
+.dn-l{display:flex;gap:3px}
+.dn-l>.dn-c{flex:1 1 0}
+.dn-l>.dn-g{flex:2.6 1 0}
+.dn-num .dn-c>b{text-align:right;font-family:"Courier New",monospace}
+.dn-total{background:#eee}
+.dn-canhoto{display:flex;gap:3px;border-bottom:1px dashed var(--p);padding-bottom:6px;margin-bottom:4px}
+.dn-canhoto .dn-c{flex:1}.dn-canhoto .dn-g{flex:2.4}
+.dn-canhoto .dn-nfe{flex:.9;align-items:center;justify-content:center;font-size:10px}
+.dn-topo{display:grid;grid-template-columns:1.25fr .8fr 1.55fr;gap:3px}
+.dn-topo>div{border:1px solid var(--p);border-radius:3px;padding:6px}
+.dn-emit{display:flex;flex-direction:column;justify-content:center;gap:2px}
+.dn-emit-n{font-size:12px;font-weight:700;margin-bottom:3px}
+.dn-tit{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px}
+.dn-tit>b:first-child{font-size:16px;letter-spacing:.06em}
+.dn-tit>span{font-size:8px}
+.dn-es{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:8px;text-align:left}
+.dn-es b{border:1px solid var(--p);padding:2px 7px;font-size:13px}
+.dn-chave{display:flex;flex-direction:column;gap:4px}
+.dn-bar{width:100%;height:46px;fill:#000}
+.dn-mono{font-family:"Courier New",monospace;font-size:11px;letter-spacing:.02em}
+.dn-chave p{margin:0;font-size:8px;text-align:center}
+.dn-dups{display:flex;flex-wrap:wrap;gap:3px}
+.dn-dup{border:1px solid var(--p);border-radius:3px;padding:2px 6px;display:flex;flex-direction:column;font-size:8px;min-width:120px}
+.dn-dup b{font-size:10px}
+.dn-tab{border:1px solid var(--p);border-radius:3px}
+.dn-tab table{width:100%;border-collapse:collapse;font-size:8px}
+.dn-tab th{font-weight:700;font-size:7px;text-transform:uppercase;border-bottom:1px solid var(--p);padding:3px 2px;text-align:right}
+.dn-tab td{padding:3px 2px;border-bottom:1px dotted #999;text-align:right;vertical-align:top;font-variant-numeric:tabular-nums}
+.dn-tab th:nth-child(-n+6),.dn-tab td:nth-child(-n+6){text-align:left}
+.dn-tab .dn-desc{width:30%}
+.dn-tab td small{display:block;color:#444;font-size:7px;margin-top:1px}
+.dn-adic .dn-c>b{font-weight:400;font-size:8px;min-height:60px}
+.dn-rod{margin:4px 0 0;font-size:7px;color:#555;text-align:right}
+.dn-marca{position:absolute;top:40%;left:0;right:0;text-align:center;font:700 34px Arial,sans-serif;color:rgba(200,0,0,.25);transform:rotate(-18deg);pointer-events:none}
+
+@media print{
+  @page{size:A4 portrait;margin:8mm}
+  html.dn-aberta body>*:not(#danfe-ov){display:none!important}
+  html.dn-aberta,html.dn-aberta body{overflow:visible;background:#fff!important;padding:0!important}
+  #danfe-ov{position:static;background:#fff;padding:0}
+  .dn-bar-top{display:none}
+  .dn-area{overflow:visible;padding:0}
+  .dn-folha{box-shadow:none;zoom:1!important;width:auto;padding:0}
+}
