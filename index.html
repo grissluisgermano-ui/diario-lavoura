@@ -270,7 +270,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .dita .note{flex:1 1 200px}
 .rs-box{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
 .hd-dir{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.hd-st{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 16px;padding-top:8px;margin-top:2px;border-top:1px solid color-mix(in srgb,var(--hd-ink) 22%,transparent);font-size:.8rem;color:var(--hd-ink)}
+.hd-st{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;padding:8px 0 0;margin-top:2px;border:0;border-top:1px solid color-mix(in srgb,var(--hd-ink) 22%,transparent);background:none;font:400 .8rem var(--f-body);color:var(--hd-ink);text-align:left;cursor:pointer}
+.hd-st:focus-visible{outline:2px solid var(--hd-ink);outline-offset:3px;border-radius:4px}
+.hd-go{margin-left:auto;font-weight:600;font-size:.78rem;padding:3px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--hd-ink) 45%,transparent);white-space:nowrap}
+.hd-st:hover .hd-go,.hd-st[aria-pressed="true"] .hd-go{background:var(--hd-ink);color:var(--hd-bg)}
 .hd-i{opacity:.82;white-space:nowrap}
 .hd-i b{font-family:var(--f-mono);font-weight:500;opacity:1;font-variant-numeric:tabular-nums;margin-left:2px}
 .tema-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .8rem var(--f-body);padding:5px 10px;border-radius:999px;cursor:pointer}
@@ -348,11 +351,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <h1>Diário da Lavoura</h1>
     </div>
     <div class="hd-dir"><div class="note" id="sync">Conectando…</div><button type="button" class="tema-btn" id="cfg-abrir">Configurações</button></div>
-    <div class="hd-st" aria-label="Resumo">
+    <button type="button" class="hd-st" id="hd-chuvas" aria-pressed="false" title="Abrir Chuvas: registrar e ver o histórico">
       <span class="hd-i"><span id="st-mes-l">Chuva no mês</span> <b id="st-mes">–</b></span>
       <span class="hd-i"><span id="st-safra-l">Safra</span> <b id="st-safra">–</b></span>
       <span class="hd-i">Última chuva <b id="st-ult">–</b></span>
-    </div>
+      <span class="hd-go">Chuvas ›</span>
+    </button>
   </header>
 
   <div class="bk-alerta" id="bk-alerta" role="alert" hidden>
@@ -1082,25 +1086,27 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","chuvas","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Anotações",v:["notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Anotações",v:["notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
 const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
   const g=Object.keys(GRUPOS).find(k=>GRUPOS[k].v.includes(view)); ultimaDoGrupo[g]=view;
-  $("#tabs-g").innerHTML=Object.entries(GRUPOS).map(([k,x])=>`<button type="button" role="tab" aria-selected="${k===g}" data-g="${k}">${x.l}</button>`).join("");
+  $("#tabs-g").innerHTML=Object.entries(GRUPOS).filter(([,x])=>!x.oculto).map(([k,x])=>`<button type="button" role="tab" aria-selected="${k===g}" data-g="${k}">${x.l}</button>`).join("");
   $("#tabs-g").querySelectorAll("button").forEach(b=>b.onclick=()=>show(ultimaDoGrupo[b.dataset.g]||GRUPOS[b.dataset.g].v[0]));
   const vs=GRUPOS[g].v;
   $("#tabs-s").style.gridTemplateColumns=`repeat(${vs.length>5?3:vs.length},minmax(0,1fr))`;
   $("#tabs-s").innerHTML=vs.length>1?vs.map(v=>`<button type="button" role="tab" aria-selected="${v===view}" data-view="${v}">${NOMES[v]}</button>`).join(""):"";
   $("#tabs-s").querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.view));
   for(const v of VIEWS) $("#view-"+v).hidden=v!==view;
+  $("#hd-chuvas")?.setAttribute("aria-pressed",view==="chuvas");
   $("#view-config").hidden=true;
   if(view==="relatorios") requestAnimationFrame(()=>{try{rlMontar()}catch(e){console.error(e)}});
   if(view==="painel") requestAnimationFrame(()=>{try{renderPainel()}catch(e){console.error(e)}});
   if(view.startsWith("fin_")) requestAnimationFrame(()=>{try{window.finRender?.(view)}catch(e){console.error(e)}});
 }
 show("lancar");
+$("#hd-chuvas").onclick=()=>{show("chuvas"); window.scrollTo({top:0,behavior:"smooth"})};
 const h=location.hash.slice(1); if(VIEWS.includes(h)) show(h);
 
 /* ---------- Form ---------- */

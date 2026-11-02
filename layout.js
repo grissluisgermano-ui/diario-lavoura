@@ -12,7 +12,7 @@
   function renderSide(view){
     const side = document.getElementById("side"); if (!side || typeof GRUPOS === "undefined") return;
     atual = view;
-    side.innerHTML = Object.entries(GRUPOS).map(([g, x]) => {
+    side.innerHTML = Object.entries(GRUPOS).filter(([, x]) => !x.oculto).map(([g, x]) => {
       const itens = x.v.map(v => `<button type="button" data-view="${v}"${v === view ? ' aria-current="page"' : ""}><i></i>${NOMES[v] || x.l}</button>`).join("");
       return x.v.length > 1 ? `<div class="sd-g"><span class="sd-gl">${x.l}</span>${itens}</div>` : `<div class="sd-g">${itens}</div>`;
     }).join("");

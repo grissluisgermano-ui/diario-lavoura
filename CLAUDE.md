@@ -49,6 +49,7 @@ Financeiro: `financeiro.js` + `financeiro.css` (grupo "Financeiro" do menu: `fin
   - Aegro: Contas → "Importar planilha do Aegro" (.xlsx "Consolidado"). Agrupa por NF+fornecedor+categoria (ou parcelas k/N), parcela = soma das linhas; agrupadores viram contrato/cultura/safra/talhão (texto do Aegro vem em NFD: normalizar). Id fixo `aeg_<hash(origem)>`: reimportar não duplica; NF já lançada por XML/Diário é pulada. Nomes curtos em `config/financeiro.apelidos`. Venda de grãos do Financeiro igual (±1%, ±5 dias) a uma venda do Diário não conta duas vezes.
   - Pagar com grãos: grava `quitGraos` e (opcional) um movimento `venda` em `graos` com `finId` (não vira pendência e não mexe no caixa).
   - Resultado da safra: competência; receitas = vendas de grãos do Diário + outras receitas (financiamento recebido não é receita); investimentos ficam fora do custo; arrendamento em sacas vale pelo preço médio de venda; por talhão = insumos aplicados (registros) + custos gerais rateados por área.
+Topo: a barra verde mostra chuva no mês, chuva na safra e última chuva (`#hd-chuvas`, um botão que abre a tela Chuvas). Chuvas saiu da aba Lavoura: é o grupo `chuvas` com `oculto:true` em `GRUPOS` (não aparece nas abas nem no menu lateral).
 Layout: `layout.css` + `layout.js` — a partir de 1100 px de largura, menu lateral (`#side`) e formulários numa coluna fixa à direita; no celular nada muda.
 
 ## Como testar antes de publicar
