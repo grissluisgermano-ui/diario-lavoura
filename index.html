@@ -270,6 +270,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .dita .note{flex:1 1 200px}
 .rs-box{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
 .hd-dir{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.hd-st{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 16px;padding-top:8px;margin-top:2px;border-top:1px solid color-mix(in srgb,var(--hd-ink) 22%,transparent);font-size:.8rem;color:var(--hd-ink)}
+.hd-i{opacity:.82;white-space:nowrap}
+.hd-i b{font-family:var(--f-mono);font-weight:500;opacity:1;font-variant-numeric:tabular-nums;margin-left:2px}
 .tema-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .8rem var(--f-body);padding:5px 10px;border-radius:999px;cursor:pointer}
 .cfg-tal{display:flex;flex-direction:column;gap:8px}
 .cfg-row{display:grid;grid-template-columns:minmax(0,1fr) 8rem 40px;gap:8px;align-items:center}
@@ -345,6 +348,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <h1>Diário da Lavoura</h1>
     </div>
     <div class="hd-dir"><div class="note" id="sync">Conectando…</div><button type="button" class="tema-btn" id="cfg-abrir">Configurações</button></div>
+    <div class="hd-st" aria-label="Resumo">
+      <span class="hd-i"><span id="st-mes-l">Chuva no mês</span> <b id="st-mes">–</b></span>
+      <span class="hd-i"><span id="st-safra-l">Safra</span> <b id="st-safra">–</b></span>
+      <span class="hd-i"><b id="st-n">–</b> registros</span>
+    </div>
   </header>
 
   <div class="bk-alerta" id="bk-alerta" role="alert" hidden>
@@ -352,11 +360,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <button type="button" class="btn" id="bk-al-btn">Fazer backup agora</button>
   </div>
 
-  <section class="stats" aria-label="Resumo">
-    <div class="stat"><b id="st-n">–</b><span>registros</span></div>
-    <div class="stat"><b id="st-mes">–</b><span id="st-mes-l">chuva no mês</span></div>
-    <div class="stat"><b id="st-safra">–</b><span id="st-safra-l">chuva na safra</span></div>
-  </section>
 
   <nav class="tabs" aria-label="Seções do app">
     <div class="tabs-g" role="tablist" id="tabs-g"></div>
@@ -1744,7 +1747,7 @@ function renderStats(){
   $("#st-n").textContent=registros.length;
   $("#st-mes").textContent=num(soma(r=>r.data.startsWith(ym)))+" mm";
   $("#st-safra").textContent=num(soma(r=>r.data>=ini&&r.data<=hoje))+" mm";
-  const sy=m>=7?y:y-1; $("#st-safra-l").textContent=`chuva na safra ${String(sy).slice(2)}/${String(sy+1).slice(2)}`;
+  const sy=m>=7?y:y-1; $("#st-safra-l").textContent=`Safra ${String(sy).slice(2)}/${String(sy+1).slice(2)}`;
 }
 
 /* ---------- Chuvas ---------- */
