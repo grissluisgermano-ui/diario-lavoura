@@ -1095,7 +1095,7 @@ function show(view){
   $("#tabs-g").innerHTML=Object.entries(GRUPOS).filter(([,x])=>!x.oculto).map(([k,x])=>`<button type="button" role="tab" aria-selected="${k===g}" data-g="${k}">${x.l}</button>`).join("");
   $("#tabs-g").querySelectorAll("button").forEach(b=>b.onclick=()=>show(ultimaDoGrupo[b.dataset.g]||GRUPOS[b.dataset.g].v[0]));
   const vs=GRUPOS[g].v;
-  $("#tabs-s").style.gridTemplateColumns=`repeat(${vs.length>5?3:vs.length},minmax(0,1fr))`;
+  $("#tabs-s").style.gridTemplateColumns=`repeat(${vs.length>4?3:vs.length},minmax(0,1fr))`;
   $("#tabs-s").innerHTML=vs.length>1?vs.map(v=>`<button type="button" role="tab" aria-selected="${v===view}" data-view="${v}">${NOMES[v]}</button>`).join(""):"";
   $("#tabs-s").querySelectorAll("button").forEach(b=>b.onclick=()=>show(b.dataset.view));
   for(const v of VIEWS) $("#view-"+v).hidden=v!==view;
