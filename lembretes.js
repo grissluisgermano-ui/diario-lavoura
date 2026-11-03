@@ -4,7 +4,7 @@
    Alertas: faixa amarela abaixo do cabeçalho + número na aba; e-mail diário pelo script automacao/lembretes-email.gs. */
 (function(){
 "use strict";
-let lista=[], usuarios={}, edit=null, filtro="todos", iniciou=false;
+let lista=[], usuarios={}, edit=null, filtro="todos", iniciou=false, pedeNota=null;
 const AVISOS={"":"Sem alerta","0":"No dia","1":"1 dia antes","3":"3 dias antes","7":"1 semana antes"};
 const REPETE={"":"Não repete",semana:"Toda semana",mes:"Todo mês",ano:"Todo ano"};
 const hoje=()=>todayISO();
@@ -40,7 +40,7 @@ function item(l){
       ${tags.length?`<div class="lm-tags">${tags.join("")}</div>`:""}
       ${l.obs?`<p class="lm-obs">${esc(l.obs)}</p>`:""}
       ${assin}
-      <div class="rec-actions">${l.data&&!l.feito?`<a class="link" target="_blank" rel="noopener" href="${agendaUrl(l)}">Pôr na agenda</a>`:""}<button type="button" class="link" data-lmed="${l.id}">Editar</button><button type="button" class="link danger" data-lmdel="${l.id}">Excluir</button></div>
+      <div class="rec-actions">${l.feito?(l.notaId?`<button type="button" class="link" data-lmvn="${l.id}">Ver anotação</button>`:`<button type="button" class="link" data-lmnota="${l.id}">Guardar nas anotações</button>`):""}${l.data&&!l.feito?`<a class="link" target="_blank" rel="noopener" href="${agendaUrl(l)}">Pôr na agenda</a>`:""}<button type="button" class="link" data-lmed="${l.id}">Editar</button><button type="button" class="link danger" data-lmdel="${l.id}">Excluir</button></div>
     </div>
   </article>`;
 }
@@ -59,13 +59,43 @@ function render(){
         feitos=vis.filter(l=>l.feito).sort((a,b)=>String(b.feitoEm).localeCompare(String(a.feitoEm)));
   $("#lm-cont").textContent=ab.length?`${ab.length} em aberto`:"";
   if(!lista.length){box.innerHTML=`<div class="empty">Nenhum lembrete ainda.<br>Escreva acima o que não pode ser esquecido: comprar uma peça, ligar para alguém, pagar uma conta.</div>`;return}
-  box.innerHTML=(ab.length?"":`<div class="empty">Tudo feito por aqui. 👍</div>`)+
+  const pn=lista.find(x=>x.id===pedeNota&&x.feito&&!x.notaId); if(!pn) pedeNota=null;
+  box.innerHTML=(pn?caixaNota(pn):"")+(ab.length?"":`<div class="empty">Tudo feito por aqui. 👍</div>`)+
     grupo("Atrasados","g-venc",atras)+grupo("Hoje","g-hoje",hj)+grupo("Próximos 7 dias","",prox)+grupo("Mais adiante","",dep)+
     grupo("Em espera (sem data)","g-esp",esp)+
     (feitos.length?`<details class="lm-g g-feito" id="lm-feitos"${$("#lm-feitos")?.open?" open":""}><summary class="lm-gh">Feitos <span>${feitos.length}</span></summary>${feitos.slice(0,40).map(item).join("")}${feitos.length>40?`<p class="note">Mostrando os 40 mais recentes.</p>`:""}</details>`:"");
   box.querySelectorAll("[data-lmck]").forEach(b=>b.onclick=()=>marcar(b.dataset.lmck,b));
   box.querySelectorAll("[data-lmed]").forEach(b=>b.onclick=()=>editar(b.dataset.lmed));
+  box.querySelectorAll("[data-lmnota]").forEach(b=>b.onclick=()=>{pedeNota=b.dataset.lmnota; render(); $("#lm-nota")?.scrollIntoView({block:"center",behavior:"smooth"}); $("#lm-nota-txt")?.focus({preventScroll:true})});
+  box.querySelectorAll("[data-lmvn]").forEach(b=>b.onclick=()=>verNota(lista.find(x=>x.id===b.dataset.lmvn)));
+  if(pn){$("#lm-nota-ok").onclick=()=>guardarNota(pn); $("#lm-nota-x").onclick=()=>{pedeNota=null; render()}}
   box.querySelectorAll("[data-lmdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",()=>db.collection("lembretes").doc(b.dataset.lmdel).delete()));
+}
+/* ---------- Lembrete feito → anotação ---------- */
+function caixaNota(l){
+  const cats=typeof CAT_NT!=="undefined"?CAT_NT:{geral:{l:"Geral"}};
+  return `<div class="lm-nota" id="lm-nota">
+    <div class="lm-nota-h"><span class="lm-nota-ok" aria-hidden="true">✓</span><div><b>“${esc(l.texto)}” feito.</b><span>Quer guardar nas Anotações para consultar depois?</span></div></div>
+    <div class="field"><label for="lm-nota-txt">Como ficou? (opcional)</label><textarea id="lm-nota-txt" rows="3" placeholder="Ex.: paguei R$ 1.250 no banco; o mecânico vem quinta"></textarea></div>
+    <div class="field"><label for="lm-nota-cat">Categoria da anotação</label><select id="lm-nota-cat">${Object.entries(cats).map(([k,v])=>`<option value="${k}"${k==="geral"?" selected":""}>${esc(v.l)}</option>`).join("")}</select></div>
+    <div class="row"><button type="button" class="btn" id="lm-nota-ok">Guardar anotação</button><button type="button" class="link" id="lm-nota-x">Agora não</button></div>
+  </div>`;
+}
+async function guardarNota(l){
+  if(!db) return; const b=$("#lm-nota-ok"); b.disabled=true;
+  const agora=new Date(), feitoEm=l.feitoEm?brDate(l.feitoEm.slice(0,10)):brDate(hoje());
+  const res=$("#lm-nota-txt").value.trim();
+  const texto=[res,l.obs?"Observação do lembrete: "+l.obs:"",`Lembrete${l.data?" para "+brDate(l.data)+(l.hora?" às "+l.hora:""):""}, concluído em ${feitoEm}${l.feitoPor?" por "+nomeDe(l.feitoPor).replace(/^você$/,usuarios[meuId]?.nome||"você"):""}.`].filter(Boolean).join("\n\n");
+  const nota={data:hoje(),hora:agora.toTimeString().slice(0,5),categoria:$("#lm-nota-cat").value||"geral",titulo:l.texto,texto,pessoas:"",local:"",prazo:null,resolvida:false,fotos:[],origem:"lem|"+l.id,criadoEm:agora.toISOString()};
+  try{
+    const r=await db.collection("notas").add(nota);
+    const {id,...doc}=l; doc.notaId=r?.id||true; await db.collection("lembretes").doc(id).set(doc);
+    pedeNota=null; flash("Guardado nas Anotações."); render();
+  }catch{b.disabled=false; flash("Não foi possível salvar. Tente de novo.")}
+}
+function verNota(l){
+  show("notas"); const q=$("#nt-busca"); if(q&&l){q.value=l.texto; q.dispatchEvent(new Event("input"))}
+  requestAnimationFrame(()=>{const r=document.querySelector("#nt-lista .rec"); (r||$("#nt-lista"))?.scrollIntoView({block:"start",behavior:"smooth"})});
 }
 function agendaUrl(l){
   const d=l.data.replace(/-/g,""); let datas;
@@ -81,7 +111,7 @@ async function marcar(id,b){
   try{
     if(l.feito){doc.feito=false; doc.feitoEm=null; doc.feitoPor=null}
     else{
-      doc.feito=true; doc.feitoEm=new Date().toISOString(); doc.feitoPor=meuId||null;
+      doc.feito=true; doc.feitoEm=new Date().toISOString(); doc.feitoPor=meuId||null; if(!l.notaId) pedeNota=id;
       if(l.repetir&&l.data&&!l.proximoId){ // cria o próximo da série
         let nd=proxima(l.data,l.repetir); while(nd<hoje()) nd=proxima(nd,l.repetir);
         const novo={texto:l.texto,obs:l.obs||"",data:nd,hora:l.hora||"",aviso:l.aviso??null,resp:l.resp||"todos",repetir:l.repetir,feito:false,criadoEm:new Date().toISOString()};
