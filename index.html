@@ -188,6 +188,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .tabs-s:empty{display:none}
 .tabs button{border:0;background:transparent;color:var(--muted);font:600 .92rem var(--f-body);padding:9px 0;border-radius:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tabs-s button{font-size:.86rem;padding:7px 0}
+.es-abas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--sunk);border-radius:10px;padding:4px}
+.es-abas button{border:0;background:transparent;color:var(--muted);font:600 .86rem var(--f-body);padding:9px 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;line-height:1.15}
+.es-abas button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.es-abas button{white-space:nowrap}
+@media (max-width:520px){.es-wide{display:none}}
+.es-n{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--danger);color:#fff;font-size:.7rem}
+.es-pane{display:flex;flex-direction:column;gap:14px}
+.es-pane[hidden]{display:none}
+.ne-vazio{display:none}
+#ne-box[hidden]+.ne-vazio{display:block}
 .tabs .tabs-s button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--accent)}
 .tabs button[aria-selected="true"]{background:var(--tab-on);color:var(--tab-on-ink);box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .nt-cat{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--c)}
@@ -615,7 +625,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="es-valor">–</b><span>valor em estoque</span></div>
       <div class="stat"><b id="es-zero">–</b><span>sem saldo</span></div>
     </div>
-    <div id="ne-box" class="ne-box" hidden></div>
+    <div class="es-abas" id="es-abas" role="tablist" aria-label="Partes do estoque">
+      <button type="button" role="tab" data-esaba="produtos" aria-selected="true">Produtos</button>
+      <button type="button" role="tab" data-esaba="entrada" aria-selected="false">Lançar entrada</button>
+      <button type="button" role="tab" data-esaba="notas" aria-selected="false">Notas<span class="es-wide">&nbsp;do e-mail</span><span class="es-n" id="es-ne-n" hidden></span></button>
+    </div>
+    <div class="es-pane" data-pane="notas" hidden>
+      <div id="ne-box" class="ne-box" hidden></div>
+      <div class="empty ne-vazio">Nenhuma nota nova por e-mail.<br>Quando chegar uma nota com XML no Gmail, ela aparece aqui para lançar.</div>
+    </div>
+    <div class="es-pane" data-pane="entrada" hidden>
     <form class="sub" id="es-form" autocomplete="off">
       <h3 class="sub-h">Lançar entrada no estoque</h3>
       <div class="nf-imp">
@@ -641,8 +660,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <p class="note" id="es-hint">Produto novo: preencha os nomes, a unidade e a primeira entrada.</p>
       <div class="row"><button class="btn" type="submit" id="es-salvar">Lançar no estoque</button><span class="toast" id="es-toast" role="status"></span></div>
     </form>
+    </div>
+    <div class="es-pane" data-pane="produtos">
     <div class="field"><label for="es-busca">Buscar no estoque</label><input id="es-busca" type="search" placeholder="Nome comercial ou princípio ativo"></div>
     <div id="es-lista" class="es-lista"></div>
+    </div>
     <datalist id="dl-estoque"></datalist>
   </section>
 
@@ -1368,7 +1390,13 @@ function xmlSemClaude(x){
 }
 let nfCtl=null;
 $("#nf-in").addEventListener("change",e=>{const file=e.target.files[0]; e.target.value=""; if(file) nfProcessar(file)});
-window.nfImportarArquivo=f=>nfProcessar(f);
+window.nfImportarArquivo=f=>{esAba("entrada"); return nfProcessar(f)};
+function esAba(k){
+  document.querySelectorAll("#es-abas [data-esaba]").forEach(b=>b.setAttribute("aria-selected",b.dataset.esaba===k));
+  document.querySelectorAll("#view-estoque .es-pane").forEach(p=>p.hidden=p.dataset.pane!==k);
+}
+window.esAba=esAba;
+document.querySelectorAll("#es-abas [data-esaba]").forEach(b=>b.onclick=()=>esAba(b.dataset.esaba));
 async function nfProcessar(file){
   nfCtl?.abort(); nfCtl=new AbortController(); $("#nf-rev").hidden=true;
   nfXmlTxt=/xml$/i.test(file.name)||/xml/.test(file.type)?await file.text().catch(()=>null):null;
@@ -1495,7 +1523,7 @@ function renderEstoque(){
     </details>
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
   </article>`).join("");
-  $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada);$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
+  $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada);esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
   $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
   $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
     const [id,i]=b.dataset.rment.split(":"); const e=estoque.find(x=>x.id===id); if(!e) return;

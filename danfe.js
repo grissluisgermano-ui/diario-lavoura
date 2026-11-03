@@ -152,8 +152,9 @@ window.nePintar=function(){
   const box=document.getElementById("ne-box"), av=document.getElementById("fn-ne"); if(!box) return;
   const ps=pendentes();
   box.hidden=!ps.length; if(av) av.hidden=!ps.length;
+  const qn=document.getElementById("es-ne-n"); if(qn){qn.hidden=!ps.length; qn.textContent=ps.length}
   if(av&&ps.length){av.innerHTML=`<span><b>${ps.length} nota${ps.length===1?"":"s"} recebida${ps.length===1?"":"s"} por e-mail</b> esperando lançamento.</span><button type="button" class="link" id="ne-ir">Ver em Estoque</button>`;
-    av.querySelector("#ne-ir").onclick=()=>{show("estoque"); document.getElementById("ne-box")?.scrollIntoView({block:"start",behavior:"smooth"})}}
+    av.querySelector("#ne-ir").onclick=()=>{show("estoque"); window.esAba?.("notas"); document.getElementById("es-abas")?.scrollIntoView({block:"start",behavior:"smooth"})}}
   if(!ps.length){box.innerHTML="";return}
   const br=x=>Number(x||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
   box.innerHTML=`<div class="row" style="justify-content:space-between"><h3 class="sub-h">Notas recebidas por e-mail</h3><span class="note">${ps.length} para lançar</span></div>
