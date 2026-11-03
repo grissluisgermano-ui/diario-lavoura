@@ -167,13 +167,7 @@ const DISP="lm-dispensa";
 function alerta(){
   const ab=lista.filter(l=>emAlerta(l)&&meu(l)), h=hoje();
   const n=ab.length;
-  document.querySelectorAll(".lm-badge").forEach(x=>x.remove());
-  if(n){
-    const bdg=()=>{const s=document.createElement("span"); s.className="lm-badge"; s.textContent=n; s.setAttribute("aria-label",`${n} lembrete${n>1?"s":""} pedindo atenção`); return s};
-    document.querySelector('#tabs-g [data-g="notas"]')?.append(bdg());
-    document.querySelector('#tabs-s [data-view="lembretes"]')?.append(bdg());
-    document.querySelector('#side [data-view="lembretes"]')?.append(bdg());
-  }
+  window.marca?.("lembretes",n);
   const box=$("#lm-alerta"); if(!box) return;
   let disp=""; try{disp=localStorage.getItem(DISP)||""}catch{}
   const naTela=!$("#view-lembretes")?.hidden;

@@ -41,7 +41,7 @@ details.g-feito>.lm-it+.lm-it{margin-top:8px}
 .lm-it.feito .lm-txt{text-decoration:line-through;color:var(--muted);font-weight:400}
 .lm-it.feito{background:transparent}
 /* número de lembretes na aba */
-.lm-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--danger);color:#fff;font:600 .7rem/1 var(--f-body);vertical-align:1px}
+.lm-badge-antigo{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--danger);color:#fff;font:600 .7rem/1 var(--f-body);vertical-align:1px}
 /* faixa de alerta abaixo do cabeçalho */
 .lm-alerta{display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap;background:#F6E7B8;color:#3A2E05;border:1px solid #E2C76A;border-radius:var(--r);padding:10px 14px}
 .lm-alerta[hidden]{display:none}

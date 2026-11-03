@@ -152,6 +152,7 @@ window.nePintar=function(){
   const box=document.getElementById("ne-box"), av=document.getElementById("fn-ne"); if(!box) return;
   const ps=pendentes();
   box.hidden=!ps.length; if(av) av.hidden=!ps.length;
+  window.marca?.("estoque",ps.length);
   const qn=document.getElementById("es-ne-n"); if(qn){qn.hidden=!ps.length; qn.textContent=ps.length}
   if(av&&ps.length){av.innerHTML=`<span><b>${ps.length} nota${ps.length===1?"":"s"} recebida${ps.length===1?"":"s"} por e-mail</b> esperando lançamento.</span><button type="button" class="link" id="ne-ir">Ver em Estoque</button>`;
     av.querySelector("#ne-ir").onclick=()=>{show("estoque"); window.esAba?.("notas"); document.getElementById("es-abas")?.scrollIntoView({block:"start",behavior:"smooth"})}}

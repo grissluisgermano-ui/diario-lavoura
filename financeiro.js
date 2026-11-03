@@ -1160,6 +1160,8 @@ window.finRender=function(view){
 window.finAgenda=()=>{clearTimeout(window.finAgenda.t); window.finAgenda.t=setTimeout(()=>{
   gerarRecorrentes();
   window.nePintar?.();
+  {const h=hoje(); window.marca?.("fin_contas",fnLanc.filter(l=>l.status!=="pago"&&l.natureza!=="transf"&&l.vencimento&&l.vencimento<h).length);
+   try{window.marca?.("fin_resumo",pendencias("atual").length)}catch{}}
   for(const v of ["fin_resumo","fin_contas","fin_caixa","fin_safra"]) if(visivel(v)){try{window.finRender(v)}catch(e){console.error(e)}}
   const dl=[...new Set(fnLanc.map(l=>l.pessoa).filter(Boolean))]; $("#dl-fn-pessoa").innerHTML=dl.map(p=>`<option value="${esc(p)}">`).join("");
   $("#dl-fn-tit").innerHTML=[...new Set(fnLanc.map(l=>l.titular).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");

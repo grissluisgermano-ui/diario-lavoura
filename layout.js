@@ -17,6 +17,7 @@
       return x.v.length > 1 ? `<div class="sd-g"><span class="sd-gl">${x.l}</span>${itens}</div>` : `<div class="sd-g">${itens}</div>`;
     }).join("");
     side.querySelectorAll("button").forEach(b => b.onclick = () => { show(b.dataset.view); if (MQ.matches) window.scrollTo({ top: 0 }) });
+    window.pintaMarcas?.();
   }
 
   /* Formulário à direita, listas à esquerda (só no computador) */

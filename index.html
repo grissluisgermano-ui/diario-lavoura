@@ -188,6 +188,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .tabs-s:empty{display:none}
 .tabs button{border:0;background:transparent;color:var(--muted);font:600 .92rem var(--f-body);padding:9px 0;border-radius:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tabs-s button{font-size:.86rem;padding:7px 0}
+.bdg{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--danger);color:#fff;font:600 .7rem/1 var(--f-body);vertical-align:1px}
 .es-abas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--sunk);border-radius:10px;padding:4px}
 .es-abas button{border:0;background:transparent;color:var(--muted);font:600 .86rem var(--f-body);padding:9px 4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;line-height:1.15}
 .es-abas button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
@@ -1154,7 +1155,22 @@ function show(view){
   if(view==="relatorios") requestAnimationFrame(()=>{try{rlMontar()}catch(e){console.error(e)}});
   if(view==="painel") requestAnimationFrame(()=>{try{renderPainel()}catch(e){console.error(e)}});
   if(view.startsWith("fin_")) requestAnimationFrame(()=>{try{window.finRender?.(view)}catch(e){console.error(e)}});
+  pintaMarcas();
 }
+/* Bolinhas vermelhas de pendências: na tela, na aba do grupo e no menu lateral */
+const MARCAS={};
+function pintaMarcas(){
+  document.querySelectorAll(".bdg").forEach(x=>x.remove());
+  const mk=n=>{const s=document.createElement("span");s.className="bdg";s.textContent=n>99?"99+":n;s.setAttribute("aria-label",`${n} pendência${n>1?"s":""}`);return s};
+  for(const [g,x] of Object.entries(GRUPOS)){ if(x.oculto) continue;
+    const tot=x.v.reduce((s,v)=>s+(MARCAS[v]||0),0);
+    if(tot) document.querySelector(`#tabs-g [data-g="${g}"]`)?.append(mk(tot));
+    for(const v of x.v){const n=MARCAS[v]||0; if(!n) continue;
+      document.querySelector(`#tabs-s [data-view="${v}"]`)?.append(mk(n)); document.querySelector(`#side [data-view="${v}"]`)?.append(mk(n))}
+  }
+}
+window.pintaMarcas=pintaMarcas;
+window.marca=(v,n)=>{n=n||0; if((MARCAS[v]||0)===n) return; MARCAS[v]=n; pintaMarcas()};
 show("lancar");
 $("#hd-chuvas").onclick=()=>{show("chuvas"); window.scrollTo({top:0,behavior:"smooth"})};
 const h=location.hash.slice(1); if(VIEWS.includes(h)) show(h);
@@ -1905,7 +1921,7 @@ function renderMaquinas(){
   $("#mq-gasto").textContent=brlC(manut.filter(x=>safraDe(x.data)===sy).reduce((s,x)=>s+(Number(x.custoTotal)||0),0));
   $("#mq-gasto-l").textContent=`gasto na safra ${safraLab(sy)}`;
   const al=infos.filter(x=>x.i.status==="venc"||x.i.status==="prox");
-  $("#mq-alert").textContent=al.length;
+  $("#mq-alert").textContent=al.length; window.marca?.("maquinas",al.length);
   $("#mq-alertas").innerHTML=al.map(({m,i})=>`<div class="alerta" style="--c:var(${i.status==="venc"?"--danger":"--t-aplicacao"})"><span><b>${esc(m.nome)}</b> · próxima: ${esc(proxTxt(i.comProx))}${i.horAtual!=null?` · horímetro ${fmtH(i.horAtual)}`:""}</span><span class="pill ${i.status}">${STATUS_TXT[i.status]}</span></div>`).join("");
   // chips de filtro
   if(mqSel&&!maquinas.some(m=>m.id===mqSel)) mqSel="";
@@ -2238,7 +2254,7 @@ function renderBenf(){
   $("#bf-gasto").textContent=brlC(bfServ.filter(x=>safraDe(x.data)===sy).reduce((s,x)=>s+(Number(x.custoTotal)||0),0));
   $("#bf-gasto-l").textContent=`gasto na safra ${safraLab(sy)}`;
   const pend=bfServ.filter(x=>x.status&&x.status!=="concluido").sort((a,b)=>a.data.localeCompare(b.data));
-  $("#bf-pend").textContent=pend.length;
+  $("#bf-pend").textContent=pend.length; window.marca?.("benfeitorias",pend.length);
   $("#bf-pendentes").innerHTML=pend.map(x=>`<div class="alerta" style="--c:var(${x.status==="pendente"?"--danger":"--t-aplicacao"})"><span><b>${esc(nomeBf(x.benfId))}</b> · ${esc((x.servicos||[]).join(", ")||"serviço")}${x.descricao?" · "+esc(x.descricao.slice(0,80)):""}</span><span class="pill ${x.status==="pendente"?"venc":"prox"}">${STATUS_BF[x.status]}</span></div>`).join("");
   if(bfSel&&!benf.some(b=>b.id===bfSel)) bfSel="";
   $("#bf-chips").innerHTML=`<button type="button" class="chip" aria-pressed="${!bfSel}" data-id="">Todas</button>`+benf.map(b=>`<button type="button" class="chip" aria-pressed="${bfSel===b.id}" data-id="${b.id}">${esc(b.nome)}</button>`).join("");
@@ -2733,6 +2749,7 @@ const ntPendente=n=>n.prazo&&!n.resolvida;
 function renderNotas(){
   const hoje=todayISO();
   const pend=notas.filter(ntPendente).sort((a,b)=>a.prazo.localeCompare(b.prazo));
+  window.marca?.("notas",pend.filter(n=>n.prazo<=hoje).length);
   $("#nt-pend").innerHTML=pend.map(n=>`<div class="alerta" style="--c:var(${n.prazo<hoje?"--danger":"--t-aplicacao"})"><span><b>${esc(n.titulo||n.texto.slice(0,60))}</b>${n.pessoas?" · "+esc(n.pessoas):""}</span><span class="pill ${n.prazo<hoje?"venc":"prox"}">${n.prazo<hoje?"Venceu":"Até"} ${brDate(n.prazo).slice(0,5)}</span></div>`).join("");
   $("#dl-pess").innerHTML=[...new Set(notas.flatMap(n=>String(n.pessoas||"").split(/,\s*/)).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
   const fc=$("#nt-f-cat").value, fp=$("#nt-f-pend").value, q=$("#nt-busca").value.trim().toLowerCase();
