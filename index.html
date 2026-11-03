@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="danfe.css">
 <link rel="stylesheet" href="lembretes.css">
 <link rel="stylesheet" href="vinculo.css">
+<link rel="stylesheet" href="mapa.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -410,6 +411,24 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   </section>
 
   <!-- RELATÓRIOS -->
+  <!-- MAPA -->
+  <section class="panel" id="view-mapa" hidden>
+    <h2>Mapa da lavoura</h2>
+    <div class="mp-barra" id="mp-barra">
+      <button type="button" class="btn" id="mp-ponto">+ Marcar ponto</button>
+      <button type="button" class="btn ghost" id="mp-desenhar">Desenhar talhão</button>
+      <button type="button" class="btn ghost" id="mp-gps" aria-label="Ir para minha localização">◎ Onde estou</button>
+    </div>
+    <div class="mp-modo" id="mp-modo" hidden></div>
+    <div class="mp-wrap"><div id="mp-mapa" class="mp-mapa" role="application" aria-label="Mapa da lavoura"></div><p class="mp-carr" id="mp-carr">Carregando o mapa…</p></div>
+    <div class="mp-listas">
+      <div><h3 class="sub-h">Talhões</h3><div id="mp-tal" class="mp-tal"></div></div>
+      <div><h3 class="sub-h">Pontos marcados <span class="note" id="mp-np"></span></h3>
+        <div class="chips" id="mp-filtro"></div>
+        <div id="mp-pontos" class="mp-pontos"></div></div>
+    </div>
+  </section>
+
   <section class="panel" id="view-relatorios" hidden>
     <h2>Relatórios</h2>
     <div class="field"><label for="rl-tipo">Relatório</label><select id="rl-tipo"></select></div>
@@ -461,7 +480,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <span class="lbl">Talhões e áreas</span>
         <div id="cfg-tal" class="cfg-tal"></div>
         <div class="row" style="justify-content:space-between"><button type="button" class="btn ghost" id="cfg-add-tal">+ Adicionar talhão</button><b class="mono" id="cfg-tot"></b></div>
-        <p class="note">Ao renomear um talhão, os lançamentos antigos passam a usar o nome novo. Um talhão que já tem lançamentos não pode ser removido.</p>
+        <p class="note">Ao renomear um talhão, os lançamentos antigos passam a usar o nome novo. Um talhão que já tem lançamentos não pode ser removido. Para desenhar o contorno no mapa: Painel → Mapa.</p>
       </div>
       <div class="grid2">
         <div class="field"><label for="cfg-dep">Depósitos / cooperativas</label><input id="cfg-dep" placeholder="Separados por vírgula"></div>
@@ -1138,8 +1157,8 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
-const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
+const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios","mapa"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const NOMES={painel:"Painel",relatorios:"Relatórios",mapa:"Mapa",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
@@ -2649,7 +2668,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[]});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{})});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -2716,6 +2735,7 @@ function planilhaBackup(){
   add("Serviços benfeitorias",[...bfServ].reverse().map(x=>({"Data":dt(x.data),"Benfeitoria":nomeBf(x.benfId),"Serviços":(x.servicos||[]).join(", "),"Situação":STATUS_BF[x.status]||"Concluído","Materiais e mão de obra":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Responsável":x.responsavel||"","Próxima":dt(x.proxData),"Descrição":x.descricao||""})));
   window.finPlanilha?.(add,dt);
   window.lmPlanilha?.(add,dt);
+  window.mpPlanilha?.(add,dt);
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -3403,9 +3423,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[]});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{})});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -3675,7 +3695,7 @@ $("#ask").onclick=async()=>{
 Talhões e áreas: ${TALHOES.map(t=>`${t.n} (${num(t.ha)} ha)`).join(", ")}. Total ${num(TALHOES.reduce((s,t)=>s+t.ha,0))} ha.
 
 Registros (data | tipo | talhões | detalhes | descrição):
-${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}
+${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}
 
 Pergunta: ${q}`;
   ctl=new AbortController();
@@ -3716,7 +3736,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -3741,6 +3761,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="danfe.js"></script>
 <script src="lembretes.js"></script>
 <script src="vinculo.js"></script>
+<script src="mapa.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>
