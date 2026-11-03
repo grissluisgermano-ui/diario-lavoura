@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="ponte.css">
 <link rel="stylesheet" href="financeiro.css">
 <link rel="stylesheet" href="danfe.css">
+<link rel="stylesheet" href="lembretes.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -981,6 +982,30 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   </section>
 
   <!-- ANOTAÇÕES -->
+  <section class="panel" id="view-lembretes" hidden>
+    <h2>Lembretes <span class="note" id="lm-cont"></span></h2>
+    <form class="sub" id="lm-form" autocomplete="off">
+      <div class="row" style="justify-content:space-between"><h3 class="sub-h" id="lm-form-tit">Novo lembrete</h3><button type="button" class="link" id="lm-cancel" hidden>Cancelar edição</button></div>
+      <div class="lm-add"><input id="lm-txt" aria-label="Lembrete" placeholder="Escreva o lembrete" enterkeyhint="done"><button class="btn" type="submit" id="lm-salvar">Adicionar</button></div>
+      <div class="lm-rap" aria-label="Data rápida"><span class="note">Quando:</span><button type="button" class="chip" data-lmdata="0">Hoje</button><button type="button" class="chip" data-lmdata="1">Amanhã</button><button type="button" class="chip" data-lmdata="7">Em 1 semana</button><button type="button" class="chip" data-lmdata="">Sem data</button></div>
+      <details id="lm-mais" class="lm-mais">
+        <summary>Data, alerta, responsável e observação</summary>
+        <div class="grid2">
+          <div class="field"><label for="lm-data">Data</label><input type="date" id="lm-data"></div>
+          <div class="field"><label for="lm-hora">Hora (opcional)</label><input type="time" id="lm-hora"></div>
+          <div class="field"><label for="lm-aviso">Alerta</label><select id="lm-aviso"><option value="">Sem alerta</option><option value="0">No dia</option><option value="1">1 dia antes</option><option value="3">3 dias antes</option><option value="7">1 semana antes</option></select></div>
+          <div class="field"><label for="lm-rep">Repetir</label><select id="lm-rep"><option value="">Não repete</option><option value="semana">Toda semana</option><option value="mes">Todo mês</option><option value="ano">Todo ano</option></select></div>
+          <div class="field"><label for="lm-resp">Para quem</label><select id="lm-resp"></select></div>
+        </div>
+        <div class="field"><label for="lm-obs">Observação (opcional)</label><textarea id="lm-obs" rows="3" placeholder="Detalhes, telefone, número da peça…"></textarea></div>
+        <p class="note">Sem data, o lembrete fica “em espera” até você decidir. Com data e alerta, ele aparece na faixa amarela do app e chega por e-mail de manhã.</p>
+      </details>
+      <span class="toast" id="lm-toast" role="status"></span>
+    </form>
+    <div class="chips lm-filtro" id="lm-filtro"><button type="button" class="chip" data-f="todos" aria-pressed="true">Todos</button><button type="button" class="chip" data-f="meus" aria-pressed="false">Só os meus</button></div>
+    <div id="lm-lista" class="lm-lista"></div>
+  </section>
+
   <section class="panel" id="view-notas" hidden>
     <h2>Anotações</h2>
     <div id="nt-pend" class="alertas"></div>
@@ -1089,8 +1114,8 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Anotações",v:["notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
-const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
+const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const NOMES={painel:"Painel",relatorios:"Relatórios",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
@@ -2578,7 +2603,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[]});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -2644,6 +2669,7 @@ function planilhaBackup(){
   add("Benfeitorias",benf.map(b=>({"Benfeitoria":b.nome,"Tipo":b.tipo||"","Local":b.local||""})));
   add("Serviços benfeitorias",[...bfServ].reverse().map(x=>({"Data":dt(x.data),"Benfeitoria":nomeBf(x.benfId),"Serviços":(x.servicos||[]).join(", "),"Situação":STATUS_BF[x.status]||"Concluído","Materiais e mão de obra":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Responsável":x.responsavel||"","Próxima":dt(x.proxData),"Descrição":x.descricao||""})));
   window.finPlanilha?.(add,dt);
+  window.lmPlanilha?.(add,dt);
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -3330,9 +3356,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[]});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -3602,7 +3628,7 @@ $("#ask").onclick=async()=>{
 Talhões e áreas: ${TALHOES.map(t=>`${t.n} (${num(t.ha)} ha)`).join(", ")}. Total ${num(TALHOES.reduce((s,t)=>s+t.ha,0))} ha.
 
 Registros (data | tipo | talhões | detalhes | descrição):
-${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}
+${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}
 
 Pergunta: ${q}`;
   ctl=new AbortController();
@@ -3643,7 +3669,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
-  window.finInicia?.(); window.danfeInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -3666,6 +3692,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 </script>
 <script src="financeiro.js"></script>
 <script src="danfe.js"></script>
+<script src="lembretes.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>
