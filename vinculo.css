@@ -1,0 +1,18 @@
+/* Diário da Lavoura — vínculo atividade × estoque */
+.vq-bt{margin-left:8px;color:var(--accent);font-weight:600;font-size:.8rem;padding:0}
+.p-saldo .vq-falta{color:var(--danger)}
+.vq{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:12px;margin-top:2px}
+.vq-tit{font-weight:600}
+.vq .row{gap:14px;align-items:center}
+.vc-box{background:var(--surface);border:1px solid var(--danger);border-left:4px solid var(--danger);border-radius:var(--r);padding:12px 14px}
+.vc-box summary{cursor:pointer;display:flex;align-items:center;gap:4px;font-size:1rem}
+.vc-box details[open] summary{margin-bottom:6px}
+.vc-h{margin:14px 0 4px;font:600 .78rem var(--f-body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.vc-it{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px dotted var(--line)}
+.vc-it:last-child{border-bottom:0}
+.vc-it>div:first-child b{font-weight:600;overflow-wrap:anywhere}
+.vc-it small{display:block;color:var(--muted);font-size:.82rem}
+.vc-acao{display:flex;gap:8px;align-items:center}
+.vc-acao select{flex:1;min-width:0}
+.vc-it .vq{margin-top:0}
+@media (min-width:700px){.vc-it{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);align-items:center}.vc-it .vq{grid-column:1/-1}}
