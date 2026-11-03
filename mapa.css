@@ -40,3 +40,8 @@
 .mp-rot::before{display:none}
 .leaflet-container{font-family:var(--f-body)}
 .mp-mapa.longe .mp-rot{display:none}
+.mp-mini{flex:none;display:block;background:var(--sunk);border-radius:8px}
+.mp-t>i{width:52px;height:52px;border-radius:8px;border:2px dashed var(--line);background:none}
+#cfg-tal.com-mini .cfg-row{grid-template-columns:40px minmax(0,1fr) 8rem 40px}
+.cfg-mini{width:40px;height:40px;border-radius:8px;border:1px dashed var(--line);display:block}
+.cfg-mini:has(svg){border:0}

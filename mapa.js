@@ -30,6 +30,26 @@ function gps(){return new Promise((ok,erro)=>{
     {enableHighAccuracy:true,timeout:20000,maximumAge:5000})})}
 function aviso(t,erro){const m=$("#mp-modo"); if(!modo){m.hidden=false; m.className="mp-modo"+(erro?" erro":""); m.innerHTML=`<span>${esc(t)}</span>`; clearTimeout(aviso.t); aviso.t=setTimeout(()=>{if(!modo) m.hidden=true},5000)} else {const s=m.querySelector(".mp-st"); if(s) s.textContent=t}}
 
+/* Miniatura (desenho do contorno em SVG, sem precisar de internet) */
+function mini(id,tam=44){
+  const g=geo[id]; if(!(g?.coords?.length>2)) return "";
+  const k=Math.cos(g.coords[0].lat*Math.PI/180), xs=g.coords.map(c=>c.lng*k), ys=g.coords.map(c=>-c.lat);
+  const x0=Math.min(...xs), y0=Math.min(...ys), w=Math.max(...xs)-x0||1e-9, h=Math.max(...ys)-y0||1e-9, e=Math.min((tam-6)/w,(tam-6)/h);
+  const ox=(tam-w*e)/2, oy=(tam-h*e)/2;
+  const pts=xs.map((x,i)=>`${((x-x0)*e+ox).toFixed(1)},${((ys[i]-y0)*e+oy).toFixed(1)}`).join(" ");
+  return `<svg class="mp-mini" viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}" aria-hidden="true"><polygon points="${pts}" fill="${cor(id)}" fill-opacity=".35" stroke="${cor(id)}" stroke-width="2" stroke-linejoin="round"/></svg>`;
+}
+window.mpMini=mini;
+function minisCfg(){
+  const box=document.getElementById("cfg-tal"); if(!box||typeof cfgEdit==="undefined") return;
+  box.classList.add("com-mini");
+  box.querySelectorAll(".cfg-row").forEach(r=>{
+    let m=r.querySelector(".cfg-mini"); if(!m){m=document.createElement("span"); m.className="cfg-mini"; r.prepend(m)}
+    const t=cfgEdit[+r.dataset.i]; m.innerHTML=t?.id?mini(t.id,40):""; m.title=m.innerHTML?"Contorno desenhado no mapa":"Sem contorno: desenhe em Painel → Mapa";
+  });
+}
+if(typeof cfgTal==="function"){const o=cfgTal; cfgTal=function(){o.apply(this,arguments); minisCfg()}}
+
 /* ---------- Leaflet sob demanda ---------- */
 function carregaLeaflet(){
   if(window.L) return Promise.resolve(window.L);
@@ -146,7 +166,7 @@ function barraPonto(){
 /* ---------- listas ---------- */
 function listas(){
   $("#mp-tal").innerHTML=talhoes().map(t=>{const g=geo[t.id], a=g?.coords?.length>2?areaHa(g.coords):0, dif=a&&t.ha?Math.abs(a-t.ha)/t.ha:0;
-    return `<div class="mp-t" style="--c:${cor(t.id)}"><i></i><div><b>${esc(t.n)}</b><small>${ha(t.ha)} ha cadastrado${a?` · ${ha(a)} ha no desenho${dif>.1?` <span class="mp-dif">(diferença de ${Math.round(dif*100)}%)</span>`:""}`:" · sem contorno"}</small></div>
+    return `<div class="mp-t" style="--c:${cor(t.id)}">${g?mini(t.id,52):"<i></i>"}<div><b>${esc(t.n)}</b><small>${ha(t.ha)} ha cadastrado${a?` · ${ha(a)} ha no desenho${dif>.1?` <span class="mp-dif">(diferença de ${Math.round(dif*100)}%)</span>`:""}`:" · sem contorno"}</small></div>
       <div class="mp-t-bt">${g?`<button type="button" class="link" data-mpver="${t.id}">Ver</button>`:""}<button type="button" class="link" data-mpdes="${t.id}">${g?"Redesenhar":"Desenhar"}</button></div></div>`}).join("")||`<div class="empty">Cadastre os talhões em Configurações.</div>`;
   const usados=[...new Set(pontos.map(p=>p.tipo))];
   if(filtro&&!usados.includes(filtro)) filtro="";
@@ -163,7 +183,7 @@ function listas(){
   $("#mp-pontos").querySelectorAll("[data-mpped]").forEach(b=>b.onclick=()=>iniciaPonto(pontos.find(x=>x.id===b.dataset.mpped)));
   $("#mp-pontos").querySelectorAll("[data-mppdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",()=>db.collection("pontos").doc(b.dataset.mppdel).delete()));
 }
-const atualiza=()=>{clearTimeout(atualiza.t); atualiza.t=setTimeout(()=>{try{listas(); if(!modo) desenhaTudo(); if(mapa&&!ajustou) enquadra()}catch(e){console.error(e)}},80)};
+const atualiza=()=>{clearTimeout(atualiza.t); atualiza.t=setTimeout(()=>{try{listas(); minisCfg(); if(!modo) desenhaTudo(); if(mapa&&!ajustou) enquadra()}catch(e){console.error(e)}},80)};
 
 /* ---------- ligações ---------- */
 window.mpColecoes=()=>({talhoes_geo:Object.entries(geo).map(([id,g])=>({id,...g})),pontos:pontos.map(p=>({...p}))});
