@@ -1,0 +1,26 @@
+/* Diário da Lavoura — Talhões hoje (DAP, DAE, DAA) */
+.ci-box{display:flex;flex-direction:column;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.ci-box[hidden]{display:none}
+.ci-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
+.ci-top h3{margin:0;font-family:var(--f-display);font-size:1.15rem}
+.ci-top .note{font-size:.78rem}
+.ci-lista{display:grid;gap:10px}
+@media (min-width:700px){.ci-lista{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}}
+.ci-t{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.ci-t.vazio{align-items:center;opacity:.8}
+.ci-mini{flex:none}
+.ci-c{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.ci-c>b,.ci-l1 b{font-weight:600;font-size:1rem}
+.ci-c small{color:var(--muted);font-size:.8rem}
+.ci-l1{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.ci-l1 span{font-size:.85rem;color:var(--muted)}
+.ci-nums{display:flex;gap:8px;flex-wrap:wrap}
+.ci-n{display:flex;flex-direction:column;align-items:center;min-width:62px;padding:6px 8px;border-radius:8px;background:var(--sunk)}
+.ci-n b{font-family:var(--f-mono);font-size:1.35rem;line-height:1.1}
+.ci-n small{font-size:.7rem;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+.ci-sub{line-height:1.35}
+.ci-car{color:var(--danger);font-weight:600}
+.ci-lib{color:var(--accent);font-weight:600}
+.ci-bt{align-self:flex-start;color:var(--accent);font-weight:600}
+.ci-em{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ci-em input{width:auto}

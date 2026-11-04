@@ -23,6 +23,7 @@
 <link rel="stylesheet" href="lembretes.css">
 <link rel="stylesheet" href="vinculo.css">
 <link rel="stylesheet" href="mapa.css">
+<link rel="stylesheet" href="ciclo.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -389,6 +390,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <!-- PAINEL -->
   <section class="panel" id="view-painel" hidden>
     <h2>Painel</h2>
+    <section class="ci-box" id="ci-box" hidden></section>
     <div class="pn-filtros">
       <div class="field"><label for="pn-safra">Safra</label><select id="pn-safra"></select></div>
       <div class="field"><label for="pn-talhao">Talhão</label><select id="pn-talhao"></select></div>
@@ -1120,9 +1122,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <script>
 let TALHOES=[{n:"Talhão 1",ha:80},{n:"Talhão 2",ha:50},{n:"Talhão 3",ha:62.5},{n:"Talhão 4",ha:50},{n:"Talhão 5",ha:50},{n:"Potreiro",ha:20}];
 const TIPOS={
-  plantio:{label:"Plantio",campos:["cultura","cultivar"],prods:"kg/ha"},
+  plantio:{label:"Plantio",campos:["cultura","cultivar","emergencia"],prods:"kg/ha"},
   chuva:{label:"Chuva",campos:["mm","eventos"]},
-  aplicacao:{label:"Aplicação",campos:["cultura","alvo"],prods:"L/ha"},
+  aplicacao:{label:"Aplicação",campos:["cultura","alvo","carencia"],prods:"L/ha"},
   adubacao:{label:"Adubação",campos:["cultura"],prods:"kg/ha"},
   mecanizacao:{label:"Mecanização do solo",campos:["implemento","maquina","profundidade","local"]},
   colheita:{label:"Colheita",campos:["cultura"],roms:true},
@@ -1131,6 +1133,8 @@ const TIPOS={
 const CAMPOS={
   cultura:{label:"Cultura",type:"list",opts:["Soja","Milho","Trigo","Feijão","Aveia","Pastagem"]},
   cultivar:{label:"Cultivar / híbrido",type:"text"},
+  emergencia:{label:"Emergência (quando nasceu, opcional)",type:"date"},
+  carencia:{label:"Carência (dias, opcional)",type:"number",step:"1"},
   mm:{label:"Chuva (mm)",type:"number",step:"0.1"},
   implemento:{label:"Implemento",type:"multi",opts:["Rolo-faca","Grade niveladora","Grade aradora","Escarificador","Subsolador","Terraceador","Outro"]},
   maquina:{label:"Máquina (opcional)",type:"maq"},
@@ -1672,7 +1676,7 @@ function renderCampos(vals){
     else if(f.type==="maq") input=`<select id="${id}"><option value="">—</option>${maquinas.map(m=>`<option value="${m.id}" ${m.id===vals[c]?"selected":""}>${esc(m.nome)}</option>`).join("")}</select>`;
     else if(f.type==="multi") return `<div class="field" style="grid-column:1/-1"><span class="lbl">${f.label}</span><div class="chips multi" id="${id}">${f.opts.map(o=>`<button type="button" class="chip" aria-pressed="${(vals[c]||[]).includes(o)}" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div></div>`;
     else if(f.type==="list") input=`<input id="${id}" list="dl-${c}" value="${v}"><datalist id="dl-${c}">${f.opts.map(o=>`<option value="${esc(o)}">`).join("")}</datalist>`;
-    else input=`<input id="${id}" type="${f.type==="number"?"number":"text"}" ${f.step?`step="${f.step}" inputmode="decimal"`:""} placeholder="${esc(f.ph||"")}" value="${v}">`;
+    else input=`<input id="${id}" type="${f.type==="number"?"number":f.type==="date"?"date":"text"}" ${f.step?`step="${f.step}" inputmode="decimal"`:""} placeholder="${esc(f.ph||"")}" value="${v}">`;
     return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
   }).join("");
   $("#campos").querySelectorAll(".multi .chip").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
@@ -1774,7 +1778,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
 function linhaCampos(r){
   const out=Object.entries(r.campos||{}).map(([k,v])=>{
     const f=CAMPOS[k]; if(!f) return "";
-    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":v;
+    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":k==="emergencia"?brDate(v):k==="carencia"?num(v)+" dias":v;
     return {k:f.label.replace(/ \(.*\)/,""),v:val};
   }).filter(Boolean);
   if(r.tipo!=="chuva"&&(r.talhoes||[]).length) out.push({k:"Área",v:num(areaTotal(r))+" ha"});
@@ -3766,6 +3770,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="lembretes.js"></script>
 <script src="vinculo.js"></script>
 <script src="mapa.js"></script>
+<script src="ciclo.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>
