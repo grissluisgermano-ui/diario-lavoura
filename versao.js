@@ -1,2 +1,2 @@
 /* Versão do app — ao publicar uma mudança, aumente o número e a data (e o CACHE em sw.js). */
-window.APP_VERSAO = { n: 17, data: "03/11/2026" };
+window.APP_VERSAO = { n: 18, data: "04/11/2026" };
