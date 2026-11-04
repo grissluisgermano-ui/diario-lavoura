@@ -145,7 +145,7 @@ const pendentes=()=>nfeDocs.filter(d=>d.origem==="email"&&!d.ignorada&&!lancada(
 const arquivo=d=>new File([d.xml],`NFe${d.id}.xml`,{type:"text/xml"});
 function resumoNota(d){
   let fin=null; try{fin=window.finDadosXml?.(new DOMParser().parseFromString(d.xml,"application/xml"))}catch{}
-  return {emit:fin?.emit||d.emit||"Fornecedor",dest:fin?.dest||d.dest||"",total:fin?.total??d.total??0,parc:fin?.dups?.length||1,itens:fin?.itens?.length||0,
+  return {emit:fin?.emit||d.emit||"Fornecedor",dest:fin?.dest||d.dest||"",total:fin?.total||d.total||0,parc:fin?.dups?.length||1,itens:fin?.itens?.length||0,
     venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:""};
 }
 window.nePintar=function(){

@@ -75,6 +75,7 @@ function xmlsDoAnexo(anexo) {
 
 /** Lê um XML anexado. Devolve "nova", "repetida", "cancelada" ou "" (não é NF-e). */
 function guardarXmlNota(xml, msg) {
+  const i = xml.indexOf("<"); if (i > 0) xml = xml.slice(i); // tira BOM / linha em branco do começo
   const tag = (txt, n) => { const m = txt.match(new RegExp(`<(?:\\w+:)?${n}>([^<]*)</(?:\\w+:)?${n}>`)); return m ? m[1].trim() : "" };
   // Evento de cancelamento: marca a nota como cancelada
   if (/<procEventoNFe/i.test(xml) && /<tpEvento>110111</.test(xml)) {

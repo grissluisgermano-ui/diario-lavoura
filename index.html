@@ -1149,6 +1149,10 @@ const temDose=p=>p.dose!==undefined&&p.dose!==null&&p.dose!=="";
 const doseTxt=p=>temDose(p)?(typeof p.dose==="number"?numDose(p.dose):p.dose)+(p.unidade?" "+p.unidade:""):"–";
 const prodTxt=p=>p.nome+(temDose(p)?" "+doseTxt(p):"");
 const $=s=>document.querySelector(s);
+/* XML de nota: alguns arquivos (principalmente os que chegam por e-mail) começam com uma marca invisível (BOM) ou linha em branco
+   antes de <?xml, e aí o navegador não consegue ler. Limpa antes de ler, em qualquer lugar do app. */
+{const p0=DOMParser.prototype.parseFromString; DOMParser.prototype.parseFromString=function(s,t){
+  if(typeof s==="string"&&/xml/.test(t)){const i=s.indexOf("<"); if(i>0) s=s.slice(i)} return p0.call(this,s,t)}}
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:1});
 const brDate=iso=>{const[y,m,d]=iso.split("-");return `${d}/${m}/${y}`};
