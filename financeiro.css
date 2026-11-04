@@ -93,3 +93,12 @@
 .fn-lc-sub{display:block;font-size:.78rem;line-height:1.3;white-space:normal}
 #rsf-fora td:first-child,#fn-ctr td:first-child{white-space:normal;min-width:180px}
 .fn-lx-dn{display:block;margin-left:auto;font-size:.8rem;padding:2px 0}
+.fn-cd-lista{display:flex;flex-direction:column;gap:10px;margin:8px 0}
+.fn-cd{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.fn-cd-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.fn-cd-top b{font-weight:600}
+.fn-cd-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:700px){.fn-cd-g{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.fn-cd-p{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--muted);font-weight:600}
+.fn-cd-p .dv-pct input{text-align:right}
+.bx-desc{display:block;margin-top:3px;color:var(--accent);font-weight:600}

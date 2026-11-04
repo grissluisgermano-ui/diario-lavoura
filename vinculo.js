@@ -195,10 +195,10 @@ async function vincular(g,alvo){
   for(const r of registros.filter(x=>g.regs.has(x.id))){
     const {id,...doc}=r, ps=doc.campos?.produtos||[];
     custoAnterior={};
-    for(const p of ps) if(p.custoUnit!=null){const k=p.produtoId||prodEstoque(p.nome)?.id||String(p.nome).toLowerCase(); custoAnterior[k]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst}}
-    const novos=ps.map(p=>norm(p.nome)===g.k&&!(p.produtoId&&estoque.some(e=>e.id===p.produtoId))?(({custoUnit,unidadeEst,custoHa,...q})=>({...q,nome:alvo.comercial,produtoId:alvo.id}))(p):p);
+    for(const p of ps) if(p.custoUnit!=null){const k=p.produtoId||prodEstoque(p.nome)?.id||String(p.nome).toLowerCase(); custoAnterior[k]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst,custoUnitLiq:p.custoUnitLiq}}
+    const novos=ps.map(p=>norm(p.nome)===g.k&&!(p.produtoId&&estoque.some(e=>e.id===p.produtoId))?(({custoUnit,unidadeEst,custoHa,custoUnitLiq,custoHaLiq,...q})=>({...q,nome:alvo.comercial,produtoId:alvo.id}))(p):p);
     const c=custosDoRegistro(novos,areaTotal(r));
-    doc.campos={...doc.campos,produtos:c.ps}; doc.custoHa=c.custoHa; doc.custoTotal=c.custoTotal; doc.semCusto=c.semCusto;
+    doc.campos={...doc.campos,produtos:c.ps}; doc.custoHa=c.custoHa; doc.custoTotal=c.custoTotal; doc.semCusto=c.semCusto; if(c.custoHaLiq!=null){doc.custoHaLiq=c.custoHaLiq;doc.custoTotalLiq=c.custoTotalLiq}else{delete doc.custoHaLiq;delete doc.custoTotalLiq};
     await col.doc(id).set(doc);
   }
   custoAnterior={};

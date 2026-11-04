@@ -138,6 +138,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .p-saldo{grid-column:2/-1;font-size:.78rem;color:var(--muted);margin-top:-4px}
 .p-saldo.neg{color:var(--danger)}
 .p-saldo:empty,.p-custo:empty{display:none}
+.liq{display:block;color:var(--accent);font-weight:600}
+.cst-row.liq b{color:var(--accent)}
 .p-custo{grid-column:2/-1;font-size:.78rem;color:var(--muted);margin-top:-6px;font-variant-numeric:tabular-nums}
 .custo-box{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface)}
 .custo-box:empty{display:none}
@@ -904,6 +906,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div id="fn-contas" class="fn-cards"></div>
     <div id="fn-fam-box" hidden><h3 class="sub-h">Contas com a família</h3><p class="note">Dinheiro que saiu da lavoura para a família ou entrou dela. Fica fora do custo da safra.</p><div id="fn-fam" class="fn-cards"></div></div>
     <div id="fn-ctr-box" hidden><div class="row" style="justify-content:space-between"><h3 class="sub-h">Contratos e pedidos em aberto</h3><span class="note" id="fn-ctr-n"></span></div><div class="fn-lx-lista" id="fn-ctr"></div></div>
+    <details class="fn-catbox sub" id="fn-cdesc-box"><summary><b>Descontos dos contratos</b> <span class="note" id="fn-cdesc-n"></span></summary>
+      <p class="note">A nota vem com o preço cheio e o desconto do contrato é dado no vencimento. Informe o % de cada tipo de produto: as contas em aberto passam a mostrar o valor com desconto, o pagamento já vem sugerido com ele e o Estoque mostra o custo com e sem desconto. Pedido sem desconto fixo (ex.: Casarão, pagamento adiantado): deixe em branco e ajuste o valor na hora de pagar.</p>
+      <div id="fn-cdesc" class="fn-cd-lista"></div>
+      <div class="row"><input id="fn-cdesc-novo" placeholder="Nº do contrato ou Pedido 123" style="flex:1;min-width:160px"><button type="button" class="btn ghost fn-mini" id="fn-cdesc-add">+ Adicionar</button></div>
+      <div class="row"><button type="button" class="btn" id="fn-cdesc-salvar">Salvar descontos</button><span class="toast" id="fn-cdesc-st" role="status"></span></div>
+    </details>
     <div id="fn-recs-box" hidden><h3 class="sub-h">Contas que se repetem todo mês</h3><p class="note">O app cria a conta de cada mês sozinho; você só confirma o pagamento.</p><div id="fn-recs" class="es-lista"></div></div>
     <div class="row" style="justify-content:space-between"><h3 class="sub-h">Do Diário para o Financeiro</h3><span class="note" id="fn-pend-n"></span></div>
     <div class="chips" id="fn-pend-modo"></div>
@@ -1506,7 +1514,7 @@ async function nfLancar(){
     const grupos=new Map();
     for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato;
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});
@@ -1530,6 +1538,8 @@ function resumoProd(prod){
   const comValor=ent.filter(x=>Number(x.valorTotal)>0);
   const qv=comValor.reduce((s,x)=>s+(Number(x.quantidade)||0),0), vv=comValor.reduce((s,x)=>s+Number(x.valorTotal),0);
   const custo=qv>0?vv/qv:null;
+  const pctE=x=>window.finDescContrato?window.finDescContrato(x.contrato||window.finContratoDaChave?.(x.chave),prod.classe,prod.comercial):0;
+  const vl=comValor.reduce((s,x)=>s+Number(x.valorTotal)*(1-pctE(x)),0), custoLiq=qv>0&&Math.abs(vl-vv)>0.004?vl/qv:null;
   let usado=0,usos=0,semConv=0; const nomeL=prod.comercial.toLowerCase();
   let programado=0;
   for(const r of registros) for(const p of r.campos?.produtos||[]){
@@ -1541,7 +1551,7 @@ function resumoProd(prod){
     usado+=d*f*areaTotal(r);
   }
   const saldo=entrou-usado;
-  return {entrou,usado,saldo,programado,disponivel:saldo-programado,custo,usos,semConv,valorSaldo:custo!=null?Math.max(saldo,0)*custo:0};
+  return {entrou,usado,saldo,programado,disponivel:saldo-programado,custo,custoLiq,usos,semConv,valorSaldo:custo!=null?Math.max(saldo,0)*custo:0};
 }
 function renderEstoque(){
   const q=$("#es-busca").value.trim().toLowerCase();
@@ -1559,7 +1569,7 @@ function renderEstoque(){
     <div class="pc-nums">
       <span>Entradas <b>${num(s.entrou)} ${e.unidade}</b></span>
       <span>Usado <b>${num(s.usado)} ${e.unidade}</b></span>
-      <span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b></span>
+      <span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b>${s.custoLiq!=null?`<small class="liq">com desconto ${brl(s.custoLiq)}/${e.unidade}</small>`:""}</span>
       <span>Valor do saldo <b>${s.custo!=null?brl(s.valorSaldo):"–"}</b></span>
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
@@ -1759,7 +1769,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
   if(tipo!=="chuva") body.areas=areas;
   if(TIPOS[tipo].prods&&campos.produtos?.length){
     const area=Object.values(areas).reduce((a,b)=>a+b,0), c=custosDoRegistro(campos.produtos,area);
-    campos.produtos=c.ps; body.custoHa=c.custoHa; body.custoTotal=c.custoTotal; body.semCusto=c.semCusto;
+    campos.produtos=c.ps; body.custoHa=c.custoHa; body.custoTotal=c.custoTotal; body.semCusto=c.semCusto; if(c.custoHaLiq!=null){body.custoHaLiq=c.custoHaLiq;body.custoTotalLiq=c.custoTotalLiq}else{delete body.custoHaLiq;delete body.custoTotalLiq}
   }
   if(tipo!=="chuva"){body.situacao=situacao; const old=editing?registros.find(x=>x.id===editing):null; if(old?.dataProgramada) body.dataProgramada=old.dataProgramada; if(situacao==="executada"&&ehProg(old||{})) {body.dataProgramada=old.data; body.executadoEm=new Date().toISOString()}}
   if(TIPOS[tipo].roms&&situacao!=="programada"){const rs=readRoms(true); if(rs===null) return; body.romaneios=rs; const old=editing?registros.find(x=>x.id===editing):null; body.divisao=old?.divisao||divisaoAtual()}
@@ -1819,7 +1829,7 @@ function recCard(r,extra="",acoesExtra=""){
       <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
       ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc</span></li>`).join("")}</ul>`:""}
-      ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small></span></li>`:""}</ul>`:""}
+      ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
       ${r.descricao?`<p class="rec-desc">${esc(r.descricao)}</p>`:""}
       ${(r.fotos||[]).length?`<div class="rec-fotos">${r.fotos.map((id,i)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${i+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${i+1}"></button>`).join("")}</div>`:""}
       ${extra}
@@ -1831,7 +1841,7 @@ function editar(id,executarAgora){
   const r=registros.find(x=>x.id===id); if(!r) return;
   if(r.tipo==="chuva") return chEditar(id);
   editing=id; tipo=r.tipo; talhoesSel=new Set(r.talhoes||[]); areasSel={...(r.areas||{})};
-  custoAnterior={}; for(const p of r.campos?.produtos||[]) if(p.custoUnit!=null) custoAnterior[p.produtoId||String(p.nome).toLowerCase()]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst};
+  custoAnterior={}; for(const p of r.campos?.produtos||[]) if(p.custoUnit!=null) custoAnterior[p.produtoId||String(p.nome).toLowerCase()]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst,custoUnitLiq:p.custoUnitLiq};
   $("#f-data").value=r.data; $("#f-desc").value=r.descricao||""; $("#f-nome").value=r.nome||"";
   descartarNovas(); fotosForm=(r.fotos||[]).map(id=>({id,src:fotoSrc(id)})); renderFotosForm();
   renderTipos(); renderTalhoes(); renderCampos({...(r.campos||{}),_romaneios:r.romaneios});
@@ -3035,8 +3045,8 @@ async function executar(b){
   const r=registros.find(x=>x.id===b.dataset.exec); if(!r) return;
   const {id,...doc}=r; b.disabled=true;
   doc.situacao="executada"; doc.dataProgramada=r.data; doc.executadoEm=new Date().toISOString();
-  if(doc.campos?.produtos?.length){custoAnterior={}; const c=custosDoRegistro(doc.campos.produtos.map(({custoUnit,unidadeEst,custoHa,...p})=>p),areaTotal(doc));
-    doc.campos={...doc.campos,produtos:c.ps}; doc.custoHa=c.custoHa; doc.custoTotal=c.custoTotal; doc.semCusto=c.semCusto}
+  if(doc.campos?.produtos?.length){custoAnterior={}; const c=custosDoRegistro(doc.campos.produtos.map(({custoUnit,unidadeEst,custoHa,custoUnitLiq,custoHaLiq,...p})=>p),areaTotal(doc));
+    doc.campos={...doc.campos,produtos:c.ps}; doc.custoHa=c.custoHa; doc.custoTotal=c.custoTotal; doc.semCusto=c.semCusto; if(c.custoHaLiq!=null){doc.custoHaLiq=c.custoHaLiq;doc.custoTotalLiq=c.custoTotalLiq}else{delete doc.custoHaLiq;delete doc.custoTotalLiq}}
   try{await col.doc(id).set(doc)}catch{b.disabled=false;b.textContent="Falhou, tente de novo";delete b.dataset.armed}
 }
 
@@ -3050,32 +3060,37 @@ function custoProd(p){
   if(un==null||!unEst) return null;
   const f=FATOR[unEst]?.[p.unidade], d=typeof p.dose==="number"?p.dose:parseNum(p.dose);
   if(f==null||!(d>0)) return null;
-  return {custoUnit:un,unidadeEst:unEst,custoHa:d*f*un};
+  const rp=e?resumoProd(e):null, ul=custoAnterior[chave]?(custoAnterior[chave].custoUnitLiq??(rp?.custoLiq!=null&&rp.custo?un*rp.custoLiq/rp.custo:null)):(rp?.custoLiq??null);
+  return {custoUnit:un,unidadeEst:unEst,custoHa:d*f*un,custoUnitLiq:ul??null,custoHaLiq:ul!=null?d*f*ul:d*f*un};
 }
 const areaForm=()=>TALHOES.map(t=>t.n).filter(n=>talhoesSel.has(n)).reduce((s,n)=>s+(areasSel[n]>0?areasSel[n]:haDe(n)),0);
 function atualizaCustos(){
   const box=$("#prods-custo"); if(!box) return;
   if(!TIPOS[tipo].prods){box.innerHTML="";return}
-  let ha=0,sem=0,n=0;
+  let ha=0,hl=0,liq=false,sem=0,n=0;
   document.querySelectorAll("#prods .prod").forEach(r=>{
     const el=r.querySelector(".p-custo");
     const nome=r.querySelector(".p-nome").value.trim(); if(!nome){el.textContent="";return}
     n++;
     const s=r.querySelector(".p-dose").value.trim(), dn=parseNum(s);
     const c=custoProd({nome,dose:Number.isFinite(dn)?dn:s,unidade:r.querySelector(".p-un").value});
-    if(c){ha+=c.custoHa; el.textContent=`${brl(c.custoUnit)}/${c.unidadeEst} → ${brl(c.custoHa)}/ha`}
+    if(c){ha+=c.custoHa; hl+=c.custoHaLiq; if(c.custoUnitLiq!=null) liq=true; el.textContent=`${brl(c.custoUnit)}/${c.unidadeEst} → ${brl(c.custoHa)}/ha${c.custoUnitLiq!=null?` · com desconto ${brl(c.custoHaLiq)}/ha`:""}`}
     else{sem++; el.textContent=!prodEstoque(nome)&&!custoAnterior[String(nome).toLowerCase()]?"Sem preço: cadastre no Estoque com o valor":(!(dn>0)?"Informe a dose para calcular o custo":"Sem custo: confira a unidade ou o valor no Estoque")}
   });
   const area=areaForm();
   box.innerHTML=n?`<div class="cst-row"><span>Custo por hectare</span><b>${brl(ha)}/ha</b></div>
     <div class="cst-row"><span>Custo total${area>0?` · ${num(area)} ha`:""}</span><b>${area>0?brl(ha*area):"escolha os talhões"}</b></div>
+    ${liq?`<div class="cst-row liq"><span>Com desconto dos contratos</span><b>${brl(hl)}/ha${area>0?` · ${brl(hl*area)}`:""}</b></div>`:""}
     ${sem?`<div class="note">${sem} produto${sem>1?"s":""} sem custo, não somado${sem>1?"s":""}.</div>`:""}`:"";
 }
 function custosDoRegistro(produtos,area){
-  let ha=0,sem=0;
+  let ha=0,hl=0,sem=0,temLiq=false;
   const ps=produtos.map(p=>{const c=custoProd(p); if(!c){sem++;return p}
-    ha+=c.custoHa; return {...p,custoUnit:+c.custoUnit.toFixed(4),unidadeEst:c.unidadeEst,custoHa:+c.custoHa.toFixed(2)}});
-  return {ps,custoHa:+ha.toFixed(2),custoTotal:+(ha*area).toFixed(2),semCusto:sem};
+    ha+=c.custoHa; hl+=c.custoHaLiq; const o={...p,custoUnit:+c.custoUnit.toFixed(4),unidadeEst:c.unidadeEst,custoHa:+c.custoHa.toFixed(2)};
+    if(c.custoUnitLiq!=null){temLiq=true; o.custoUnitLiq=+c.custoUnitLiq.toFixed(4); o.custoHaLiq=+c.custoHaLiq.toFixed(2)} return o});
+  const r={ps,custoHa:+ha.toFixed(2),custoTotal:+(ha*area).toFixed(2),semCusto:sem};
+  if(temLiq){r.custoHaLiq=+hl.toFixed(2); r.custoTotalLiq=+(hl*area).toFixed(2)}
+  return r;
 }
 
 /* ---------- Painel ---------- */

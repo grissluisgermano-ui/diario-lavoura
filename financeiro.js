@@ -69,7 +69,24 @@ let fnPjAberto=null, fnPendModo="atual", fnNat="pagar", fnEdit=null, fnOrigem=nu
 /* ---------- utilidades ---------- */
 const hoje=()=>todayISO();
 const dias=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5);
-const vp=l=>l.status==="pago"?(Number(l.valorPago??l.valor)||0):(Number(l.valor)||0);
+/* Descontos dos contratos de fornecimento (config/financeiro.contratos {numero:{fornecedor, cultura, safra, desc:{defensivos,fertilizantes,sementes,insumos}, obs}}).
+   A nota vem com preço cheio; o desconto é dado no vencimento. Em aberto, a conta vale o líquido previsto; no pagamento, o que foi pago. */
+const DESC_CLS=[["defensivos","Defensivos"],["fertilizantes","Fertilizantes e corretivos"],["sementes","Sementes"],["insumos","Outros insumos"]];
+const contratoCfg=c=>c?(fnCfg.contratos||{})[c]||null:null;
+const clsDesc=k=>["defensivos","fertilizantes","sementes"].includes(k)?k:"insumos";
+function pctContrato(c,itens,catPadrao){
+  const k=contratoCfg(c); if(!k) return 0;
+  const d=k.desc||{}, pc=x=>(Number(d[clsDesc(x)])||0)/100;
+  const its=(itens||[]).filter(i=>Number(i.valor)>0);
+  if(!its.length) return pc(catPadrao);
+  let t=0,dd=0; for(const i of its){const v=Number(i.valor); t+=v; dd+=v*pc(classeCat(i.classe,i.desc)||catPadrao)}
+  return t>0?dd/t:0;
+}
+const pctLanc=l=>l.natureza==="pagar"&&l.contrato?pctContrato(l.contrato,l.itens,l.categoria):0;
+const liqPrev=l=>{const p=pctLanc(l); return +((Number(l.valor)||0)*(1-p)).toFixed(2)};
+const vp=l=>l.status==="pago"?(Number(l.valorPago??l.valor)||0):(pctLanc(l)?liqPrev(l):(Number(l.valor)||0));
+window.finDescContrato=(c,classe,desc)=>{const k=contratoCfg(c); return k?(Number((k.desc||{})[clsDesc(classeCat(classe,desc||""))])||0)/100:0};
+window.finContratoDaChave=ch=>ch?fnLanc.find(l=>l.chave===ch&&l.contrato)?.contrato||"":"";
 const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const f2=v=>Number.isFinite(v)?v.toFixed(2).replace(".",","):"";
@@ -120,7 +137,7 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     if(x.nf&&nfs.has(nfKey(x.nf,x.origem))) continue;
     const k=`est|${norm(x.origem)}|${x.nf?String(x.nf).replace(/^0+/,""):x.data}`;
     const p=g.get(k)||{k,natureza:"pagar",data:x.data,nf:x.nf||"",pessoa:x.origem||"",categoria:"insumos",fonte:"Estoque",itens:[],valor:0,chave:x.chave||""};
-    p.itens.push({desc:`${e.comercial} — ${num(x.quantidade)} ${e.unidade}`,valor:Number(x.valorTotal),classe:e.classe}); p.valor+=Number(x.valorTotal);
+    p.itens.push({desc:`${e.comercial} — ${num(x.quantidade)} ${e.unidade}`,valor:Number(x.valorTotal),classe:e.classe}); p.valor+=Number(x.valorTotal); if(x.contrato&&!p.contrato) p.contrato=x.contrato;
     if(x.data<p.data) p.data=x.data; g.set(k,p);
   }
   for(const p of g.values()){p.categoria=catDosItens(p.itens); p.itens=p.itens.map(({classe,...i})=>i); p.descricao=`Compra de ${catNome(p.categoria).toLowerCase()}${p.nf?" — NF "+p.nf:""}`; if(livre(p.k,p.data)) out.push(p)}
@@ -239,6 +256,33 @@ function renderContratos(){
       <small>${esc([...x.cats].join(", "))} · vence ${brDate(x.prox)}</small></div><span class="mono">${brl(x.aberto)}<small>de ${brl(x.total)}</small></span></button>`).join("");
   $("#fn-ctr").querySelectorAll("[data-ctr]").forEach(b=>b.onclick=()=>{fnFiltro="todas"; show("fin_contas"); $("#fn-busca").value=b.dataset.ctr; renderContas()});
 }
+/* ---------- Descontos dos contratos (editor) ---------- */
+let cdExtra=[];
+function renderDescontos(){
+  const box=$("#fn-cdesc"); if(!box) return;
+  const G={};
+  for(const l of fnLanc) if(l.contrato&&l.natureza==="pagar"){const x=G[l.contrato]||={pessoa:l.pessoa,n:0,total:0,cats:new Set()}; x.n++; x.total+=Number(l.valor)||0; x.cats.add(catNome(l.categoria))}
+  const cs=fnCfg.contratos||{};
+  const ks=[...new Set([...Object.keys(cs),...Object.keys(G),...cdExtra])].sort((a,b)=>(cs[b]?1:0)-(cs[a]?1:0)||a.localeCompare(b,"pt-BR",{numeric:true}));
+  $("#fn-cdesc-n").textContent=`${Object.keys(cs).length} com desconto cadastrado`;
+  box.innerHTML=ks.length?ks.map(k=>{const c=cs[k]||{}, g=G[k], d=c.desc||{};
+    return `<div class="fn-cd" data-k="${esc(k)}">
+      <div class="fn-cd-top"><b>${esc(ctrTxt(k))}</b><span class="note">${esc(c.fornecedor||g?.pessoa||"")}${g?` · ${g.n} conta${g.n>1?"s":""} · ${brl(g.total)}`:""}</span></div>
+      <div class="fn-cd-g">${DESC_CLS.map(([ck,cl])=>`<label class="fn-cd-p"><span>${cl}</span><span class="dv-pct"><input class="cd-${ck}" inputmode="decimal" value="${d[ck]!=null?String(d[ck]).replace(".",","):""}" placeholder="0">%</span></label>`).join("")}</div>
+      <div class="grid2"><div class="field"><label>Cultura do contrato</label><input class="cd-cult" value="${esc(c.cultura||"")}" placeholder="Ex.: Soja 26/27"></div>
+        <div class="field"><label>Observação</label><input class="cd-obs" value="${esc(c.obs||"")}" placeholder="Ex.: desconto no plano safra"></div></div>
+    </div>`}).join(""):`<div class="empty">Nenhum contrato ainda. Os números aparecem aqui sozinhos quando uma nota com contrato ou pedido é lançada.</div>`;
+}
+function leDescontos(){
+  const out={}, num2=v=>{const n=parseNum(v); return Number.isFinite(n)&&n>0?+n.toFixed(4):null};
+  for(const el of document.querySelectorAll("#fn-cdesc .fn-cd")){
+    const k=el.dataset.k, desc={}; let tem=false;
+    for(const [ck] of DESC_CLS){const v=num2(el.querySelector(".cd-"+ck).value); if(v!=null){desc[ck]=v; tem=true}}
+    const cultura=el.querySelector(".cd-cult").value.trim(), obs=el.querySelector(".cd-obs").value.trim();
+    if(tem||cultura||obs){const g=fnLanc.find(l=>l.contrato===k); out[k]={fornecedor:(fnCfg.contratos||{})[k]?.fornecedor||g?.pessoa||"",cultura,obs,desc}}
+  }
+  return out;
+}
 /* ---------- Contas que se repetem todo mês ---------- */
 function renderRecs(){
   const rs=(fnCfg.recorrentes||[]).filter(r=>r.ativa!==false);
@@ -306,7 +350,7 @@ async function jaPago(p,conta,data){
   if(p.chave) b.chave=p.chave;
   await db.collection("fin_lanc").add(b);
 }
-const cfgDoc=()=>({inicio:fnCfg.inicio||null,ignorados:fnCfg.ignorados||[],categorias:fnCfg.categorias||null,recorrentes:fnCfg.recorrentes||[],apelidos:fnCfg.apelidos||{}});
+const cfgDoc=()=>({inicio:fnCfg.inicio||null,ignorados:fnCfg.ignorados||[],categorias:fnCfg.categorias||null,recorrentes:fnCfg.recorrentes||[],apelidos:fnCfg.apelidos||{},contratos:fnCfg.contratos||{}});
 async function salvaCfg(mud){fnCfg={...fnCfg,...mud}; await db.collection("config").doc("financeiro").set(cfgDoc())}
 function iniEditar(){
   const box=$("#fn-pend-txt");
@@ -463,7 +507,7 @@ function origemTxt(t){$("#fn-origem").hidden=!t; $("#fn-origem").innerHTML=t||""
 function formDePendencia(p){
   fnReset(); fnSetNat(p.natureza);
   fnOrigem=p.k; fnChave=p.chave||null;
-  $("#fn-desc").value=p.descricao; $("#fn-pessoa").value=p.pessoa||""; $("#fn-cat").value=p.categoria; $("#fn-data").value=p.data; $("#fn-nf").value=p.nf||"";
+  $("#fn-desc").value=p.descricao; $("#fn-pessoa").value=p.pessoa||""; $("#fn-cat").value=p.categoria; $("#fn-data").value=p.data; $("#fn-nf").value=p.nf||""; if(p.contrato) $("#fn-contrato").value=p.contrato;
   $("#fn-forma").value=p.natureza==="receber"?"avista":"prazo";
   itensRender(p.itens.length>1||p.natureza!=="receber"?p.itens:[]);
   parcsRender([{venc:p.data,valor:p.valor}]);
@@ -861,7 +905,7 @@ function renderContas(){
     return `<article class="rec fn-rec" style="--c:var(${cor})">
       <div class="rec-top"><span class="rec-tipo">${esc(l.descricao)}${l.parcela?` <small class="note">parcela ${esc(l.parcela)}</small>`:""}</span><span class="mov-q ${r?"in":"out"}">${tr?"":r?"+":"−"}${brl(vp(l))}</span></div>
       <div class="rec-top">${tr?`<span>${esc(nomeConta(l.contaId))} → ${esc(nomeConta(l.contaDestino))} · ${brDate(l.pagoEm)}</span>`:situacao(l)}<span class="note">${tr?"Transferência":esc(catNome(l.categoria))}</span></div>
-      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.contrato?`<span><b>${esc(ctrTxt(l.contrato))}</b></span>`:""}${destTxt(l)?`<span>Destino <b>${esc(destTxt(l))}</b></span>`:""}${l.status==="pago"&&!l.contaId&&!l.quitGraos?`<span class="note">sem conta (histórico)</span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
+      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${(()=>{const p=pctLanc(l); if(!p||tr) return ""; return l.status==="pago"?`<span>Nota <b>${brl(l.valor)}</b></span>${l.valorPago!=null&&Number(l.valorPago)<Number(l.valor)?`<span>Desconto <b>${brl(Number(l.valor)-Number(l.valorPago))}</b></span>`:""}`:`<span>Nota <b>${brl(l.valor)}</b></span><span>Desconto do contrato <b>−${num(p*100)}% (${brl(Number(l.valor)-liqPrev(l))})</b></span>`})()}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.contrato?`<span><b>${esc(ctrTxt(l.contrato))}</b></span>`:""}${destTxt(l)?`<span>Destino <b>${esc(destTxt(l))}</b></span>`:""}${l.status==="pago"&&!l.contaId&&!l.quitGraos?`<span class="note">sem conta (histórico)</span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
       ${(l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(i.desc)}</span><span class="mono">${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:""}
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
       ${assinatura(l)}
@@ -894,7 +938,7 @@ function abreBaixa(l,manter){
     <div class="grid2" data-bx="dinheiro">
       <div class="field"><label>Data</label><input type="date" class="bx-d" value="${hoje()}"></div>
       <div class="field"><label>Conta</label><select class="bx-c">${fnContas.length?fnContas.map(c=>`<option value="${c.id}"${c.id===contaPadrao()?" selected":""}>${esc(c.nome)}</option>`).join(""):`<option value="">Cadastre uma conta no Resumo</option>`}</select></div>
-      <div class="field"><label>Valor ${r?"recebido":"pago"} (R$)</label><input class="bx-v" inputmode="decimal" value="${f2(Number(l.valor))}"></div>
+      <div class="field"><label>Valor ${r?"recebido":"pago"} (R$)</label><input class="bx-v" inputmode="decimal" value="${f2(pctLanc(l)?liqPrev(l):Number(l.valor))}"><small class="note bx-desc"></small></div>
     </div>
     <div class="grid2" data-bx="graos" hidden>
       <div class="field"><label>Data</label><input type="date" class="bg-d" value="${hoje()}"></div>
@@ -903,9 +947,10 @@ function abreBaixa(l,manter){
       <div class="field"><label>Depósito de onde saíram</label><select class="bg-loc">${locs.map(c=>`<option>${esc(c)}</option>`).join("")}</select></div>
       <label class="nf-chk" style="grid-column:1/-1"><input type="checkbox" class="bg-gr" checked> Tirar as sacas do saldo em Grãos (lança como venda pelo valor da conta)</label>
     </div>
-    <p class="note">${r?"":"Juros ou desconto? Ajuste o valor pago; o previsto fica guardado."}</p>
+    <p class="note">${r?"":pctLanc(l)?`Valor da nota ${brl(l.valor)}; já sugerido com o desconto do contrato (${num(pctLanc(l)*100)}%). Se o desconto foi outro, ajuste.`:"Juros ou desconto (ex.: pagamento adiantado)? Ajuste o valor pago; o valor da nota fica guardado."}</p>
     <div class="row"><button type="button" class="btn fn-mini bx-ok">Confirmar</button><button type="button" class="link bx-no">Cancelar</button><span class="falta bx-st"></span></div>`;
   let modo="dinheiro";
+  {const iv=box.querySelector(".bx-v"), dsc=box.querySelector(".bx-desc"); const mostra=()=>{const v=parseNum(iv.value), b=Number(l.valor); dsc.textContent=r||!(v>0)||Math.abs(v-b)<0.005?"":v<b?`Desconto de ${brl(b-v)} (${num((b-v)/b*100)}%)`:`Acréscimo de ${brl(v-b)}`}; iv.addEventListener("input",mostra); mostra()}
   box.querySelectorAll(".fn-bx-modo .chip").forEach(b=>b.onclick=()=>{modo=b.dataset.m; box.querySelectorAll(".fn-bx-modo .chip").forEach(c=>c.setAttribute("aria-pressed",c===b)); box.querySelectorAll("[data-bx]").forEach(x=>x.hidden=x.dataset.bx!==modo)});
   box.querySelector(".bx-no").onclick=()=>{box.hidden=true;box.innerHTML="";fnBaixa=null};
   box.querySelector(".bx-ok").onclick=async()=>{
@@ -1082,7 +1127,7 @@ function renderSafra(){
   /* ---- insumos: aplicados (registros) quando houver; senão as compras do Financeiro ---- */
   const insReg={}, insRegC={};
   for(const r of registros) if(!ehProg(r)&&naS(r.data)&&r.custoHa>0){const c=nc(r.campos?.cultura);
-    for(const t of r.talhoes||[]){const v=(Number(r.custoHa)||0)*(Number(r.areas?.[t])||haDe(t)); insReg[t]=(insReg[t]||0)+v; if(c) insRegC[c]=(insRegC[c]||0)+v}}
+    for(const t of r.talhoes||[]){const v=(Number(r.custoHaLiq??r.custoHa)||0)*(Number(r.areas?.[t])||haDe(t)); insReg[t]=(insReg[t]||0)+v; if(c) insRegC[c]=(insRegC[c]||0)+v}}
   const usaReg=Object.keys(insReg).length>0;
   /* ---- distribui cada custo: talhões marcados → cultura marcada → geral (rateio) ---- */
   const T={}, C={}; for(const t of TALHOES) T[t.n]={ins:0,dir:0,ger:0}; for(const c of Object.keys(plant)) C[c]={ins:0,dir:0,ger:0};
@@ -1160,6 +1205,7 @@ window.finRender=function(view){
 window.finAgenda=()=>{clearTimeout(window.finAgenda.t); window.finAgenda.t=setTimeout(()=>{
   gerarRecorrentes();
   window.nePintar?.();
+  {const k=JSON.stringify(fnCfg.contratos||{})+fnLanc.length; if(k!==window.finAgenda.ctr){window.finAgenda.ctr=k; try{renderEstoque()}catch{}}} // custo com desconto no Estoque
   {const h=hoje(); window.marca?.("fin_contas",fnLanc.filter(l=>l.status!=="pago"&&l.natureza!=="transf"&&l.vencimento&&l.vencimento<h).length);
    try{window.marca?.("fin_resumo",pendencias("atual").length)}catch{}}
   for(const v of ["fin_resumo","fin_contas","fin_caixa","fin_safra"]) if(visivel(v)){try{window.finRender(v)}catch(e){console.error(e)}}
@@ -1183,6 +1229,9 @@ $("#fc-tipo").innerHTML=Object.entries(FN_TIPOS).map(([k,l])=>`<option value="${
 $("#fn-form").addEventListener("submit",salvarLanc);
 $("#fn-cancel").onclick=()=>fnReset();
 $("#fn-catbox").addEventListener("toggle",()=>{if($("#fn-catbox").open) renderCats()});
+$("#fn-cdesc-box").addEventListener("toggle",()=>{if($("#fn-cdesc-box").open) renderDescontos()});
+$("#fn-cdesc-add").onclick=()=>{const i=$("#fn-cdesc-novo"); const v=i.value.trim(); if(!v){i.focus();return} const k=/^\d/.test(v)?v.replace(/\D/g,""):/^pedido/i.test(v)?"Pedido "+v.replace(/\D/g,""):v; if(!cdExtra.includes(k)) cdExtra.push(k); fnCfg={...fnCfg,contratos:{...(fnCfg.contratos||{}),...leDescontos()}}; i.value=""; renderDescontos()};
+$("#fn-cdesc-salvar").onclick=async()=>{const b=$("#fn-cdesc-salvar"); b.disabled=true; try{await salvaCfg({contratos:leDescontos()}); cdExtra=[]; renderDescontos(); flash("#fn-cdesc-st","Descontos salvos."); window.finAgenda()}catch(e){flash("#fn-cdesc-st",erroTxt(e))} finally{b.disabled=false}};
 $("#fn-cats-salvar").onclick=salvarCats;
 {const tip=$("#pn-tip"); if(tip&&tip.parentElement!==document.body) document.body.appendChild(tip)}
 $("#fn-item-add").onclick=()=>{itensRender([...itensLer(),{desc:"",valor:null}]); const r=[...document.querySelectorAll("#fn-itens .i-desc")].pop(); r?.focus()};
