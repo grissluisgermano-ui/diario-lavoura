@@ -7,7 +7,9 @@
  *   O PDF da nota é ignorado: o app monta a DANFE a partir do XML.
  * - Guarda cada nota no banco do app (coleção "nfe", com origem "email"). No app ela aparece em
  *   Estoque → "Notas recebidas por e-mail", com os botões Lançar no estoque / Só no Financeiro / DANFE / Ignorar.
- * - Marca o e-mail com a etiqueta "Diário/Notas importadas" para não ler de novo.
+ * - Marca o e-mail com a etiqueta "Diário/Notas importadas" (só para você ver no Gmail). Quais e-mails já foram lidos
+ *   fica guardado no próprio script, e-mail por e-mail: assim, quando a Coamo manda duas notas com o mesmo assunto e o
+ *   Gmail junta as duas na mesma conversa, a segunda também é lida.
  * - Nota cancelada (XML do evento de cancelamento) fica marcada como cancelada no app.
  *
  * Instalação: crie um arquivo novo no projeto do backup, cole este conteúdo, inclua o acesso ao Gmail
@@ -15,7 +17,8 @@
  */
 
 const NOTAS_ETIQUETA = "Diário/Notas importadas";
-const NOTAS_BUSCA = 'has:attachment (filename:xml OR filename:zip) newer_than:120d -label:"Diário/Notas importadas"';
+const NOTAS_BUSCA = 'has:attachment (filename:xml OR filename:zip) newer_than:%Dd';
+const NOTAS_LIDAS = "notasLidas"; // {idDoEmail: data em ms} dos últimos 20 dias
 
 /** Rode UMA vez: autoriza o Gmail e agenda a leitura a cada 30 minutos (não mexe no agendamento do backup). */
 function instalarNotas() {
@@ -26,20 +29,29 @@ function instalarNotas() {
 
 function importarNotasEmail() {
   const etiqueta = GmailApp.getUserLabelByName(NOTAS_ETIQUETA) || GmailApp.createLabel(NOTAS_ETIQUETA);
-  const conversas = GmailApp.search(NOTAS_BUSCA, 0, 40);
-  let novas = 0, repetidas = 0, canceladas = 0;
+  const props = PropertiesService.getScriptProperties();
+  let lidas = {}; try { lidas = JSON.parse(props.getProperty(NOTAS_LIDAS) || "{}") } catch (e) { lidas = {} }
+  const primeira = !Object.keys(lidas).length;
+  const conversas = GmailApp.search(NOTAS_BUSCA.replace("%D", primeira ? 60 : 10), 0, 100);
+  let novas = 0, repetidas = 0, canceladas = 0, emails = 0;
   for (const conversa of conversas) {
     for (const msg of conversa.getMessages()) {
+      const id = msg.getId(); if (lidas[id]) continue;
+      emails++;
       for (const anexo of msg.getAttachments()) {
         for (const xml of xmlsDoAnexo(anexo)) {
           const r = guardarXmlNota(xml, msg);
           if (r === "nova") novas++; else if (r === "repetida") repetidas++; else if (r === "cancelada") canceladas++;
         }
       }
+      lidas[id] = Date.now();
     }
     conversa.addLabel(etiqueta);
   }
-  console.log(`${conversas.length} e-mails lidos: ${novas} notas novas, ${repetidas} já estavam no app, ${canceladas} cancelamentos.`);
+  const limite = Date.now() - 20 * 864e5;
+  for (const k of Object.keys(lidas)) if (lidas[k] < limite) delete lidas[k];
+  props.setProperty(NOTAS_LIDAS, JSON.stringify(lidas));
+  console.log(`${emails} e-mails novos lidos: ${novas} notas novas, ${repetidas} já estavam no app, ${canceladas} cancelamentos.`);
 }
 
 /** Textos XML de um anexo: o próprio .xml, ou os .xml de dentro de um .zip (inclusive em subpastas). */
