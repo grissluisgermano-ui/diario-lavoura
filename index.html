@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="vinculo.css">
 <link rel="stylesheet" href="mapa.css">
 <link rel="stylesheet" href="ciclo.css">
+<link rel="stylesheet" href="entrega.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -849,6 +850,30 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="gr-vendido">–</b><span id="gr-vendido-l">vendido na safra</span></div>
     </div>
     <div id="gr-saldos" class="es-lista"></div>
+    <div class="ce-box">
+      <div class="row" style="justify-content:space-between"><h3 class="sub-h">Contratos de entrega futura</h3><span class="toast" id="ce-toast" role="status"></span></div>
+      <div id="ce-resumo" class="ce-resumo"></div>
+      <div id="ce-lista" class="es-lista"></div>
+      <details class="sub" id="ce-mais"><summary><b id="ce-f-tit">Novo contrato de entrega</b></summary>
+        <form id="ce-form" autocomplete="off" class="ce-form">
+          <div class="grid2">
+            <div class="field"><label for="ce-comp">Cooperativa / comprador</label><input id="ce-comp" list="dl-dep" placeholder="Ex.: Coamo"></div>
+            <div class="field"><label for="ce-num">Nº do contrato (opcional)</label><input id="ce-num" inputmode="numeric"></div>
+            <div class="field"><label for="ce-cult">Cultura</label><input id="ce-cult" list="dl-cult" placeholder="Ex.: Soja"></div>
+            <div class="field"><label for="ce-safra">Grão da safra</label><select id="ce-safra"></select></div>
+            <div class="field"><label for="ce-sacas">Sacas contratadas</label><input id="ce-sacas" inputmode="decimal" placeholder="0"></div>
+            <div class="field"><label for="ce-preco">Preço fixado (R$/saca)</label><input id="ce-preco" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><label for="ce-merc">Preço de mercado no dia (opcional)</label><input id="ce-merc" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><label for="ce-data">Data da fixação</label><input type="date" id="ce-data"></div>
+            <div class="field"><label for="ce-venc">Entregar até</label><input type="date" id="ce-venc"></div>
+            <div class="field"><label for="ce-fin">Para quê (opcional)</label><input id="ce-fin" placeholder="Ex.: pagar o custeio da soja"></div>
+          </div>
+          <div class="field"><label for="ce-obs">Observação</label><input id="ce-obs" placeholder="Ex.: soja limpa e seca"></div>
+          <p class="note" id="ce-total"></p>
+          <div class="row"><button class="btn" type="submit" id="ce-salvar">Salvar contrato</button><button type="button" class="link" id="ce-cancel" hidden>Cancelar edição</button></div>
+        </form>
+      </details>
+    </div>
     <h3 class="sub-h">Arrendamento</h3>
     <div id="gr-pai" class="es-lista"></div>
     <h3 class="sub-h">Comissões dos funcionários</h3>
@@ -2686,7 +2711,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{})});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -2754,6 +2779,7 @@ function planilhaBackup(){
   window.finPlanilha?.(add,dt);
   window.lmPlanilha?.(add,dt);
   window.mpPlanilha?.(add,dt);
+  window.cePlanilha?.(add,dt);
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -3446,9 +3472,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{})});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -3718,7 +3744,7 @@ $("#ask").onclick=async()=>{
 Talhões e áreas: ${TALHOES.map(t=>`${t.n} (${num(t.ha)} ha)`).join(", ")}. Total ${num(TALHOES.reduce((s,t)=>s+t.ha,0))} ha.
 
 Registros (data | tipo | talhões | detalhes | descrição):
-${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}
+${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}${window.ceTexto?.()||""}
 
 Pergunta: ${q}`;
   ctl=new AbortController();
@@ -3759,7 +3785,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -3786,6 +3812,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="vinculo.js"></script>
 <script src="mapa.js"></script>
 <script src="ciclo.js"></script>
+<script src="entrega.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>

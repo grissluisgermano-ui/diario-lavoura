@@ -1,0 +1,24 @@
+/* Diário da Lavoura — contratos de entrega futura */
+.ce-box{display:flex;flex-direction:column;gap:10px}
+.ce-resumo{display:flex;flex-direction:column;gap:6px}
+.ce-resumo:empty{display:none}
+.ce-r{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.9rem}
+.ce-r small{color:var(--muted);margin-left:auto}
+.ce{border:1px solid var(--line);border-left:4px solid var(--t-colheita);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;background:var(--surface)}
+.ce.perto{border-left-color:var(--t-aplicacao)}
+.ce.venc{border-left-color:var(--danger)}
+.ce.fim{border-left-color:var(--accent);opacity:.85}
+.ce-tit{font-weight:600;font-size:1.02rem}
+.ce-l2{font-size:.92rem}
+.ce-bar{height:10px;border-radius:999px;background:var(--sunk);overflow:hidden}
+.ce-bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.ce-nums{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.86rem;color:var(--muted)}
+.ce-nums b{color:var(--ink)}
+.ce-g{font-size:.85rem;font-weight:600}
+.ce-g.pos{color:var(--accent)}.ce-g.neg{color:var(--danger)}
+.ce .note{font-size:.8rem}
+.ce-ent{display:flex;flex-direction:column;gap:10px}
+.ce-ent #ce-e-av .falta{display:block;margin-bottom:4px}
+#ce-mais summary{cursor:pointer}
+#ce-mais[open] summary{margin-bottom:12px}
+.ce-form{display:flex;flex-direction:column;gap:12px}
