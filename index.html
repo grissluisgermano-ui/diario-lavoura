@@ -673,8 +673,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 
       <div class="grid2">
         <div class="field"><label for="es-com">Nome comercial</label><input id="es-com" list="dl-estoque" placeholder="Ex.: Fox Xpro"></div>
-        <div class="field"><label for="es-gen">Nome genérico / princípio ativo</label><input id="es-gen" placeholder="Preenchido pelo Claude ao digitar o nome comercial">
-          <div class="row"><button type="button" class="link" id="es-ia">Buscar com o Claude</button><span class="note" id="es-ia-st" role="status"></span></div></div>
+        <div class="field"><label for="es-gen">Nome genérico / princípio ativo</label><input id="es-gen" placeholder="Preenchido sozinho ao digitar o nome comercial">
+          <div class="row"><button type="button" class="link" id="es-ia">Buscar princípio ativo</button><span class="note" id="es-ia-st" role="status"></span></div></div>
         <div class="field"><label for="es-classe">Classe</label><select id="es-classe"></select></div>
         <div class="field"><label for="es-un">Unidade</label><select id="es-un"><option value="L">Litro (L)</option><option value="kg">Quilo (kg)</option><option value="sc">Saco (sc)</option><option value="un">Unidade (un)</option></select></div>
         <div class="field"><label for="es-data">Data da entrada</label><input type="date" id="es-data"></div>
@@ -1330,7 +1330,17 @@ async function sugerirProduto(forcar){
   const nome=$("#es-com").value.trim();
   if(!nome||prodEstoque(nome)) return;
   if(!forcar&&(nome===iaUltimo||$("#es-gen").value.trim())) return;
-  if(!sample){$("#es-ia-st").textContent="Busca automática desligada: cadastre a chave do Claude em Configurações.";return}
+  try{await window.agrofitCarrega?.()}catch{}
+  const ag=window.agrofitBusca?.(nome);
+  if(ag&&$("#es-com").value.trim()===nome){
+    iaUltimo=nome;
+    if(!$("#es-gen").dataset.touched||!$("#es-gen").value.trim()){$("#es-gen").value=ag.generico; $("#es-gen").dataset.ia="1"}
+    if(!$("#es-classe").dataset.touched) $("#es-classe").value=ag.classe;
+    if(!$("#es-un").dataset.touched){$("#es-un").value=ag.unidade; esSync()}
+    $("#es-ia-st").textContent=`Preenchido pela lista oficial do AGROFIT (MAPA): ${ag.marca}${ag.fabricante?" · "+ag.fabricante.split(" – ")[0].replace(/\.+$/,""):""}. Confira no rótulo.`;
+    return;
+  }
+  if(!sample){$("#es-ia-st").textContent=forcar||nome.length>3?`Não achei “${nome}” na lista do AGROFIT (adubo, semente e adjuvante sem registro não estão lá). Preencha pelo rótulo.`:"";return}
   iaUltimo=nome; iaCtl?.abort(); iaCtl=new AbortController();
   $("#es-ia-st").textContent=`Buscando o princípio ativo de ${nome}…`; $("#es-ia").disabled=true;
   try{
@@ -1511,7 +1521,7 @@ function renderNfRev(){
       </div>
       ${it.duvida?`<div class="falta">Confira: ${esc(it.duvida)}</div>`:""}
     </div>`}).join("")}
-    <p class="note">Princípio ativo, classe e conversão de embalagens foram sugeridos pelo Claude. Confira no rótulo e na nota.</p>
+    <p class="note">Princípio ativo e classe vêm do seu estoque ou da lista oficial do AGROFIT (MAPA); a conversão de embalagens, da nota. Confira no rótulo.</p>
     ${r.fin?window.finNfOpcao?.(r.fin)||"":""}
     <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
@@ -1520,6 +1530,11 @@ function renderNfRev(){
     box.querySelector(".pill").className="pill "+(ex?"ok":"prox"); box.querySelector(".pill").textContent=ex?"Já no estoque":"Produto novo";
     const u=box.querySelector(".nf-un"); u.disabled=!!ex; if(ex){u.value=ex.unidade; if(ex.generico) box.querySelector(".nf-gen").value=ex.generico; if(ex.classe) box.querySelector(".nf-cla").value=ex.classe}
   }));
+  const agPreenche=box=>{const ag=window.agrofitBusca?.(box.querySelector(".nf-nome").value)||window.agrofitBusca?.(box.querySelector(".note")?.textContent.replace(/^Na nota:\s*/,""));
+    if(!ag||prodEstoque(box.querySelector(".nf-nome").value)) return;
+    const g=box.querySelector(".nf-gen"), c=box.querySelector(".nf-cla"); if(!g.value.trim()) g.value=ag.generico; if(!c.value) c.value=ag.classe};
+  window.agrofitCarrega?.().then(()=>$("#nf-rev").querySelectorAll(".nf-it").forEach(agPreenche)).catch(()=>{});
+  $("#nf-rev").querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>agPreenche(inp.closest(".nf-it"))));
   $("#nf-cancel").onclick=()=>{$("#nf-rev").hidden=true;nfDados=null;nfXmlTxt=null;nfSt("")};
   if($("#nf-danfe")) $("#nf-danfe").onclick=()=>window.danfeAbrir?.(nfXmlTxt);
   $("#nf-lancar").onclick=nfLancar;
@@ -3813,6 +3828,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="mapa.js"></script>
 <script src="ciclo.js"></script>
 <script src="entrega.js"></script>
+<script src="agrofit.js"></script>
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script>
