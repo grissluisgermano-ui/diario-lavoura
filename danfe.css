@@ -70,3 +70,8 @@ html.dn-aberta,html.dn-aberta body{overflow:hidden}
 .ne-canc{border-left-color:var(--danger);opacity:.85}
 .ne-aviso{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:.92rem}
 .ne-aviso .link{color:var(--accent);font-weight:600}
+.ne-ign{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.ne-ign[hidden]{display:none}
+.ne-ign>summary{cursor:pointer;font-weight:600}
+.ne-ign[open]{display:flex;flex-direction:column;gap:8px}
+.ne-ignorada{border-left-color:var(--muted);opacity:.9}

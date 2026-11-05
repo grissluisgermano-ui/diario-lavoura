@@ -148,8 +148,27 @@ function resumoNota(d){
   return {emit:fin?.emit||d.emit||"Fornecedor",dest:fin?.dest||d.dest||"",total:fin?.total||d.total||0,parc:fin?.dups?.length||1,itens:fin?.itens?.length||0,
     venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:""};
 }
+const ignoradas=()=>nfeDocs.filter(d=>d.origem==="email"&&d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+const excluirNota=id=>db.collection("nfe").doc(id).delete(); // a ponte guarda uma cópia na Lixeira (Histórico) por 30 dias
+function pintaIgnoradas(){
+  const el=document.getElementById("ne-ign"); if(!el) return;
+  const is=ignoradas(); el.hidden=!is.length; if(!is.length){el.innerHTML="";return}
+  const aberto=el.open, br=x=>Number(x||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  el.innerHTML=`<summary>Notas ignoradas <span class="note">(${is.length})</span></summary>
+    <p class="note">Notas que vocês marcaram para ignorar. "Trazer de volta" faz a nota voltar para a lista de lançar. "Excluir" tira a nota do app (fica 30 dias na Lixeira, em Histórico).</p>
+    ${is.map(d=>{const r=resumoNota(d); return `<article class="ne-nota ne-ignorada">
+      <div class="rec-top"><b>NF ${e(d.numero||"")} · ${e(r.emit)}</b><span class="mono">${br(r.total)}</span></div>
+      <div class="rec-campos"><span>${d.data?dt(d.data):""}</span>${r.dest?`<span>Em nome de <b>${e(r.dest)}</b></span>`:""}<span>${r.itens} ite${r.itens===1?"m":"ns"}</span>${d.cancelada?`<span class="pill venc">Nota cancelada</span>`:""}</div>
+      <div class="rec-actions"><button type="button" class="btn ghost fn-mini" data-nev="${d.id}">Trazer de volta</button><button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link danger" data-nex="${d.id}">Excluir</button></div>
+    </article>`}).join("")}`;
+  el.open=aberto;
+  const doc=id=>nfeDocs.find(x=>x.id===id);
+  el.querySelectorAll("[data-nev]").forEach(b=>b.onclick=async()=>{b.disabled=true; const {id,ignorada,...d}=doc(b.dataset.nev); try{await db.collection("nfe").doc(id).set(d)}catch{b.disabled=false}});
+  el.querySelectorAll("[data-nex]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",()=>excluirNota(b.dataset.nex)));
+}
 window.nePintar=function(){
   const box=document.getElementById("ne-box"), av=document.getElementById("fn-ne"); if(!box) return;
+  pintaIgnoradas();
   const ps=pendentes();
   box.hidden=!ps.length; if(av) av.hidden=!ps.length;
   window.marca?.("estoque:notas",ps.length);
@@ -163,12 +182,13 @@ window.nePintar=function(){
     ${ps.slice(0,30).map(d=>{const r=resumoNota(d); return `<article class="ne-nota${d.cancelada?" ne-canc":""}">
       <div class="rec-top"><b>NF ${e(d.numero||"")} · ${e(r.emit)}</b><span class="mono">${br(r.total)}</span></div>
       <div class="rec-campos"><span>${d.data?dt(d.data):""}</span>${r.dest?`<span>Em nome de <b>${e(r.dest)}</b></span>`:""}<span>${r.itens} ite${r.itens===1?"m":"ns"}</span><span>${r.parc} parcela${r.parc===1?"":"s"}${r.venc?` · vence ${dt(r.venc)}`:""}</span>${d.cancelada?`<span class="pill venc">Nota cancelada</span>`:""}</div>
-      <div class="rec-actions">${d.cancelada?"":`<button type="button" class="btn fn-mini" data-nee="${d.id}">Lançar no estoque</button><button type="button" class="btn ghost fn-mini" data-nef="${d.id}">Só no Financeiro</button>`}<button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link" data-nei="${d.id}">Ignorar</button></div>
+      <div class="rec-actions">${d.cancelada?"":`<button type="button" class="btn fn-mini" data-nee="${d.id}">Lançar no estoque</button><button type="button" class="btn ghost fn-mini" data-nef="${d.id}">Só no Financeiro</button>`}<button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link" data-nei="${d.id}">Ignorar</button><button type="button" class="link danger" data-nex="${d.id}">Excluir</button></div>
     </article>`}).join("")}${ps.length>30?`<p class="note">Mostrando 30 de ${ps.length}.</p>`:""}`;
   const doc=id=>nfeDocs.find(x=>x.id===id);
   box.querySelectorAll("[data-nee]").forEach(b=>b.onclick=()=>{show("estoque"); window.nfImportarArquivo?.(arquivo(doc(b.dataset.nee))); setTimeout(()=>document.getElementById("nf-rev")?.scrollIntoView({block:"start",behavior:"smooth"}),300)});
   box.querySelectorAll("[data-nef]").forEach(b=>b.onclick=()=>{show("fin_contas"); window.finImportarXml?.(arquivo(doc(b.dataset.nef)))});
   box.querySelectorAll("[data-nei]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: ignorar",async()=>{const {id,...d}=doc(b.dataset.nei); await db.collection("nfe").doc(id).set({...d,ignorada:true})}));
+  box.querySelectorAll("[data-nex]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",()=>excluirNota(b.dataset.nex)));
 };
 
 /* abre a DANFE de qualquer botão com data-danfe="<chave>" */

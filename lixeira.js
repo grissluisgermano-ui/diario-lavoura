@@ -5,7 +5,7 @@
   const box = document.getElementById("lx-box"); if (!box || !window.ponte?.lixeira) return;
   const lista = document.getElementById("lx-lista"), cont = document.getElementById("lx-cont");
   const NOMES_COL = { registros:"Lançamento", estoque:"Produto do estoque", graos:"Movimento de grãos", maquinas:"Máquina", manutencoes:"Manutenção",
-    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", notas:"Anotação", config:"Configuração" };
+    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", notas:"Anotação", config:"Configuração", nfe:"Nota fiscal (XML)" };
   const e = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
   const br = iso => { try { const [y, m, d] = String(iso).slice(0, 10).split("-"); return d ? `${d}/${m}/${y}` : "" } catch { return "" } };
   const n = v => Number(v || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -25,6 +25,7 @@
       case "manutencoes": case "servicos_benf": return `${br(d.data)} · ${(d.servicos || []).join(", ") || d.descricao || ""}`;
       case "diesel": return `${d.tipo || ""} · ${n(d.litros ?? d.nivel)} L · ${br(d.data)}`;
       case "notas": return `${d.titulo || String(d.texto || "").slice(0, 70)} · ${br(d.data)}`;
+      case "nfe": return `NF ${d.numero || ""} · ${d.emit || ""} · ${br(d.data)}`;
       default: return x.docId;
     }
   }
