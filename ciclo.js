@@ -58,11 +58,11 @@ function render(){
   box.innerHTML=`<div class="ci-top"><h3>Talhões hoje</h3><span class="note">DAP = dias após o plantio · DAE = após a emergência · DAA = após a aplicação</span></div>
     <div class="ci-lista">${linhas.map(({t,c})=>{
       const id=(typeof propCfg!=="undefined"?propCfg.talhoes.find(x=>x.n===t)?.id:null), mini=id&&window.mpMini?window.mpMini(id,40):"";
-      if(!c) return `<div class="ci-t vazio">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small></div></div>`;
-      if(c.colheita) return `<div class="ci-t vazio">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)</small></div></div>`;
+      if(!c) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small><span class="ci-ver">Ver atividades da safra ›</span></div></div>`;
+      if(c.colheita) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)</small><span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
       const a=ultimaAplic(t,hoje,c.p.data), car=a&&Number(a.campos?.carencia)>0?soma(a.data,Number(a.campos.carencia)):null;
       const ab=abrirEm===c.p.id+"|"+t;
-      return `<div class="ci-t">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c">
+      return `<div class="ci-t" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c">
           <div class="ci-l1"><b>${esc(t)}</b><span>${esc([c.cultura,c.cultivar].filter(Boolean).join(" · "))}</span></div>
           <div class="ci-nums">
             <span class="ci-n"><b>${c.dap}</b><small>DAP</small></span>
@@ -73,7 +73,13 @@ function render(){
           ${a?`<small class="ci-sub">Última aplicação ${brDate(a.data)}${prods(a).length?`: ${esc(prods(a).join(" + "))}`:a.nome?`: ${esc(a.nome)}`:""}${car?` · <span class="${car>hoje?"ci-car":"ci-lib"}">${car>hoje?`carência até ${brDate(car)} (faltam ${dias(hoje,car)} dias)`:`carência terminou em ${brDate(car)}`}</span>`:""}</small>`:""}
           ${c.emergencia?"":ab?`<div class="ci-em"><input type="date" id="ci-em-d" value="${hoje}" max="${hoje}" min="${c.p.data}" aria-label="Data da emergência"><button type="button" class="btn fn-mini" data-ciok="${c.p.id}">Salvar</button><button type="button" class="link" data-cix>Cancelar</button></div>`
             :`<button type="button" class="link ci-bt" data-ciem="${c.p.id}|${esc(t)}">Informar emergência</button>`}
+          <span class="ci-ver">Ver tudo deste talhão ›</span>
         </div></div>`}).join("")}</div>`;
+  box.querySelectorAll("[data-ct]").forEach(el=>{
+    const abre=e=>{if(e.target.closest("button,input,a")) return; abreTalhao(el.dataset.ct)};
+    el.addEventListener("click",abre);
+    el.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target===el){e.preventDefault(); abreTalhao(el.dataset.ct)}});
+  });
   box.querySelectorAll("[data-ciem]").forEach(b=>b.onclick=()=>{abrirEm=b.dataset.ciem; render(); $("#ci-em-d")?.focus()});
   box.querySelectorAll("[data-cix]").forEach(b=>b.onclick=()=>{abrirEm=null; render()});
   box.querySelectorAll("[data-ciok]").forEach(b=>b.onclick=async()=>{
@@ -83,7 +89,65 @@ function render(){
     try{await col.doc(id).set(doc); abrirEm=null}catch{b.disabled=false}
   });
 }
-const agenda=()=>{clearTimeout(agenda.t); agenda.t=setTimeout(()=>{try{render()}catch(e){console.error(e)}},120)};
+/* ---------- Tela do talhão: tudo o que foi feito no ciclo atual ---------- */
+let aberto=null;
+function periodo(t){
+  const hoje=todayISO(), c=ciclo(t,hoje);
+  if(!c){const y=safraDe(hoje); return {c:null,ini:y+"-07-01",fim:null,tit:`Safra ${safraLab(y)}`}}
+  // começa logo depois da colheita anterior (pega a dessecação/pré-plantio); sem colheita anterior, no início da safra do plantio
+  const ant=registros.filter(r=>r.tipo==="colheita"&&exec(r)&&tem(r,t)&&r.data<c.p.data).sort((a,b)=>b.data.localeCompare(a.data))[0];
+  const ini=ant?soma(ant.data,1):safraDe(c.p.data)+"-07-01";
+  return {c,ini,fim:c.colheita?c.colheita.data:null,tit:`${c.cultura||"Cultura"}${c.cultivar?" · "+c.cultivar:""} · safra ${safraLab(safraDe(c.p.data))}`};
+}
+function telaTalhao(){
+  const el=$("#ct-tela"); if(!el||!aberto) return;
+  const t=aberto, hoje=todayISO(), {c,ini,fim,tit}=periodo(t);
+  const rs=registros.filter(r=>r.tipo!=="chuva"&&tem(r,t)&&r.data>=ini&&(!fim||r.data<=fim))
+    .sort((a,b)=>a.data.localeCompare(b.data)||String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  const ex=rs.filter(exec), pr=rs.filter(r=>!exec(r));
+  const ha=haDe(t), areaDe=r=>Number(r.areas?.[t])||ha;
+  const cHa=ex.reduce((a,r)=>a+(Number(r.custoHa)||0),0), cTot=ex.reduce((a,r)=>a+(Number(r.custoHa)||0)*areaDe(r),0);
+  const temLiq=ex.some(r=>r.custoHaLiq!=null), cHaL=ex.reduce((a,r)=>a+(Number(r.custoHaLiq??r.custoHa)||0),0);
+  const pHa=pr.reduce((a,r)=>a+(Number(r.custoHa)||0),0);
+  const chIni=c?c.p.data:ini, chFim=fim||hoje;
+  const mm=registros.filter(r=>r.tipo==="chuva"&&r.data>=chIni&&r.data<=chFim&&(!(r.talhoes||[]).length||tem(r,t))).reduce((a,r)=>a+(Number(r.campos?.mm)||0),0);
+  const porTipo={}; for(const r of ex) porTipo[r.tipo]=(porTipo[r.tipo]||0)+1;
+  const id=(typeof propCfg!=="undefined"?propCfg.talhoes.find(x=>x.n===t)?.id:null), mini=id&&window.mpMini?window.mpMini(id,56):"";
+  const rot=d=>!c?"":d>=c.p.data?`${dias(c.p.data,d)} DAP`:`${dias(d,c.p.data)} dias antes do plantio`;
+  let lista="",dia=null;
+  for(const r of rs){
+    if(r.data!==dia){if(dia) lista+="</div>"; dia=r.data; lista+=`<div class="day"><h3>${brDate(r.data)}${rot(r.data)?` <small class="ct-dap">${rot(r.data)}</small>`:""}${r.data>hoje?` <small class="ct-fut">daqui a ${dias(hoje,r.data)} dias</small>`:""}</h3>`}
+    lista+=recCard(r);
+  }
+  if(dia) lista+="</div>";
+  el.innerHTML=`<div class="ct-bar"><button type="button" class="btn ghost" id="ct-volta">‹ Voltar</button><span class="ct-bar-t">${esc(t)}</span></div>
+    <div class="ct-corpo">
+      <div class="ct-cab">${mini?`<span class="ci-mini">${mini}</span>`:""}<div><h2>${esc(t)} <small>${num(ha)} ha</small></h2><p class="note">${esc(tit)}${c?` · plantio em ${brDate(c.p.data)}`:""}${c?.colheita?` · colhido em ${brDate(c.colheita.data)}`:""}</p></div></div>
+      ${c&&!c.colheita?`<div class="ci-nums"><span class="ci-n"><b>${c.dap}</b><small>DAP</small></span>${c.dae!=null?`<span class="ci-n"><b>${c.dae}</b><small>DAE</small></span>`:""}${(()=>{const a=ultimaAplic(t,hoje,c.p.data); return a?`<span class="ci-n"><b>${dias(a.data,hoje)}</b><small>DAA</small></span>`:""})()}</div>`:""}
+      <div class="ct-res">
+        <div><b>${ex.length}</b><small>atividade${ex.length===1?"":"s"} feita${ex.length===1?"":"s"}</small></div>
+        <div><b>${pr.length}</b><small>programada${pr.length===1?"":"s"}</small></div>
+        <div><b>${num(mm)} mm</b><small>chuva ${c?"desde o plantio":"na safra"}</small></div>
+        <div><b>${brl(cHa)}/ha</b><small>insumos aplicados · ${brl(cTot)} no talhão${temLiq?` · com desconto ${brl(cHaL)}/ha`:""}${pHa?` · + ${brl(pHa)}/ha programado`:""}</small></div>
+      </div>
+      ${Object.keys(porTipo).length?`<p class="note ct-tipos">${Object.entries(porTipo).map(([k,n])=>`${esc(TIPOS[k]?.label||k)}: <b>${n}</b>`).join(" · ")}</p>`:""}
+      <p class="note">Desde ${brDate(ini)}${fim?` até a colheita`:" até hoje (e o que está programado)"}. A chuva é a lançada na propriedade.</p>
+      <div class="ct-lista">${rs.length?lista:`<div class="empty">Nenhuma atividade lançada neste talhão ${c?"neste ciclo":"nesta safra"}.</div>`}</div>
+    </div>`;
+  ligaCards(el);
+  el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",fecha));
+  $("#ct-volta").onclick=fecha;
+}
+function abreTalhao(t){
+  aberto=t;
+  let el=$("#ct-tela"); if(!el){el=document.createElement("div"); el.id="ct-tela"; el.className="ct-tela"; el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true"); document.body.appendChild(el)}
+  el.hidden=false; document.body.classList.add("ct-aberto"); telaTalhao(); el.scrollTop=0; $("#ct-volta")?.focus();
+}
+function fecha(){aberto=null; const el=$("#ct-tela"); if(el) el.hidden=true; document.body.classList.remove("ct-aberto")}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&aberto) fecha()});
+window.abreTalhao=abreTalhao;
+
+const agenda=()=>{clearTimeout(agenda.t); agenda.t=setTimeout(()=>{try{render(); if(aberto) telaTalhao()}catch(e){console.error(e)}},120)};
 const origLista=renderLista;
 renderLista=function(){const r=origLista.apply(this,arguments); agenda(); return r};
 document.addEventListener("visibilitychange",()=>{if(!document.hidden) agenda()});
