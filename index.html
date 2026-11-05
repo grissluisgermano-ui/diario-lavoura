@@ -445,6 +445,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <span class="note" id="rl-st" role="status"></span>
     </div>
     <div id="rl-prev"></div>
+    <div class="sub" id="backup-box" hidden>
+      <h3 class="sub-h">Backup dos dados</h3>
+      <p class="note">Baixa uma cópia de tudo o que está no app: registros, chuvas, estoque, grãos, máquinas, diesel, benfeitorias e anotações. Guarde as cópias fora do app (computador ou Google Drive). A planilha abre no Excel ou no Google Planilhas. O arquivo .json guarda tudo exatamente como está e serve para restaurar o app se for preciso. As fotos não entram no .json: baixe-as pelo botão de fotos.</p>
+      <div class="row"><button type="button" class="btn" id="bk-xlsx">Baixar planilha Excel</button><button type="button" class="btn ghost" id="bk-json">Baixar backup completo (.json)</button></div>
+      <p class="note" id="bk-status"></p>
+      <div class="row"><button type="button" class="btn ghost" id="bk-fotos">Baixar todas as fotos (.zip)</button></div>
+      <div class="rs-box">
+        <b>Restaurar backup</b>
+        <p class="note">Escolha um arquivo .json de backup do Diário da Lavoura. Os registros do arquivo voltam para o app: os que já existem são substituídos pela versão do backup e os que foram apagados são recriados. Lançamentos feitos depois do backup não são apagados.</p>
+        <div class="row"><label class="btn ghost foto-btn" for="rs-in">Escolher backup (.json)</label><input id="rs-in" type="file" accept=".json,application/json" hidden></div>
+        <div id="rs-prev" hidden></div>
+      </div>
+    </div>
   </section>
 
   <!-- CONFIGURAÇÕES -->
@@ -1119,20 +1132,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <!-- HISTÓRICO -->
   <section class="panel" id="view-historico" hidden>
     <h2>Histórico</h2>
-    <div class="sub" id="backup-box" hidden>
-      <h3 class="sub-h">Backup dos dados</h3>
-      <p class="note">Baixa uma cópia de tudo o que está no app: registros, chuvas, estoque, grãos, máquinas, diesel, benfeitorias e anotações. Guarde as cópias fora do app (computador ou Google Drive). A planilha abre no Excel ou no Google Planilhas. O arquivo .json guarda tudo exatamente como está e serve para restaurar o app se for preciso. As fotos não entram no .json: baixe-as pelo botão de fotos.</p>
-      <div class="row"><button type="button" class="btn" id="bk-xlsx">Baixar planilha Excel</button><button type="button" class="btn ghost" id="bk-json">Baixar backup completo (.json)</button></div>
-      <p class="note" id="bk-status"></p>
-      <div class="row"><button type="button" class="btn ghost" id="bk-fotos">Baixar todas as fotos (.zip)</button></div>
-      <div class="rs-box">
-        <b>Restaurar backup</b>
-        <p class="note">Escolha um arquivo .json de backup do Diário da Lavoura. Os registros do arquivo voltam para o app: os que já existem são substituídos pela versão do backup e os que foram apagados são recriados. Lançamentos feitos depois do backup não são apagados.</p>
-        <div class="row"><label class="btn ghost foto-btn" for="rs-in">Escolher backup (.json)</label><input id="rs-in" type="file" accept=".json,application/json" hidden></div>
-        <div id="rs-prev" hidden></div>
-      </div>
-    </div>
-
     <div class="sub" id="lx-box" hidden>
       <h3 class="sub-h">Lixeira <span class="note" id="lx-cont"></span></h3>
       <p class="note">O que for excluído no app fica aqui por 30 dias e pode ser recuperado (com as fotos). Depois disso é apagado de vez.</p>
@@ -2811,7 +2810,7 @@ async function bkSalvar(btn,fn,ext){
 $("#bk-xlsx").onclick=()=>{ if(typeof XLSX==="undefined"){$("#bk-status").textContent="A planilha não carregou. Verifique a internet e recarregue o app.";return}
   bkSalvar($("#bk-xlsx"),()=>new Blob([planilhaBackup()]),"xlsx")};
 $("#bk-al-btn").onclick=()=>{
-  if(!downloads){show("historico");return}
+  if(!downloads){show("relatorios");return}
   $("#bk-al-sub").textContent="Gerando o backup completo…";
   bkSalvar($("#bk-al-btn"),()=>JSON.stringify({app:"Diário da Lavoura",versao:1,geradoEm:new Date().toISOString(),colecoes:COLECOES()},null,1),"json").then(()=>{if(!$("#bk-alerta").hidden) bkAlerta()});
 };
