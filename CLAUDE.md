@@ -25,8 +25,8 @@ Ao publicar mudança no app: **suba o número em `versao.js`** (`n` e `data`, mo
 - Talhões, depósitos, culturas e capacidade do tanque vêm de `config/propriedade` (`{nome, talhoes:[{id,n,ha}], depositos, culturas, tanque}`); renomear talhão propaga para registros/notas/benfeitorias.
 - Estoque: baixa = dose × fator de conversão × área, **só de atividades executadas**; programadas apenas **reservam**. Cada produto do registro guarda o custo do momento (`custoUnit, unidadeEst, custoHa`); o registro guarda `custoHa, custoTotal, semCusto`.
 - Atividade **programada** (vermelho) × **executada** (verde).
-- Colheita: romaneios `{numero, sacas, data, hora, local}`; divisão `divisao:{f1, f2}` em % para os dois funcionários (config/graos), o resto é da Lavoura.
-- Titulares dos grãos: `lavoura`, `f1`, `f2`, `pai`. O arrendamento do pai (padrão 2000 sc de soja/ano) **só sai da parte da Lavoura**, nunca da parte dos funcionários (movimento `arrendamento`, mesmo local).
+- Colheita: romaneios `{numero, sacas, data, hora, local}`; divisão `divisao:{f1, f2, …}` em % para os funcionários (config/graos), o resto é da Lavoura.
+- Titulares dos grãos: `lavoura` + funcionários + arrendatários, configurados em Configurações → Pessoas: `config/graos` `{funcs:[{id:f1|f2|f3…,nome,pct}], arrs:[{id:pai|a2|a3…,nome,sacas,cultura}]}` (também grava `f1`, `f2`, `pai` no formato antigo; `grNorm` lê os dois). `TITS` é recalculado em `grAplica`. Romaneio guarda `divisao:{f1,f2,f3…}`. Arrendamento (padrão do pai 2000 sc de soja/ano) **só sai da parte da Lavoura**, nunca da parte dos funcionários (movimento `arrendamento` com `para` = id do arrendatário; sem `para` = `pai`; mesmo local). Pessoa com lançamentos não pode ser removida (`pessoaUsada`): põe 0% / 0 sc.
 - Sacas de 60 kg. Depósitos padrão: Coamo, Casarão, C.Vale, Baggio, Alfa.
 
 ## Coleções do Firestore

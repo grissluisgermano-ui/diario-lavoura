@@ -1102,7 +1102,7 @@ function renderSafra(){
   const arr=grMovs().filter(m=>m.tipo==="arrendamento"&&naS(m.data));
   let arrTxt="";
   if(!cat.arrendamento&&arr.length){const v=arr.reduce((t,m)=>t+m.sacas*(preco(nc(m.cultura))||0),0), sc=arr.reduce((t,m)=>t+m.sacas,0);
-    if(v>0){cat.arrendamento=v; custos.push({l:{categoria:"arrendamento"},v}); arrTxt=`${num(sc)} sc pagas ao ${titNome("pai")} valendo ${brlC(v)} pelo preço médio de venda`}}
+    if(v>0){cat.arrendamento=v; custos.push({l:{categoria:"arrendamento"},v}); arrTxt=`${num(sc)} sc pagas a ${[...new Set(arr.map(m=>titNome(m.para||"pai")))].join(", ")} valendo ${brlC(v)} pelo preço médio de venda`}}
   const custo=Object.values(cat).reduce((t,v)=>t+v,0), receita=Object.values(recC).reduce((t,v)=>t+v,0);
   const investT=Object.values(fora.invest).reduce((t,v)=>t+v,0);
   const kpi=(l,v,sub,cls)=>`<div class="kpi${cls?" "+cls:""}"><span>${l}</span><b>${v}</b>${sub?`<small>${sub}</small>`:""}</div>`;

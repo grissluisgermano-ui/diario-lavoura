@@ -233,7 +233,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .dv-row b.mono{text-align:right;padding-right:12px}
 .dv-pct{display:flex;align-items:center;gap:6px}
 .dv-pct input{text-align:right;font-family:var(--f-mono)}
-.dv-row:has(#dv-ps){grid-template-columns:minmax(0,1fr) 9rem}
+.dv-h{margin:6px 0 0;font-size:.92rem;font-weight:600}
+.dv-lista{display:flex;flex-direction:column;gap:8px}
+.dv-it{display:grid;grid-template-columns:minmax(0,1fr) 6.5rem 2.4rem;gap:8px;align-items:center}
+.dv-it.arr{grid-template-columns:minmax(0,1fr) 8.6rem 2.4rem}
+.dv-it .dv-cul{grid-column:1/3}
+.dv-it .dv-x{width:2.4rem;height:2.4rem;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:1.2rem;line-height:1;cursor:pointer}
+.dv-it .dv-x:hover{color:var(--danger);border-color:var(--danger)}
+.dv-msg{grid-column:1/-1;color:var(--danger);font-size:.8rem}
+.dv-add{align-self:flex-start;color:var(--accent);font-weight:600}
+.dv-sep{border:0;border-top:1px dashed var(--line);margin:2px 0}
 .tit-row{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.85rem;border-top:1px dotted var(--line);padding-top:6px}
 .tit-row b{font-family:var(--f-mono);font-weight:500}
 .nf-imp{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border:1px dashed var(--line);border-radius:8px;padding:10px 12px;background:var(--surface)}
@@ -512,9 +521,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <h3 class="sub-h">Pessoas: comissões e arrendamento</h3>
       <p class="note">Cada romaneio entregue é dividido entre a Lavoura e a comissão dos funcionários.</p>
       <div class="dv-row"><span class="dv-nome"><b>Lavoura</b></span><b class="mono" id="dv-lav">97%</b></div>
-      <div class="dv-row"><input id="dv-n1" placeholder="Nome do Funcionário 1" aria-label="Nome do Funcionário 1"><span class="dv-pct"><input id="dv-p1" inputmode="decimal" aria-label="Comissão do Funcionário 1 em %">%</span></div>
-      <div class="dv-row"><input id="dv-n2" placeholder="Nome do Funcionário 2" aria-label="Nome do Funcionário 2"><span class="dv-pct"><input id="dv-p2" inputmode="decimal" aria-label="Comissão do Funcionário 2 em %">%</span></div>
-      <div class="dv-row"><input id="dv-pn" placeholder="Nome de quem recebe o arrendamento" aria-label="Nome de quem recebe o arrendamento"><span class="dv-pct"><input id="dv-ps" inputmode="numeric" aria-label="Sacas de arrendamento por ano">sc/ano</span></div>
+      <h4 class="dv-h">Funcionários (comissão sobre os depósitos)</h4>
+      <div id="dv-funcs" class="dv-lista"></div>
+      <button type="button" class="link dv-add" id="dv-add-f">+ Adicionar funcionário</button>
+      <h4 class="dv-h">Arrendamentos (sacas por ano, pagas pela Lavoura)</h4>
+      <div id="dv-arrs" class="dv-lista"></div>
+      <button type="button" class="link dv-add" id="dv-add-a">+ Adicionar arrendatário</button>
       <p class="note">O arrendamento não sai dos depósitos automaticamente: lance cada pagamento em Movimentar saldo → Pagamento do arrendamento. Ele sempre sai da parte da Lavoura.</p>
       <p class="note">Os novos romaneios guardam a divisão do dia. Mudar os percentuais não altera as entregas já lançadas com divisão.</p>
       <div class="row"><button class="btn" type="submit" id="dv-salvar">Salvar pessoas</button><span class="toast" id="dv-toast" role="status"></span></div>
@@ -2505,55 +2517,113 @@ $("#areas").addEventListener("input",()=>{if(TIPOS[tipo].roms) romsTotal()});
 $("#talhoes").addEventListener("click",()=>setTimeout(()=>{if(TIPOS[tipo].roms) romsTotal()}));
 
 /* ---------- Divisão dos depósitos (Lavoura × comissões) ---------- */
-const TITS=["lavoura","f1","f2","pai"];
-let grCfg={f1:{nome:"",pct:1.5},f2:{nome:"",pct:1.5},pai:{nome:"Nestor Griss",sacas:2000,cultura:"Soja"}};
-const titNome=t=>t==="lavoura"?"Lavoura":t==="pai"?(grCfg.pai?.nome||"Nestor Griss"):(grCfg[t]?.nome||(t==="f1"?"Funcionário 1":"Funcionário 2"));
-function divisaoAtual(){return {f1:+grCfg.f1.pct||0,f2:+grCfg.f2.pct||0}}
-function divisaoDe(m){const d=m.divisao||divisaoAtual(); const f1=+d.f1||0,f2=+d.f2||0; return {lavoura:100-f1-f2,f1,f2}}
+/* Pessoas: funcionários (comissão sobre cada romaneio) e arrendatários (sacas por ano, pagas pela Lavoura).
+   config/graos {funcs:[{id,nome,pct}], arrs:[{id,nome,sacas,cultura}]} — ids fixos (f1, f2, f3… / pai, a2, a3…);
+   também grava f1, f2 e pai no formato antigo para quem lê o formato antigo. */
+let TITS=["lavoura","f1","f2","pai"];
+let grCfg={funcs:[{id:"f1",nome:"",pct:1.5},{id:"f2",nome:"",pct:1.5}],arrs:[{id:"pai",nome:"Nestor Griss",sacas:2000,cultura:"Soja"}]};
+function grNorm(d){
+  d=d||{};
+  let funcs=Array.isArray(d.funcs)?d.funcs:[d.f1&&{id:"f1",...d.f1},d.f2&&{id:"f2",...d.f2}].filter(Boolean);
+  if(!Array.isArray(d.funcs)&&!funcs.length) funcs=[{id:"f1",nome:"",pct:1.5},{id:"f2",nome:"",pct:1.5}];
+  let arrs=Array.isArray(d.arrs)?d.arrs:[{id:"pai",nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}];
+  funcs=funcs.map(f=>({id:f.id,nome:f.nome||"",pct:Number(f.pct)||0}));
+  arrs=arrs.map(a=>({id:a.id,nome:a.nome||"",sacas:Number(a.sacas)||0,cultura:a.cultura||"Soja"}));
+  return {funcs,arrs};
+}
+function grAplica(cfg){grCfg=grNorm(cfg); TITS=["lavoura",...grCfg.funcs.map(f=>f.id),...grCfg.arrs.map(a=>a.id)]}
+const ARRS=()=>grCfg.arrs, FUNCS=()=>grCfg.funcs;
+const arrDe=id=>grCfg.arrs.find(a=>a.id===id), funcDe=id=>grCfg.funcs.find(f=>f.id===id);
+const arrPadrao=()=>grCfg.arrs[0]?.id||"pai";
+const titNome=t=>{if(t==="lavoura") return "Lavoura";
+  const f=funcDe(t); if(f) return f.nome||`Funcionário ${String(t).replace(/\D/g,"")||""}`.trim();
+  const a=arrDe(t); if(a) return a.nome||(t==="pai"?"Nestor Griss":"Arrendatário");
+  return t==="pai"?"Nestor Griss":/^f\d+$/.test(t)?`Funcionário ${t.slice(1)}`:"Arrendatário"};
+const ehArr=t=>!!arrDe(t)||t==="pai";
+function divisaoAtual(){const o={}; for(const f of grCfg.funcs) o[f.id]=+f.pct||0; return o}
+function divisaoDe(m){const d=m.divisao||divisaoAtual(), o={}; let soma=0; for(const [k,v] of Object.entries(d)){const n=+v||0; o[k]=n; soma+=n} o.lavoura=100-soma; return o}
 function grSaldosTit(){
   const s={};
   const add=(c,t,l,v)=>{l=l||"Sem local";((s[c]??={})[t]??={});s[c][t][l]=(s[c][t][l]||0)+v};
   for(const m of grMovs()){
-    if(m.tipo==="romaneio"){const d=divisaoDe(m); for(const t of TITS) if(d[t]) add(m.cultura,t,m.local,m.sacas*d[t]/100)}
+    if(m.tipo==="romaneio"){const d=divisaoDe(m); for(const t of Object.keys(d)) if(d[t]) add(m.cultura,t,m.local,m.sacas*d[t]/100)}
     else{const t=m.titular||"lavoura";
       if(m.tipo==="inicial") add(m.cultura,t,m.local,m.sacas);
       else if(m.tipo==="venda"||m.tipo==="retirada") add(m.cultura,t,m.local,-m.sacas);
       else if(m.tipo==="transferencia"){add(m.cultura,t,m.local,-m.sacas);add(m.cultura,t,m.destino,m.sacas)}
-      else if(m.tipo==="arrendamento"){add(m.cultura,"lavoura",m.local,-m.sacas);add(m.cultura,"pai",m.local,m.sacas)}}
+      else if(m.tipo==="arrendamento"){add(m.cultura,"lavoura",m.local,-m.sacas);add(m.cultura,m.para||"pai",m.local,m.sacas)}}
   }
   return s;
 }
 const somaLocais=o=>Object.values(o||{}).reduce((a,b)=>a+b,0);
-function renderDivisao(){
-  if(document.activeElement?.closest?.("#dv-form")) return;
-  $("#dv-n1").value=grCfg.f1.nome||""; $("#dv-n2").value=grCfg.f2.nome||"";
-  $("#dv-p1").value=String(grCfg.f1.pct).replace(".",","); $("#dv-p2").value=String(grCfg.f2.pct).replace(".",",");
-  $("#dv-pn").value=grCfg.pai?.nome||""; $("#dv-ps").value=grCfg.pai?.sacas??2000;
+/* pessoa tem lançamentos? (aí não pode ser removida: mudaria saldos antigos) */
+function pessoaUsada(id){
+  for(const r of registros) if(r.tipo==="colheita"&&Number(r.divisao?.[id])>0) return true;
+  return graos.some(g=>g.titular===id||(g.tipo==="arrendamento"&&(g.para||"pai")===id));
+}
+let dvRasc=null, dvMsg={};
+const dvNum=v=>String(v??"").replace(".",",");
+function dvLinhas(){
+  const r=dvRasc;
+  $("#dv-funcs").innerHTML=r.funcs.map((f,i)=>`<div class="dv-it" data-i="${i}">
+      <input class="dv-fn" value="${esc(f.nome)}" placeholder="Nome do funcionário ${i+1}" aria-label="Nome do funcionário ${i+1}">
+      <span class="dv-pct"><input class="dv-fp" inputmode="decimal" value="${esc(dvNum(f.pct))}" aria-label="Comissão em %">%</span>
+      <button type="button" class="dv-x" data-dvx="f|${i}" aria-label="Remover funcionário" title="Remover">×</button>
+      ${dvMsg["f|"+f.id]?`<span class="dv-msg">${dvMsg["f|"+f.id]}</span>`:""}</div>`).join("")||`<p class="note">Nenhum funcionário com comissão.</p>`;
+  $("#dv-arrs").innerHTML=r.arrs.map((a,i)=>`${i?`<hr class="dv-sep">`:""}<div class="dv-it arr" data-i="${i}">
+      <input class="dv-an" value="${esc(a.nome)}" placeholder="Nome de quem recebe" aria-label="Nome de quem recebe o arrendamento">
+      <span class="dv-pct"><input class="dv-as" inputmode="numeric" value="${esc(String(a.sacas??""))}" aria-label="Sacas por ano">sc/ano</span>
+      <button type="button" class="dv-x" data-dvx="a|${i}" aria-label="Remover arrendatário" title="Remover">×</button>
+      <input class="dv-cul dv-ac" value="${esc(a.cultura||"Soja")}" placeholder="Cultura (ex.: Soja)" aria-label="Cultura do arrendamento">
+      ${dvMsg["a|"+a.id]?`<span class="dv-msg">${dvMsg["a|"+a.id]}</span>`:""}</div>`).join("")||`<p class="note">Nenhum arrendamento.</p>`;
   dvLav();
 }
-function dvLav(){const p1=parseNum($("#dv-p1").value)||0,p2=parseNum($("#dv-p2").value)||0; $("#dv-lav").textContent=num(100-p1-p2)+"%"}
-["#dv-p1","#dv-p2"].forEach(s=>$(s).addEventListener("input",dvLav));
+function dvLe(){
+  if(!dvRasc) return;
+  $("#dv-funcs").querySelectorAll(".dv-it").forEach(el=>{const f=dvRasc.funcs[+el.dataset.i]; f.nome=el.querySelector(".dv-fn").value; f.pct=el.querySelector(".dv-fp").value});
+  $("#dv-arrs").querySelectorAll(".dv-it").forEach(el=>{const a=dvRasc.arrs[+el.dataset.i]; a.nome=el.querySelector(".dv-an").value; a.sacas=el.querySelector(".dv-as").value; a.cultura=el.querySelector(".dv-ac").value});
+}
+function renderDivisao(){
+  if(document.activeElement?.closest?.("#dv-form")) return;
+  dvRasc=JSON.parse(JSON.stringify(grCfg)); dvMsg={}; dvLinhas();
+}
+function dvLav(){let soma=0; $("#dv-funcs").querySelectorAll(".dv-fp").forEach(i=>soma+=parseNum(i.value)||0); $("#dv-lav").textContent=num(100-soma)+"%"}
+$("#dv-funcs").addEventListener("input",dvLav);
+const proxId=(lista,pref,base)=>{let n=base; const ids=new Set(lista.map(x=>x.id)); while(ids.has(pref+n)) n++; return pref+n};
+$("#dv-add-f").onclick=()=>{dvLe(); const todos=[...dvRasc.funcs,...grCfg.funcs]; dvRasc.funcs.push({id:proxId(todos,"f",1),nome:"",pct:""}); dvLinhas(); $("#dv-funcs").lastElementChild?.querySelector(".dv-fn")?.focus()};
+$("#dv-add-a").onclick=()=>{dvLe(); const todos=[...dvRasc.arrs,...grCfg.arrs]; dvRasc.arrs.push({id:todos.some(a=>a.id==="pai")?proxId(todos,"a",2):"pai",nome:"",sacas:"",cultura:"Soja"}); dvLinhas(); $("#dv-arrs").querySelector(".dv-it:last-child .dv-an")?.focus()};
+$("#dv-form").addEventListener("click",e=>{const b=e.target.closest("[data-dvx]"); if(!b) return;
+  dvLe(); const [k,i]=b.dataset.dvx.split("|"), lista=k==="f"?dvRasc.funcs:dvRasc.arrs, it=lista[+i];
+  if(pessoaUsada(it.id)){dvMsg[k+"|"+it.id]=k==="f"?"Tem romaneios ou movimentos lançados, por isso não pode ser removido. Para parar a comissão, ponha 0%.":"Tem pagamentos lançados, por isso não pode ser removido. Para parar de cobrar, ponha 0 sc/ano."; dvLinhas(); return}
+  lista.splice(+i,1); dvLinhas();
+});
 $("#dv-form").addEventListener("submit",async ev=>{
-  ev.preventDefault();
-  const p1=parseNum($("#dv-p1").value), p2=parseNum($("#dv-p2").value);
-  if(!(p1>=0)||!(p2>=0)||p1+p2>=100){$("#dv-toast").textContent="Confira os percentuais.";return}
-  const ps=horNum($("#dv-ps").value); if(!(ps>=0)){$("#dv-toast").textContent="Confira as sacas do arrendamento.";return}
-  const cfg={f1:{nome:$("#dv-n1").value.trim(),pct:p1},f2:{nome:$("#dv-n2").value.trim(),pct:p2},pai:{nome:$("#dv-pn").value.trim()||"Nestor Griss",sacas:ps,cultura:grCfg.pai?.cultura||"Soja"}};
+  ev.preventDefault(); dvLe();
+  const funcs=[], arrs=[]; let soma=0;
+  for(const f of dvRasc.funcs){const p=parseNum(String(f.pct)); if(!(p>=0)){$("#dv-toast").textContent="Confira os percentuais.";return} soma+=p; funcs.push({id:f.id,nome:String(f.nome).trim(),pct:p})}
+  if(soma>=100){$("#dv-toast").textContent="Confira os percentuais.";return}
+  for(const a of dvRasc.arrs){const sc=horNum(String(a.sacas)); if(!(sc>=0)){$("#dv-toast").textContent="Confira as sacas do arrendamento.";return}
+    const nome=String(a.nome).trim()||(a.id==="pai"?"Nestor Griss":""); if(!nome){$("#dv-toast").textContent="Informe o nome de quem recebe o arrendamento.";return}
+    arrs.push({id:a.id,nome,sacas:sc,cultura:String(a.cultura).trim()||"Soja"})}
+  const cfg={funcs,arrs};
+  // formato antigo (f1, f2, pai) junto, para quem ainda lê assim
+  for(const id of ["f1","f2"]){const f=funcs.find(x=>x.id===id); if(f) cfg[id]={nome:f.nome,pct:f.pct}}
+  const pai=arrs.find(x=>x.id==="pai"); if(pai) cfg.pai={nome:pai.nome,sacas:pai.sacas,cultura:pai.cultura};
   $("#dv-salvar").disabled=true;
-  try{await db.collection("config").doc("graos").set(cfg); grCfg=cfg; $("#dv-toast").textContent="Divisão salva."; document.activeElement?.blur?.(); renderGraos()}
+  try{await db.collection("config").doc("graos").set(cfg); grAplica(cfg); $("#dv-toast").textContent="Pessoas salvas."; document.activeElement?.blur?.(); renderDivisao(); renderGraos()}
   catch{$("#dv-toast").textContent="Não foi possível salvar. Tente de novo."}
   finally{$("#dv-salvar").disabled=false; setTimeout(()=>$("#dv-toast").textContent="",3500)}
 });
-function arrInfo(){
-  const sy=safraDe(todayISO()), devido=+grCfg.pai?.sacas||0;
-  const pago=grMovs().filter(m=>m.tipo==="arrendamento"&&safraDe(m.data)===sy).reduce((s,m)=>s+m.sacas,0);
+function arrInfo(id=arrPadrao()){
+  const sy=safraDe(todayISO()), devido=+arrDe(id)?.sacas||0;
+  const pago=grMovs().filter(m=>m.tipo==="arrendamento"&&(m.para||"pai")===id&&safraDe(m.data)===sy).reduce((s,m)=>s+m.sacas,0);
   return {sy,devido,pago,falta:Math.max(devido-pago,0)};
 }
-function cartaoPai(st,culturas){
-  const a=arrInfo(), linhas=culturas.map(c=>({c,saldo:somaLocais(st[c]?.pai),locs:Object.entries(st[c]?.pai||{}).filter(([,v])=>Math.abs(v)>0.001)})).filter(x=>Math.abs(x.saldo)>0.001);
+function cartaoPai(st,culturas,id){
+  const a=arrInfo(id), linhas=culturas.map(c=>({c,saldo:somaLocais(st[c]?.[id]),locs:Object.entries(st[c]?.[id]||{}).filter(([,v])=>Math.abs(v)>0.001)})).filter(x=>Math.abs(x.saldo)>0.001);
   const tot=linhas.reduce((s,x)=>s+x.saldo,0), pct=a.devido>0?Math.min(100,a.pago/a.devido*100):0;
   return `<article class="pc">
-    <div class="pc-top"><div><b class="pc-nome">${esc(titNome("pai"))}</b><div class="pc-gen">Arrendamento: ${num(a.devido)} sc de ${esc(grCfg.pai?.cultura||"Soja")} por ano, pagos pela Lavoura</div></div>
+    <div class="pc-top"><div><b class="pc-nome">${esc(titNome(id))}</b><div class="pc-gen">Arrendamento: ${num(a.devido)} sc de ${esc(arrDe(id)?.cultura||"Soja")} por ano, pagos pela Lavoura</div></div>
       <div class="pc-saldo"><b>${scFmt(tot)}</b><span>saldo</span></div></div>
     <div class="gs-loc"><span>Safra ${safraLab(a.sy)}</span><span class="gs-bar"><i style="width:${pct}%;background:var(--ok)"></i></span><b>${scFmt(a.pago)}</b></div>
     <div class="note">${a.falta>0?`Pago ${scFmt(a.pago)} de ${scFmt(a.devido)} · <b style="color:var(--danger)">falta ${scFmt(a.falta)}</b>`:`Arrendamento da safra quitado (${scFmt(a.pago)}).`}</div>
@@ -2563,13 +2633,13 @@ function cartaoPai(st,culturas){
 function renderTitulares(){
   const st=grSaldosTit(), culturas=Object.keys(st).sort(), sy=safraDe(todayISO());
   const recebido=t=>{const o={};for(const m of grMovs()) if(m.tipo==="romaneio"&&safraDe(m.data)===sy){const d=divisaoDe(m);o[m.cultura]=(o[m.cultura]||0)+m.sacas*d[t]/100}return o};
-  $("#gr-pai").innerHTML=cartaoPai(st,culturas);
+  $("#gr-pai").innerHTML=ARRS().map(a=>cartaoPai(st,culturas,a.id)).join("");
   if(!culturas.length){$("#gr-tits").innerHTML="";return}
-  $("#gr-tits").innerHTML=["f1","f2"].map(t=>{
+  $("#gr-tits").innerHTML=FUNCS().map(f=>f.id).map(t=>{
     const rec=recebido(t), linhas=culturas.map(c=>({c,saldo:somaLocais(st[c][t]),locs:Object.entries(st[c][t]||{}).filter(([,v])=>Math.abs(v)>0.001),rec:rec[c]||0})).filter(x=>Math.abs(x.saldo)>0.001||x.rec>0);
     const tot=linhas.reduce((s,x)=>s+x.saldo,0);
     return `<article class="pc">
-      <div class="pc-top"><div><b class="pc-nome">${esc(titNome(t))}</b><div class="pc-gen">Comissão de ${num(grCfg[t].pct)}% sobre os depósitos</div></div>
+      <div class="pc-top"><div><b class="pc-nome">${esc(titNome(t))}</b><div class="pc-gen">Comissão de ${num(funcDe(t)?.pct||0)}% sobre os depósitos</div></div>
         <div class="pc-saldo"><b>${scFmt(tot)}</b><span>saldo</span></div></div>
       ${linhas.length?linhas.map(x=>`<div class="gs-loc"><span>${esc(x.c)}</span><span class="note">${x.locs.map(([l,v])=>`${esc(l)} ${num(v)}`).join(" · ")||"–"}</span><b>${scFmt(x.saldo)}</b></div>${x.rec>0?`<div class="note">Recebido na safra ${safraLab(sy)}: ${scFmt(x.rec)}</div>`:""}`).join(""):`<p class="note">Nenhuma comissão ainda.</p>`}
     </article>`}).join("");
@@ -2610,7 +2680,7 @@ function grProducao(sy){
   return Object.values(linhas).sort((a,b)=>a.cultura.localeCompare(b.cultura)||TALHOES.findIndex(t=>t.n===a.talhao)-TALHOES.findIndex(t=>t.n===b.talhao));
 }
 function renderGraos(){
-  const tv=$("#gr-tit").value; $("#gr-tit").innerHTML=TITS.map(t=>`<option value="${t}" ${t===tv?"selected":""}>${esc(titNome(t))}</option>`).join("");
+  grOpcoesTit();
   const saldos=grSaldos(), movs=grMovs(), sy=safraDe(todayISO());
   const tot=Object.values(saldos).reduce((s,ls)=>s+Object.values(ls).reduce((a,b)=>a+b,0),0);
   $("#gr-total").textContent=scFmt(tot);
@@ -2656,7 +2726,7 @@ function renderGraos(){
   $("#gr-lista").innerHTML=vis.length?vis.map(m=>`<article class="rec" style="--c:var(${m.tipo==="romaneio"?"--t-colheita":m.tipo==="venda"?"--accent":"--muted"})">
       <div class="rec-top"><span class="rec-tipo">${m.tipo==="romaneio"?`Romaneio${m.numero?" nº "+esc(m.numero):""}`:GR_MODOS[m.tipo]}</span><span class="rec-talhoes mono">${brDate(m.data)}${m.hora?" · "+esc(m.hora):""}</span></div>
       <div class="rec-top"><span>${esc(m.cultura)} · ${esc(m.local||"Sem local")}${m.tipo==="transferencia"?` → ${esc(m.destino)}`:""}</span><span class="mov-q ${sinal(m)==="+"?"in":"out"}">${sinal(m)}${scFmt(m.sacas)}</span></div>
-      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas))}</b></span>`+(()=>{const d=divisaoDe(m);return TITS.filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome("pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
+      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas))}</b></span>`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
       ${m.obs?`<p class="rec-desc">${esc(m.obs)}</p>`:""}
       ${assinatura(m)}
       <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">Excluir</button>`}</div>
@@ -2666,6 +2736,12 @@ function renderGraos(){
   grHint();
 }
 ["#gr-safra","#gr-f-cult","#gr-f-local"].forEach(s=>$(s).addEventListener("change",renderGraos));
+function grOpcoesTit(){
+  const el=$("#gr-tit"), tv=el.value, arr=grModo==="arrendamento", ops=arr?ARRS().map(a=>a.id):TITS;
+  el.innerHTML=ops.map(t=>`<option value="${t}" ${t===tv?"selected":""}>${esc(titNome(t))}</option>`).join("");
+  $("label[for=gr-tit]").textContent=arr?"Para quem":"De quem";
+  el.closest(".field").hidden=arr&&ARRS().length<2;
+}
 function grSetModo(m){
   grModo=m;
   $("#gr-modos").innerHTML=Object.entries(GR_MODOS).map(([k,l])=>`<button type="button" class="chip" aria-pressed="${k===m}" data-k="${k}">${l}</button>`).join("");
@@ -2673,14 +2749,14 @@ function grSetModo(m){
   $("#gr-form").querySelectorAll("[data-g]").forEach(el=>el.hidden=el.dataset.g!==m);
   $("#gr-local-l").textContent=m==="transferencia"?"Do local":m==="inicial"?"Local (onde está o saldo)":"Local";
   $("#gr-salvar").textContent=m==="venda"?"Lançar venda":m==="retirada"?"Lançar retirada":m==="transferencia"?"Lançar transferência":m==="arrendamento"?"Lançar pagamento":"Lançar saldo inicial";
-  $("#gr-tit").closest(".field").hidden=m==="arrendamento";
-  if(m==="arrendamento"){if(!$("#gr-cult").value.trim()) $("#gr-cult").value=grCfg.pai?.cultura||"Soja"; $("#gr-local-l").textContent="Local (onde está a soja da Lavoura)"}
+  grOpcoesTit();
+  if(m==="arrendamento"){if(!$("#gr-cult").value.trim()) $("#gr-cult").value=arrDe($("#gr-tit").value)?.cultura||"Soja"; $("#gr-local-l").textContent="Local (onde está a soja da Lavoura)"}
   grHint();
 }
 function grHint(){
   const c=normCult($("#gr-cult").value), l=$("#gr-local").value.trim(), sc=horNum($("#gr-sc").value);
   if(!$("#gr-cult").value.trim()||!l){$("#gr-hint").textContent=grModo==="inicial"?"Use para lançar sacas que já estavam depositadas antes de começar a usar o app.":"";return}
-  if(grModo==="arrendamento"){const disp=grSaldosTit()[c]?.lavoura?.[l]||0, a=arrInfo(); $("#gr-hint").textContent=`Sai da parte da Lavoura (${c} em ${l}: ${scFmt(disp)}) e vai para ${titNome("pai")}. ${sc>disp?"Atenção: saldo da Lavoura insuficiente neste local. ":""}Falta pagar na safra ${safraLab(a.sy)}: ${scFmt(Math.max(a.falta-(sc>0?sc:0),0))}.`;return}
+  if(grModo==="arrendamento"){const para=$("#gr-tit").value||arrPadrao(), disp=grSaldosTit()[c]?.lavoura?.[l]||0, a=arrInfo(para); $("#gr-hint").textContent=`Sai da parte da Lavoura (${c} em ${l}: ${scFmt(disp)}) e vai para ${titNome(para)}. ${sc>disp?"Atenção: saldo da Lavoura insuficiente neste local. ":""}Falta pagar na safra ${safraLab(a.sy)}: ${scFmt(Math.max(a.falta-(sc>0?sc:0),0))}.`;return}
   const t=$("#gr-tit").value||"lavoura", quem=titNome(t), disp=grSaldosTit()[c]?.[t]?.[l]||0;
   if(grModo==="inicial"){$("#gr-hint").textContent=`${c} de ${quem} em ${l} hoje: ${scFmt(disp)}.`;return}
   $("#gr-hint").textContent=sc>disp?`Atenção: o saldo de ${c} de ${quem} em ${l} é ${scFmt(disp)}.`:`Saldo de ${c} de ${quem} em ${l}: ${scFmt(disp)}${sc>0?` → ficará com ${scFmt(disp-sc)}`:""}.`;
@@ -2701,7 +2777,7 @@ $("#gr-form").addEventListener("submit",async ev=>{
   if(!cultura){grFlash("Informe a cultura.");$("#gr-cult").focus();return}
   if(!local){grFlash("Informe o local.");$("#gr-local").focus();return}
   if(!(sacas>0)){grFlash("Informe as sacas.");$("#gr-sc").focus();return}
-  const body={tipo:grModo,titular:grModo==="arrendamento"?"lavoura":($("#gr-tit").value||"lavoura"),data:$("#gr-data").value||todayISO(),cultura:normCult(cultura),local,sacas,obs:$("#gr-obs").value.trim(),criadoEm:new Date().toISOString()};
+  const body={tipo:grModo,titular:grModo==="arrendamento"?"lavoura":($("#gr-tit").value||"lavoura"),...(grModo==="arrendamento"?{para:$("#gr-tit").value||arrPadrao()}:{}),data:$("#gr-data").value||todayISO(),cultura:normCult(cultura),local,sacas,obs:$("#gr-obs").value.trim(),criadoEm:new Date().toISOString()};
   if(grModo==="transferencia"){const d=$("#gr-dest").value.trim(); if(!d||d===local){grFlash("Informe o local de destino.");$("#gr-dest").focus();return} body.destino=d}
   if(grModo==="venda"){const vt=parseNum($("#gr-vt").value); body.valorTotal=vt>0?vt:null; body.contrato=$("#gr-contrato").value.trim()}
   $("#gr-salvar").disabled=true;
@@ -2716,10 +2792,10 @@ function graosTexto(){
   const s=grSaldos();
   const stt=grSaldosTit();
   const sal=Object.entries(s).map(([c,ls])=>`${c}: total ${num(Object.values(ls).reduce((a,b)=>a+b,0))} sc (${Object.entries(ls).map(([l,v])=>`${l} ${num(v)} sc`).join("; ")}) — por titular: ${TITS.map(t=>`${titNome(t)} ${num(somaLocais(stt[c]?.[t]))} sc (${Object.entries(stt[c]?.[t]||{}).map(([l,v])=>`${l} ${num(v)}`).join("; ")||"-"})`).join("; ")}`).join("\n")+
-    `\nDivisão dos depósitos: cada romaneio é dividido em Lavoura ${num(100-grCfg.f1.pct-grCfg.f2.pct)}%, ${titNome("f1")} ${num(grCfg.f1.pct)}% e ${titNome("f2")} ${num(grCfg.f2.pct)}% (comissões dos funcionários). Vendas, retiradas e transferências indicam de qual titular saem. ${titNome("pai")} recebe da Lavoura ${num(grCfg.pai?.sacas||0)} sc de ${grCfg.pai?.cultura||"soja"} por ano de arrendamento (lançamentos PAGAMENTO DO ARRENDAMENTO, sempre da parte da Lavoura, nunca das comissões); na safra ${safraLab(arrInfo().sy)} já foram pagos ${num(arrInfo().pago)} sc, faltam ${num(arrInfo().falta)} sc.`;
+    `\nDivisão dos depósitos: cada romaneio é dividido em Lavoura ${num(divisaoDe({}).lavoura)}%${FUNCS().map(f=>`, ${titNome(f.id)} ${num(f.pct)}%`).join("")} (comissões dos funcionários). Vendas, retiradas e transferências indicam de qual titular saem. Arrendamentos (lançamentos PAGAMENTO DO ARRENDAMENTO, sempre da parte da Lavoura, nunca das comissões): ${ARRS().map(a=>{const i=arrInfo(a.id); return `${titNome(a.id)} recebe ${num(a.sacas)} sc de ${a.cultura} por ano; na safra ${safraLab(i.sy)} já foram pagos ${num(i.pago)} sc, faltam ${num(i.falta)} sc`}).join("; ")||"nenhum"}.`;
   const anos=[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))];
   const prod=anos.map(y=>`Safra ${safraLab(y)}: `+grProducao(y).map(p=>`${p.talhao} ${p.cultura} ${num(p.sacas)} sc em ${num(p.area)} ha (${p.area>0?num(p.sacas/p.area):"-"} sc/ha)`).join("; ")).join("\n");
-  const ls=[...movs].reverse().map(m=>`${brDate(m.data)}${m.hora?" "+m.hora:""} | ${m.tipo==="romaneio"?"ROMANEIO nº "+(m.numero||"-"):GR_MODOS[m.tipo].toUpperCase()} | ${m.cultura} | ${m.local||"-"}${m.destino?" → "+m.destino:""} | ${num(m.sacas)} sc${m.valorTotal?` | ${brl(m.valorTotal)} (${brl(m.valorTotal/m.sacas)}/sc)`:""}${m.contrato?" | contrato "+m.contrato:""}${m.tipo==="romaneio"?" | "+talhoesTxt(m.talhoes,m.areas)+" | divisão "+TITS.map(t=>`${titNome(t)} ${num(m.sacas*divisaoDe(m)[t]/100)}`).join(", "):" | titular "+titNome(m.titular||"lavoura")}`).join("\n");
+  const ls=[...movs].reverse().map(m=>`${brDate(m.data)}${m.hora?" "+m.hora:""} | ${m.tipo==="romaneio"?"ROMANEIO nº "+(m.numero||"-"):GR_MODOS[m.tipo].toUpperCase()} | ${m.cultura} | ${m.local||"-"}${m.destino?" → "+m.destino:""} | ${num(m.sacas)} sc${m.valorTotal?` | ${brl(m.valorTotal)} (${brl(m.valorTotal/m.sacas)}/sc)`:""}${m.contrato?" | contrato "+m.contrato:""}${m.tipo==="romaneio"?" | "+talhoesTxt(m.talhoes,m.areas)+" | divisão "+Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join(", "):m.tipo==="arrendamento"?" | para "+titNome(m.para||"pai"):" | titular "+titNome(m.titular||"lavoura")}`).join("\n");
   return `\n\nGrãos em depósito (sacas de 60 kg). Saldos atuais por cultura e local:\n${sal}\n\nProdução por talhão (sacas entregues ÷ área colhida):\n${prod||"-"}\n\nExtrato de grãos (data | tipo | cultura | local | sacas | detalhes):\n${ls}`;
 }
 
@@ -2781,7 +2857,7 @@ function planilhaBackup(){
   const sal=grSaldos();
   const stt=grSaldosTit();
   add("Grãos saldos",Object.entries(stt).flatMap(([c,ts])=>Object.entries(ts).flatMap(([t,ls])=>Object.entries(ls).map(([l,v])=>({"Cultura":c,"Titular":titNome(t),"Local":l,"Sacas":+v.toFixed(2),"Toneladas":+(v*0.06).toFixed(3)})))));
-  add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?TITS.map(t=>`${titNome(t)} ${num(m.sacas*divisaoDe(m)[t]/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome("pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
+  add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome(m.para||"pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
     "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas):"","Observação":m.obs||""})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
   add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Modelo":m.modelo||"","Ano":m.ano||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
@@ -3261,7 +3337,8 @@ function renderPainel(){
   const pm={}; for(const d of saidas){pm[d.maquinaId]=(pm[d.maquinaId]||0)+(Number(d.litros)||0)}
   hbars("pn-diesel",Object.entries(pm).map(([id,v])=>{const c=consumoMaq(id,todas?null:sy+"-07-01");return {l:nomeMaq(id),v,extra:`${custoL!=null?brl(v*custoL)+" · ":""}${c.lh!=null?num(c.lh)+" L/h":"sem horímetro suficiente"}`}}).sort((a,b)=>b.v-a.v),{cor:"--s2",sufixo:" L"});
   // grãos por titular (empilhado horizontal por cultura)
-  const st=grSaldosTit(), TC={lavoura:"--s1",f1:"--s2",f2:"--s3",pai:"--s4"};
+  const st=grSaldosTit(), TCX=["#8e5bd0","#d6457a","#3fa0b5","#7a8f2a","#b0703a","#5c6bc0"], TC=new Proxy({lavoura:"--s1",f1:"--s2",f2:"--s3",pai:"--s4"},{get:(o,k)=>o[k]||"--sx"+(TITS.indexOf(k)%TCX.length)});
+  TCX.forEach((c,i)=>document.documentElement.style.setProperty("--sx"+i,c));
   const culturas=Object.keys(st).filter(c=>!fc||c===fc).sort();
   $("#pn-graos-leg").innerHTML=TITS.map(t=>`<span><i style="background:var(${TC[t]})"></i>${esc(titNome(t))}</span>`).join("");
   if(!culturas.length){$("#pn-graos").innerHTML=`<div class="pn-vazio">Nenhuma saca em depósito.</div>`}
@@ -3330,14 +3407,15 @@ const RELS=[
    return {colunas:[["Safra"],["Talhão"],["Cultura"],["Área colhida (ha)","num"],["Área do talhão (ha)","num"],["Sacas","sc"],["sc/ha","num"]],linhas,totais:{3:a,5:sc,6:a>0?sc/a:""},resumo:[["Produtividade média",a>0?num(sc/a)+" sc/ha":"–"]]}}},
  {id:"romaneios",nome:"Romaneios de entrega",desc:"Cargas entregues, local e divisão Lavoura / comissões.",filtros:["periodo","talhao","cultura"],
   gerar(F){const ms=grMovs().filter(m=>m.tipo==="romaneio"&&F.dentro(m.data)&&F.cultOk(m.cultura)&&(!F.talhao||(m.talhoes||[]).includes(F.talhao))).reverse();
-   const linhas=ms.map(m=>{const d=divisaoDe(m);return [m.data,m.hora||"",m.numero||"",m.cultura,m.local||"",talhoesTxt(m.talhoes,m.areas),m.sacas,m.sacas*d.lavoura/100,m.sacas*d.f1/100,m.sacas*d.f2/100]});
-   const T=i=>linhas.reduce((s,l)=>s+(+l[i]||0),0);
-   return {colunas:[["Data","data"],["Hora"],["Nº"],["Cultura"],["Local"],["Talhões"],["Sacas","sc"],["Lavoura","sc"],[titNome("f1"),"sc"],[titNome("f2"),"sc"]],linhas,totais:{6:T(6),7:T(7),8:T(8),9:T(9)},resumo:[["Romaneios",ms.length]]}}},
+   const fs=[...new Set([...FUNCS().map(f=>f.id),...ms.flatMap(m=>Object.keys(divisaoDe(m)).filter(k=>k!=="lavoura"&&divisaoDe(m)[k]))])];
+   const linhas=ms.map(m=>{const d=divisaoDe(m);return [m.data,m.hora||"",m.numero||"",m.cultura,m.local||"",talhoesTxt(m.talhoes,m.areas),m.sacas,m.sacas*d.lavoura/100,...fs.map(f=>m.sacas*(d[f]||0)/100)]});
+   const T=i=>linhas.reduce((s,l)=>s+(+l[i]||0),0), tot={}; for(let i=6;i<8+fs.length;i++) tot[i]=T(i);
+   return {colunas:[["Data","data"],["Hora"],["Nº"],["Cultura"],["Local"],["Talhões"],["Sacas","sc"],["Lavoura","sc"],...fs.map(f=>[titNome(f),"sc"])],linhas,totais:tot,resumo:[["Romaneios",ms.length]]}}},
  {id:"graos",nome:"Extrato de grãos",desc:"Romaneios, vendas, retiradas, transferências e arrendamento, com saldos por titular.",filtros:["periodo","cultura","titular"],
   gerar(F){const ms=grMovs().filter(m=>F.dentro(m.data)&&F.cultOk(m.cultura)).reverse();
    const linhas=[];
    for(const m of ms){
-    const efeitos=m.tipo==="romaneio"?TITS.map(t=>[t,m.sacas*(divisaoDe(m)[t]||0)/100]).filter(x=>x[1]):m.tipo==="arrendamento"?[["lavoura",-m.sacas],["pai",m.sacas]]:[[m.titular||"lavoura",m.tipo==="venda"||m.tipo==="retirada"?-m.sacas:m.tipo==="transferencia"?0:m.sacas]];
+    const efeitos=m.tipo==="romaneio"?Object.entries(divisaoDe(m)).map(([t,v])=>[t,m.sacas*v/100]).filter(x=>x[1]):m.tipo==="arrendamento"?[["lavoura",-m.sacas],[m.para||"pai",m.sacas]]:[[m.titular||"lavoura",m.tipo==="venda"||m.tipo==="retirada"?-m.sacas:m.tipo==="transferencia"?0:m.sacas]];
     for(const [t,v] of efeitos){ if(F.titular&&t!==F.titular) continue;
      linhas.push([m.data,m.tipo==="romaneio"?`Romaneio ${m.numero||""}`.trim():GR_MODOS[m.tipo],titNome(t),m.cultura,m.local||"",m.destino||"",m.tipo==="transferencia"?m.sacas:v,m.valorTotal??"",m.contrato||"",m.obs||""])}}
    const st=grSaldosTit();
@@ -3808,7 +3886,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   db.collection("manutencoes").onSnapshot(snap=>{manut=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderMaquinas()},()=>{});
   db.collection("benfeitorias").onSnapshot(snap=>{benf=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));renderBenf()},()=>{});
   db.collection("servicos_benf").onSnapshot(snap=>{bfServ=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderBenf()},()=>{});
-  db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pl=snap.docs.find(x=>x.id==="planilha"); bkPl=pl?pl.data():null; setTimeout(planilhaNuvem,20000); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grCfg={f1:{nome:d.f1?.nome||"",pct:d.f1?.pct??1.5},f2:{nome:d.f2?.nome||"",pct:d.f2?.pct??1.5},pai:{nome:d.pai?.nome||"Nestor Griss",sacas:d.pai?.sacas??2000,cultura:d.pai?.cultura||"Soja"}}; renderGraos()},()=>{});
+  db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pl=snap.docs.find(x=>x.id==="planilha"); bkPl=pl?pl.data():null; setTimeout(planilhaNuvem,20000); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grAplica(d); renderGraos()},()=>{});
   db.collection("graos").onSnapshot(snap=>{graos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.data&&g.tipo);renderGraos()},()=>{});
   db.collection("notas").onSnapshot(snap=>{notas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(n=>n.data&&n.texto).sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||"").localeCompare(String(a.hora||""))||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderNotas()},()=>{});
   db.collection("diesel").onSnapshot(snap=>{diesel=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.data&&d.tipo);renderDiesel();renderMaquinas()},()=>{});
