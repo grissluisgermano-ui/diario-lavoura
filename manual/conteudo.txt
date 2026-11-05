@@ -1,0 +1,381 @@
+# comecar | Antes de começar
+## O que é o Diário da Lavoura
+P: O Diário da Lavoura é o caderno de campo da lavoura no celular. Nele ficam registrados, num lugar só e para toda a família, o que foi feito em cada talhão, as chuvas, o estoque de insumos, os grãos nos depósitos, as máquinas, o diesel, as benfeitorias, o financeiro, os lembretes e as anotações.
+P: Tudo o que uma pessoa lança aparece na hora para as outras. Cada lançamento mostra **quem lançou**. O app também funciona sem sinal: o que for lançado no meio da lavoura fica guardado no aparelho e sobe sozinho quando voltar a internet.
+DICA: Este manual mostra telas com **dados de exemplo**. Os nomes, valores e números que aparecem nas figuras são só ilustrativos.
+
+## Como entrar no app
+FIG: login | Tela de entrada: e-mail e senha.
+1. Abra o endereço **https://grissluisgermano-ui.github.io/diario-lavoura/** no navegador do celular ou do computador.
+2. Digite o **e-mail** e a **senha** cadastrados e toque em **Entrar**.
+3. Esqueceu a senha? Digite o e-mail e toque em **Esqueci a senha**. Chega um e-mail para criar uma senha nova.
+ATENCAO: Só entram as pessoas autorizadas. Para liberar alguém novo, o Luis precisa cadastrar o e-mail da pessoa (veja o capítulo "Para o administrador", no fim do manual).
+
+## Instalar na tela do celular
+P: O app não fica na loja de aplicativos: ele é instalado direto pelo navegador e passa a ter um ícone na tela, como qualquer aplicativo.
+- **iPhone:** abra o endereço no **Safari**, toque em **Compartilhar** (o quadrado com a seta para cima) e depois em **Adicionar à Tela de Início**.
+- **Android:** abra o endereço no **Chrome**, toque nos **três pontinhos** e depois em **Instalar app** (ou **Adicionar à tela inicial**).
+P: Depois de instalado, abra sempre pelo ícone. Assim o app abre mais rápido e funciona sem sinal.
+
+## Conhecendo a tela
+FIG: topo | O topo: nome da propriedade, situação da conexão, Configurações e as chuvas.
+P: No **topo** (a faixa verde) aparecem o nome da propriedade e a área total, se os dados estão **Salvos na nuvem**, o botão **Configurações** e o resumo das chuvas (no mês, na safra e a última chuva). Tocar em **Chuvas ›** abre o registro de chuvas.
+FIG: abas | As abas principais. A bolinha vermelha mostra quantas pendências há.
+P: Logo abaixo ficam as **abas principais**: Painel, Lavoura, Estrutura, Financeiro, Lembretes e Perguntar. Cada aba tem **sub-abas** embaixo dela. Por exemplo, a aba Lavoura tem Lançar, Programação, Estoque, Grãos e Histórico.
+P: A **bolinha vermelha com número** avisa que tem alguma coisa esperando por você: notas fiscais para lançar, lembretes vencendo, revisões de máquina, contas vencidas e assim por diante. Ela aparece na aba, na sub-aba e no menu lateral.
+P: Também podem aparecer duas faixas logo abaixo do topo:
+- **Faixa amarela:** lembretes que estão para vencer ou já venceram. "Agora não" esconde a faixa até o dia seguinte.
+- **Faixa vermelha piscando:** ainda não foi feito o backup deste mês. Tocar no botão da faixa já baixa o backup.
+FIG: computador | No computador, as abas ficam num menu à esquerda e os formulários numa coluna à direita.
+
+## Regras que valem para o app todo
+- **Safra** vai de **1º de julho a 30 de junho**. Exemplo: a safra 26/27 vai de julho de 2026 a junho de 2027.
+- **Executada** (verde) é o que já foi feito. **Programada** (vermelho) é o que ainda vai ser feito.
+- **Sacas** são sempre de **60 kg**.
+- Os valores com vírgula se digitam como no Brasil: **0,5** e não 0.5.
+- Todo cartão tem **Editar** e **Excluir**. Para excluir, o app pede para tocar duas vezes (a segunda vez confirma).
+- O que for excluído vai para a **Lixeira** e pode ser recuperado por **30 dias** (aba Lavoura → Histórico).
+
+# configuracoes | Configurações (comece por aqui)
+P: Antes de lançar qualquer coisa, confira as Configurações. Toque em **Configurações** no topo. Para voltar, toque em **Voltar**.
+
+## Aparência e sua conta
+FIG: cfg-conta | Sua conta: o nome que aparece em "Lançado por".
+- **Aparência:** escolha as cores e o tema (claro, escuro ou automático). Vale só para o aparelho que você está usando.
+- **Seu nome:** é o nome que aparece em "Lançado por" em tudo o que você lança. Digite e toque em **Salvar nome**.
+- **Trocar senha** e **Sair** ficam logo abaixo.
+
+## Propriedade e talhões
+FIG: cfg-prop | Propriedade: talhões e áreas, depósitos, culturas e tanque de diesel.
+1. Em **Nome da propriedade**, escreva o nome que aparece no topo.
+2. Em **Talhões e áreas**, cada linha é um talhão: o nome e a área em hectares. Toque em **+ Adicionar talhão** para criar outro.
+3. O quadradinho ao lado do nome abre o **mapa** para desenhar o contorno do talhão (veja o capítulo do Mapa).
+4. Em **Depósitos / cooperativas**, escreva os locais onde ficam os grãos, separados por vírgula (ex.: Coamo, Casarão, C.Vale).
+5. Em **Culturas**, as culturas que vocês plantam, separadas por vírgula.
+6. Em **Capacidade do tanque de diesel**, os litros que cabem no tanque.
+7. Toque em **Salvar propriedade**.
+DICA: Pode renomear um talhão à vontade: os lançamentos antigos passam a usar o nome novo. Um talhão que já tem lançamentos não pode ser removido.
+
+## Pessoas: comissões e arrendamento
+FIG: cfg-pessoas | Funcionários com comissão e arrendatários.
+P: Aqui ficam as pessoas que recebem parte dos grãos.
+- **Funcionários:** cada um com nome e **comissão em %**. Cada romaneio entregue é dividido entre a Lavoura e as comissões. O percentual da Lavoura se ajusta sozinho. Use **+ Adicionar funcionário** para incluir mais um.
+- **Arrendamentos:** nome de quem recebe, **sacas por ano** e a cultura (ex.: 2.000 sc de soja). Use **+ Adicionar arrendatário** para incluir mais um.
+- O **×** remove uma pessoa. Quem já tem lançamentos não pode ser removido: ponha 0% (ou 0 sc/ano) para parar dali em diante.
+- Toque em **Salvar pessoas**.
+P: Mudar os percentuais não altera os romaneios já lançados: cada romaneio guarda a divisão do dia em que foi lançado.
+
+## Claude (opcional)
+P: Com uma **chave da API da Anthropic** (cobrada por uso, centavos por pergunta), o app ganha a resposta das perguntas dentro da própria aba Perguntar e a leitura de notas fiscais em PDF ou foto. Sem a chave, essas funções ficam desligadas, e todo o resto funciona normalmente, inclusive a leitura do XML da nota e o preenchimento automático do princípio ativo.
+
+## Atualizar o app
+FIG: cfg-versao | No fim das Configurações: a versão instalada e o botão de atualizar.
+P: Sempre que o app ganhar uma melhoria, toque em **Procurar atualização**, no fim das Configurações. O app baixa a versão nova e recarrega. O número da **Versão** mostra qual está instalada.
+
+# lavoura | Lavoura: atividades do dia a dia
+## Lançar uma atividade
+FIG: lancar-aplic | Lavoura → Lançar: tipo, situação, nome, data e talhões.
+P: Vá em **Lavoura → Lançar**. É aqui que se registra tudo o que é feito nos talhões.
+1. Em **Tipo**, escolha: Plantio, Aplicação, Adubação, Mecanização do solo, Colheita ou Ocorrência.
+2. Em **Situação**, escolha **Executada** (já foi feito) ou **Programada** (vai ser feito).
+3. **Nome da atividade** é opcional. Toque numa das sugestões (Dessecação, 1ª de fungicida…) ou escreva o seu.
+4. Confira a **Data**.
+5. Toque nos **Talhões**. Para marcar todos, toque em **Toda a propriedade**.
+6. Se a operação foi só numa parte do talhão, ajuste a **área trabalhada** de cada talhão na caixa que aparece.
+7. Preencha os campos do tipo escolhido (veja abaixo) e os **Produtos e doses**.
+8. Se quiser, escreva uma **Descrição** e toque em **+ Adicionar fotos**.
+9. Toque em **Salvar registro**.
+
+## Produtos e doses
+FIG: lancar-prods | Produto, dose e unidade. O app mostra o princípio ativo, o saldo e o custo.
+1. Comece a digitar o nome do produto: o app sugere os produtos do estoque.
+2. Digite a **dose** e escolha a **unidade** (L/ha, kg/ha, mL/ha, sc/ha…).
+3. Embaixo do produto aparecem o princípio ativo, o **saldo no estoque** e o **custo por hectare**.
+4. Para mais de um produto na mesma calda, toque em **+ Adicionar produto**.
+P: No fim aparecem o **custo por hectare** e o **custo total** da operação.
+DICA: Se o produto não está no estoque, aparece **Cadastrar no estoque**, para cadastrar ali mesmo. Se o saldo não dá para a área, aparece **falta X** e **Lançar compra**. No primeiro toque em Salvar o app avisa; no segundo, salva assim mesmo.
+P: **Só as atividades executadas** tiram produto do estoque (dose × área). As programadas apenas **reservam** o produto.
+
+## Campos de cada tipo
+- **Plantio:** cultura, cultivar/híbrido e, quando nascer, a data da **emergência** (pode ser informada depois, no Painel). Produtos: semente e adubo.
+- **Aplicação:** cultura, **alvo** (praga, doença ou planta daninha) e **carência** em dias, se houver. O app mostra quando a carência termina.
+- **Adubação:** cultura e os adubos com dose.
+- **Mecanização do solo:** implemento (rolo-faca, grade, escarificador…), máquina, profundidade e local no talhão.
+- **Colheita:** cultura e os **romaneios** (veja abaixo).
+- **Ocorrência:** para registrar praga, doença, granizo, erosão, falha de plantio e outras. Use a descrição e as fotos.
+
+## Colheita e romaneios
+FIG: lancar-roms | Cada romaneio: número, sacas, data, hora e local de entrega.
+1. Escolha o tipo **Colheita**, a cultura e os talhões colhidos (ajuste a área colhida se foi parcial).
+2. Em **Romaneios de entrega**, preencha o **número**, as **sacas**, a data, a hora e o **local** (Coamo, Casarão…).
+3. Toque em **+ Adicionar romaneio** para cada caminhão.
+4. O app soma o total entregue e calcula a **produtividade (sc/ha)**.
+P: Cada romaneio entra no saldo de **Grãos**, já dividido entre a Lavoura e a comissão dos funcionários.
+
+## Programação
+FIG: programacao | Atividades programadas, produtos necessários e o que falta no estoque.
+P: Em **Lavoura → Programação** ficam as atividades que ainda vão ser feitas.
+1. Toque em **+ Programar atividade**: abre o mesmo formulário do Lançar, já como **Programada**.
+2. A tabela **Produtos necessários × estoque** mostra se o estoque dá conta do que foi programado.
+3. Quando fizer o serviço, toque em **Executada como programado**. Se mudou alguma dose, data ou área, toque em **Executar com ajustes**, corrija e confirme.
+P: O topo mostra quantas atividades estão programadas, quantas estão **atrasadas** e o **custo previsto**.
+
+## Histórico
+FIG: historico | Histórico: filtros por tipo, talhão e situação, e a busca.
+P: Em **Lavoura → Histórico** fica tudo o que foi lançado, do mais novo para o mais antigo.
+- Filtre por **tipo**, **talhão** e **situação**, ou use **Buscar** (produto, cultivar, observação…).
+- Cada cartão mostra os talhões, a área, os produtos e as doses, o custo, o ciclo da cultura (dias após o plantio) e quem lançou.
+- Toque em **Editar** para corrigir ou em **Excluir** para apagar.
+FIG: lixeira | A Lixeira, no topo do Histórico.
+P: A **Lixeira** fica no topo do Histórico. O que for excluído em qualquer parte do app fica ali por **30 dias**, com as fotos. Toque em **Recuperar** para trazer de volta ou em **Apagar de vez**.
+
+# estoque | Estoque de insumos
+P: Em **Lavoura → Estoque** fica o estoque de defensivos, adubos, sementes e outros insumos. A tela tem três abas: **Produtos**, **Lançar entrada** e **Notas** (as notas recebidas por e-mail).
+
+## Produtos
+FIG: estoque | Cada produto: saldo, reservado, custo médio e valor do saldo.
+P: O topo mostra quantos produtos existem, o **valor em estoque** e quantos estão **sem saldo**. Cada produto mostra:
+- **Saldo** atual e quanto está **reservado** para atividades programadas.
+- **Entradas**, **usado**, **custo médio** e **valor do saldo**.
+- Em quantos lançamentos foi usado e a lista de **Entradas** (notas de compra).
+P: Use **Buscar no estoque** para achar um produto pelo nome comercial ou pelo princípio ativo. **+ Nova entrada** lança mais uma compra daquele produto.
+P: A caixa **Conferir estoque**, quando aparece, mostra produtos digitados nas atividades que não estão ligados a nenhum produto do estoque (para vincular ou cadastrar) e produtos que ficaram com saldo negativo em alguma data (para lançar a compra que faltou).
+
+## Lançar entrada (compra)
+FIG: estoque-entrada | Lançar entrada: pela nota fiscal ou digitando.
+P: **Jeito mais fácil, com a nota fiscal:**
+1. Toque em **Escolher arquivo** e escolha o **XML da NF-e** (ou o PDF/foto da nota, se a chave do Claude estiver ligada).
+2. O app lê o fornecedor, o número, os produtos, as quantidades, os valores, o contrato e as parcelas.
+3. Confira cada produto: o **princípio ativo** e a **classe** são preenchidos sozinhos pela lista oficial do MAPA (AGROFIT). Ligue cada item a um produto que já existe ou deixe como produto novo.
+4. Deixe marcada a caixa **Lançar também no Financeiro (contas a pagar)** para já criar as contas a pagar de cada parcela.
+5. Toque em **Ver DANFE** se quiser ver a nota, e depois em **Lançar no estoque**.
+P: **Sem nota:** preencha o nome comercial, o princípio ativo, a classe, a unidade, a data, a **quantidade** e o **valor unitário** (ou o total) e toque em **Lançar no estoque**.
+
+## Notas recebidas por e-mail
+FIG: estoque-notas | Notas que chegaram por e-mail, prontas para lançar, e as ignoradas.
+P: As notas fiscais que chegam no Gmail com o **XML anexado** aparecem sozinhas na aba **Notas** (de 30 em 30 minutos). Para cada nota:
+- **Lançar no estoque:** abre a nota em Lançar entrada, já preenchida (entra também no Financeiro).
+- **Só no Financeiro:** para nota que não é de produto de estoque (peça, serviço, energia…).
+- **DANFE:** mostra a nota para conferir, com opção de imprimir ou salvar em PDF.
+- **Ignorar:** tira a nota da lista sem lançar.
+- **Excluir:** apaga a nota do app (fica 30 dias na Lixeira).
+P: Na caixa **Notas ignoradas** ficam as que foram ignoradas, com **Trazer de volta** para lançar depois.
+FIG: danfe | A DANFE montada a partir do XML.
+DICA: Se uma nota não apareceu, procure no **Spam** do Gmail. O app também procura lá, mas vale criar no Gmail um filtro "Nunca enviar para spam" para o fornecedor.
+
+# graos | Grãos em depósito
+## Saldos
+FIG: graos-saldos | Saldo de cada cultura, por titular e por depósito.
+P: Em **Lavoura → Grãos** o topo mostra as sacas em depósito, o que foi colhido e o que foi vendido na safra. Para cada cultura aparecem:
+- O **saldo** total em sacas (e em toneladas).
+- Quanto é de cada **titular**: Lavoura, cada funcionário e o arrendatário.
+- Quanto está em cada **depósito**.
+
+## Movimentar saldo
+FIG: graos-mov | Movimentar saldo: venda, retirada, transferência, arrendamento e saldo inicial.
+1. Escolha o movimento: **Venda**, **Retirada / consumo**, **Transferência** (de um depósito para outro), **Pagamento do arrendamento** ou **Saldo inicial**.
+2. Preencha a data, **de quem** são os grãos (Lavoura ou um funcionário), a cultura, o local e as **sacas**.
+3. Na venda, informe o **preço por saca** ou o **valor total** (um calcula o outro) e o comprador/contrato.
+4. Toque no botão de lançar. O app mostra o saldo antes e depois do movimento.
+P: As vendas com valor aparecem no **Financeiro** como conta a receber, para lançar sem digitar de novo.
+
+## Arrendamento e comissões
+FIG: graos-arr | Arrendamento: quanto já foi pago na safra e quanto falta.
+P: O cartão de cada **arrendatário** mostra quanto ele tem a receber por ano, quanto já foi pago na safra e **quanto falta**. O pagamento é lançado em **Movimentar saldo → Pagamento do arrendamento** e sai **sempre da parte da Lavoura**, nunca da comissão dos funcionários. Com mais de um arrendatário, escolha **Para quem**.
+P: Os cartões dos **funcionários** mostram o saldo de cada um, por cultura e depósito, e quanto receberam na safra.
+
+## Contratos de entrega futura
+FIG: graos-contrato | Novo contrato de entrega futura.
+1. Em **Contratos de entrega futura**, abra **Novo contrato de entrega**.
+2. Preencha o comprador, o número do contrato, a cultura, a **safra do grão**, as sacas contratadas, o **preço fixado**, o preço de mercado no dia (opcional), a data e o prazo de entrega.
+3. Toque em **Salvar contrato**.
+4. Na hora de entregar, toque em **Registrar entrega** no cartão do contrato. A entrega vira uma venda da Lavoura e uma conta a receber no Financeiro.
+P: O app só deixa entregar grão **da safra do contrato** e avisa quando o prazo está chegando (bolinha vermelha a 30 dias do vencimento). Também mostra o **ganho** em relação ao preço de mercado do dia em que o contrato foi fechado.
+P: Mais abaixo ficam a **Produção por talhão** (sacas, área colhida e sc/ha) e o **Extrato** de todos os movimentos.
+
+# chuvas | Chuvas
+FIG: chuva-form | Registrar chuva.
+P: Toque em **Chuvas ›**, no topo do app.
+1. Confira a **data** e digite os **milímetros**.
+2. Se aconteceu, marque **granizo**, **geada**, **vento forte** ou **enxurrada**.
+3. Escreva uma observação, se quiser, e toque em **Salvar chuva**.
+FIG: chuva-grafico | O gráfico: barras da safra atual e linhas das safras passadas.
+P: O **gráfico** mostra a safra escolhida em **barras azuis** e as **safras anteriores em linhas** coloridas, mais a **média** tracejada. Toque no nome de uma safra, embaixo do gráfico, para mostrar ou esconder a linha dela.
+P: A **tabela** mostra mês a mês a chuva de cada safra, e quanto a safra atual está **acima** (verde) ou **abaixo** (vermelho) da média. Mais abaixo ficam os eventos climáticos e a lista de chuvas, com Editar e Excluir.
+
+# painel | Painel, relatórios e mapa
+## Talhões hoje
+FIG: painel-talhoes | Talhões hoje: dias após o plantio, a emergência e a aplicação.
+P: A primeira caixa do **Painel** mostra, para cada talhão:
+- **DAP** (dias após o plantio), **DAE** (dias após a emergência) e **DAA** (dias após a última aplicação).
+- A última aplicação, com os produtos, e o fim da **carência**.
+- **Informar emergência:** toque, escolha o dia em que a lavoura nasceu e salve.
+FIG: painel-talhao | Tocando no talhão: tudo o que foi feito nele na cultura atual.
+P: **Toque no quadrado do talhão** para ver tudo o que foi feito nele na cultura atual, desde a dessecação até a colheita: as atividades em ordem de data (com o DAP de cada uma), quantas foram feitas e programadas, a chuva desde o plantio e o custo de insumos por hectare. Toque em **‹ Voltar** para sair.
+
+## Indicadores e gráficos
+FIG: painel-kpis | Os números da safra: insumos, produção, chuva, diesel, máquinas, benfeitorias, vendas e custo.
+P: Escolha a **safra**, o **talhão** e a **cultura** nos filtros. O Painel mostra os insumos aplicados, a produção, a chuva, o diesel, as manutenções, as benfeitorias, as vendas de grãos e o **custo total**, e os gráficos de custos por mês, por categoria, por classe de insumo, por talhão, a produtividade, a chuva, o diesel por máquina e os grãos por titular. Toque numa barra para ver o valor.
+
+## Relatórios
+FIG: relatorios | Relatórios: escolha o relatório, os filtros e baixe em PDF ou Excel.
+1. Vá em **Painel → Relatórios**.
+2. Escolha o **relatório**: caderno de campo, insumos aplicados, posição do estoque, compras, registro pluviométrico, produção por talhão, romaneios, extrato de grãos, manutenção, diesel, benfeitorias, anotações ou custos por mês.
+3. Escolha o **período** e os filtros.
+4. Confira a prévia na tela e toque em **Baixar PDF para imprimir** ou **Baixar Excel**.
+
+## Backup dos dados
+FIG: backup | Backup: planilha Excel, backup completo e fotos.
+P: No fim de **Painel → Relatórios** fica o **Backup dos dados**:
+- **Baixar planilha Excel:** todos os dados numa planilha, para abrir no Excel ou no Google Planilhas.
+- **Baixar backup completo (.json):** cópia exata de tudo, que serve para **restaurar** o app.
+- **Baixar todas as fotos (.zip).**
+- **Restaurar backup:** escolha um arquivo .json de backup para trazer os dados de volta.
+P: Uma vez por mês o app pede o backup com a faixa vermelha no topo. Além disso, todo dia de madrugada é feita uma **cópia automática no Google Drive** do Luis, na pasta "Diário da Lavoura - Backups".
+
+## Mapa
+FIG: mapa | Mapa da lavoura com os talhões e os pontos marcados.
+P: Em **Painel → Mapa** fica a imagem de satélite da propriedade com o contorno dos talhões e os pontos marcados.
+- **+ Marcar ponto:** marca onde tem pedra, buraco, toco, água, erosão, cupim, cerca ou outro, com uma observação. O app descobre sozinho em qual talhão o ponto está.
+- **Desenhar talhão:** desenha ou corrige o contorno de um talhão.
+- **◎ Onde estou:** mostra onde você está, pelo GPS do celular.
+FIG: mapa-editor | O editor do contorno, em tela cheia.
+P: **Como desenhar o contorno:**
+1. Toque no mapa em cada **canto** do talhão, dando a volta.
+2. Arraste um canto para ajustar. O **+** no meio de um lado cria um canto novo.
+3. Toque num canto para selecioná-lo e use **Remover canto**. **Desfazer** volta o último passo.
+4. No campo, use **Canto aqui** para pôr um canto exatamente onde você está.
+5. Toque em **Salvar contorno**. O app calcula a área desenhada.
+
+# estrutura | Estrutura: máquinas, diesel e benfeitorias
+## Máquinas e manutenção
+FIG: maquinas | Cada máquina: horímetro, última troca de óleo, gasto e próxima manutenção.
+P: Em **Estrutura → Máquinas** aparece cada máquina com o horímetro, a última troca de óleo, as horas desde a troca, o gasto na safra e a próxima manutenção.
+FIG: maquinas-form | Registrar manutenção.
+1. Em **Registrar manutenção**, escolha a máquina (ou **+ Cadastrar nova máquina**).
+2. Marque os **serviços feitos** (revisão, troca de óleo, filtros…), o **horímetro** e a oficina.
+3. Em **Peças e serviços**, lance cada item com o valor. O total é somado sozinho.
+4. Se quiser ser avisado, informe a **próxima manutenção** (por data ou por horímetro).
+5. Toque em **Salvar manutenção**.
+P: Quando a revisão está perto ou vencida, aparece a bolinha vermelha.
+
+## Abastecimento (tanque de diesel)
+FIG: diesel | O tanque, os lançamentos e o consumo por máquina.
+P: Em **Estrutura → Abastecimento** fica o tanque: quantos litros tem, o custo médio, o valor no tanque e o espaço livre. Os lançamentos são de três tipos:
+- **Abastecer máquina:** máquina, litros, **horímetro** e operador.
+- **Entrada no tanque (TRR):** litros comprados, valor, fornecedor e nota.
+- **Medição / ajuste:** quando medir o tanque e o número for diferente do app.
+P: A tabela **Consumo por máquina** calcula os **litros por hora**. Para o número ficar certo, lance o horímetro em todo abastecimento.
+
+## Benfeitorias
+FIG: benf-form | Registrar serviço numa benfeitoria.
+P: Em **Estrutura → Benfeitorias** ficam galpões, cercas, estradas, caixas d'água e outras benfeitorias.
+1. Em **Registrar serviço**, escolha a benfeitoria (ou **+ Cadastrar nova benfeitoria**).
+2. Escolha o serviço, a **situação** (concluído, em andamento ou pendente), o responsável e, se quiser, a próxima manutenção.
+3. Lance os **materiais e a mão de obra** com os valores e toque em **Salvar serviço**.
+P: Serviços que não foram concluídos aparecem com a bolinha vermelha.
+
+# financeiro | Financeiro
+P: O Financeiro tem quatro sub-abas: **Resumo**, **Contas**, **Livro caixa** e **Resultado**. Tudo é da Lavoura. O campo "Nota em nome de" só registra em nome de quem saiu a nota (Luis ou a irmã), para o controle do imposto de renda.
+
+## Resumo
+FIG: fin-resumo | Resumo: saldo em caixa, a pagar, a receber, fluxo de caixa e as contas.
+P: O topo mostra o **saldo em caixa**, o que vence **a pagar** e **a receber em 30 dias**, a fatura do cartão e as contas vencidas. Logo abaixo vem o **fluxo de caixa**, 6 meses para trás e 6 para frente.
+P: **Contas e caixas:** toque em **+ Cadastrar conta** para cada banco, conta na cooperativa, dinheiro em espécie ou cartão de crédito. Informe o **saldo inicial** e a **data** desse saldo. Cada conta tem **Extrato**.
+FIG: fin-pend | Do Diário para o Financeiro: o que foi lançado no Diário e ainda não está no Financeiro.
+P: **Do Diário para o Financeiro:** as compras do estoque, o diesel, as manutenções, os serviços de benfeitorias e as vendas de grãos lançados no Diário aparecem aqui, para não digitar nada duas vezes:
+- **Lançar:** abre a conta já preenchida, para escolher o vencimento e a forma de pagamento.
+- **Já pago / Já recebido:** grava como pago na data do lançamento.
+- **Ignorar:** quando não deve entrar no Financeiro.
+P: Ainda no Resumo ficam os **Descontos dos contratos** (o desconto de cada contrato de insumos, que sai no vencimento), as contas **recorrentes** (salário, luz, internet…) e as **Categorias**.
+
+## Contas a pagar e a receber
+FIG: fin-form | Novo lançamento: descrição, fornecedor, categoria, forma, parcelas e destino do gasto.
+1. Em **Financeiro → Contas**, escolha **A pagar**, **A receber** ou **Transferência** (entre contas).
+2. Preencha a descrição, o fornecedor, a **categoria**, a data da compra e a **forma** (à vista, a prazo, para a safra/troca por grãos, financiamento, cartão).
+3. Informe a nota fiscal, **em nome de quem** saiu a nota e o contrato, se houver.
+4. Se quiser, ligue o gasto a uma **safra**, **cultura** ou **talhão** (Destino do gasto). Isso aparece no Resultado.
+5. Informe o valor e as **parcelas** com o vencimento de cada uma.
+6. Toque em salvar.
+P: **Importar XML da nota:** lê o fornecedor, os produtos e as parcelas da nota (pode escolher várias notas de uma vez). **Importar planilha do Aegro:** traz o histórico do Aegro sem lançar nada duas vezes.
+FIG: fin-lista | Contas em aberto: toque em Pagar para dar baixa.
+P: Na lista, toque em **Pagar** (ou **Receber**) para dar baixa: escolha a data, a conta e o valor pago. Também dá para **pagar com grãos**: informe as sacas, a cultura e o depósito de onde saíram.
+DICA: Em financiamentos, informe os **juros** de cada parcela. Só os juros contam como custo; o resto é pagamento da dívida.
+
+## Livro caixa
+FIG: fin-caixa | Livro caixa: entradas, saídas e saldo por período e conta.
+P: Mostra tudo o que entrou e saiu, com o saldo dia a dia. Escolha o **período**, a **conta** e em nome de quem saiu a nota. **Baixar planilha do livro caixa** gera o Excel.
+
+## Resultado da safra
+FIG: fin-safra | Resultado: receitas, custos, resultado e o custo por cultura e por talhão.
+P: Escolha a **safra**. O app mostra as **receitas** (vendas de grãos), os **custos**, o **resultado** e o que fica **fora do custo** (investimentos, pagamento de dívidas, família e pecuária). Também mostra os custos por categoria e o custo por hectare de cada **cultura** e de cada **talhão**. Os custos sem destino podem ser divididos pela área ou não (**Custos gerais por talhão**).
+P: Se aparecer o aviso de lançamentos do Diário que ainda não estão no Financeiro, toque em **Ver no Resumo** e lance, para o resultado ficar completo.
+
+# lembretes | Lembretes e anotações
+## Lembretes
+FIG: lembrete-form | Novo lembrete, com data, alerta, repetição e responsável.
+1. Em **Lembretes**, escreva o lembrete na caixa (ela cresce com o texto).
+2. Escolha **quando**: Hoje, Amanhã, Em 1 semana ou **Sem data** (fica em espera).
+3. Em **Data, alerta, responsável e observação** dá para escolher a data e a hora, **quantos dias antes avisar**, se **repete** (toda semana, todo mês, todo ano), **para quem** é e uma observação.
+4. Toque em **Adicionar** (ou na tecla Enter).
+FIG: lembretes | Lista: atrasados, hoje, próximos 7 dias, mais adiante, em espera e feitos.
+P: A lista separa **Atrasados**, **Hoje**, **Próximos 7 dias**, **Mais adiante**, **Em espera** e **Feitos**. Toque na bolinha para marcar como **feito**. Se o lembrete repete, o próximo é criado sozinho. Ao concluir, o app pergunta **"Como ficou?"** e guarda a resposta nas **Anotações**.
+- **Pôr na agenda:** abre o Google Agenda com o evento pronto.
+- **Só os meus:** mostra só os lembretes seus e os de todos.
+- Todo dia às **6 h** cada pessoa recebe um **e-mail** com os lembretes do dia e os atrasados.
+
+## Anotações
+FIG: nota-form | Nova anotação: categoria, data, título, texto, pessoas, local e prazo.
+P: Para guardar conversas, combinações, negociações, visitas técnicas e observações de campo.
+1. Escolha a **categoria** (Negociação, Funcionários, Serviços de terceiros, Visita técnica, Observação de campo ou Geral).
+2. Preencha a data, o título e a **anotação**. Se quiser, as pessoas envolvidas, o local e as fotos.
+3. Se é algo para resolver, informe **Retornar / resolver até**: a anotação aparece como pendente e ganha a bolinha vermelha quando o prazo chega.
+4. Toque em **Salvar anotação**.
+FIG: notas | Anotações salvas, com filtros e busca.
+
+# perguntar | Perguntar
+FIG: perguntar | Perguntar: escreva ou fale a pergunta.
+P: Na aba **Perguntar** dá para perguntar sobre os dados da lavoura, por exemplo: "Quanto choveu na safra até agora?" ou "Quando foi a última aplicação no Talhão 1?".
+1. Escreva a pergunta, ou toque no campo e use o **microfone do teclado** para falar. Também pode tocar numa das sugestões.
+2. Toque em **Perguntar no Claude**. Abre uma conversa no Claude com a pergunta já escrita, e ele responde lendo a planilha do Diário no Google Drive (atualizada todo dia de madrugada).
+P: Se a pergunta não aparecer escrita no Claude, toque no campo e escolha **Colar**. Com a chave do Claude ligada em Configurações, aparece também o botão **Perguntar**, que responde ali mesmo no app.
+
+# automatico | O que o app faz sozinho
+- **Notas por e-mail:** a cada 30 minutos o Gmail é conferido e as notas com XML aparecem em Estoque → Notas (inclusive as que caíram no Spam).
+- **Backup no Google Drive:** todo dia às 3 h da manhã, com uma cópia por mês e as fotos.
+- **Planilha atualizada:** uma vez por dia o app gera a planilha "Diário da Lavoura - dados atuais", usada pelo Perguntar.
+- **E-mail dos lembretes:** todo dia às 6 h.
+- **Lista de defensivos do MAPA (AGROFIT):** atualizada toda semana, para o princípio ativo e a classe dos produtos.
+- **Sem sinal:** o que for lançado sem internet fica no aparelho e sobe quando a conexão voltar ("Salvo na nuvem" no topo).
+
+# duvidas | Dúvidas frequentes
+## Lancei sem internet. Perdi?
+P: Não. O lançamento fica guardado no aparelho e sobe sozinho quando voltar a internet. Só não feche o app à força antes disso.
+## Excluí uma coisa sem querer.
+P: Vá em **Lavoura → Histórico → Lixeira** e toque em **Recuperar**. Fica lá por 30 dias.
+## Uma nota fiscal não apareceu em Estoque → Notas.
+P: Confira se o e-mail tinha o **XML** anexado (só o PDF não serve) e se não caiu no **Spam**. As notas chegam em até 30 minutos. Também dá para lançar o XML na mão em **Lançar entrada → Escolher arquivo**.
+## A melhoria nova não apareceu.
+P: Vá em **Configurações → Procurar atualização** e confira o número da versão.
+## O saldo de um produto ficou errado.
+P: Confira em **Estoque → Produtos → Conferir estoque**: lá aparecem os produtos digitados nas atividades que não estão ligados ao estoque e os que ficaram negativos. Muitas vezes falta lançar uma compra.
+## A produtividade está estranha.
+P: A produtividade é sacas entregues ÷ área colhida. Em cada colheita, informe a **área colhida** naquele lançamento (área parcial do talhão).
+
+# admin | Para o administrador
+P: Esta parte é para quem cuida do app (hoje, o Luis).
+- **Liberar uma pessoa nova:** criar o usuário (e-mail e senha) no Firebase, em Authentication, e incluir o e-mail na lista do arquivo de regras (firestore.rules), publicando as regras no Console do Firebase. Depois a pessoa entra com o e-mail e a senha e coloca o nome dela em Configurações.
+- **Atualizações do app:** são feitas pelo Claude no repositório do GitHub. Depois de publicadas, cada pessoa toca em Procurar atualização.
+- **Automações do Google** (backup, notas por e-mail, e-mail dos lembretes) ficam no Google Apps Script da conta do Luis.
+
+# glossario | Glossário
+- **DAP / DAE / DAA:** dias após o plantio / após a emergência / após a aplicação.
+- **Carência:** dias que precisam passar entre a aplicação e a colheita.
+- **Executada / Programada:** atividade já feita / que ainda vai ser feita.
+- **Romaneio:** o comprovante de cada carga entregue no depósito.
+- **XML da NF-e:** o arquivo da nota fiscal eletrônica que o fornecedor manda por e-mail. O app lê tudo dele.
+- **DANFE:** a versão impressa da nota fiscal.
+- **TRR:** o revendedor que entrega diesel no tanque.
+- **Princípio ativo:** a substância do defensivo (ex.: glifosato). Vem da lista oficial do MAPA (AGROFIT).
+- **Safra:** de 1º de julho a 30 de junho.
+- **Titular:** de quem são os grãos: Lavoura, um funcionário ou o arrendatário.
