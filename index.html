@@ -351,6 +351,23 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 #pl-tab small{display:block;font-size:.72rem;font-weight:600}
 #pl-tab .pl-mais{color:var(--accent)}
 #pl-tab .pl-menos{color:var(--danger)}
+#pl-tab .pl-tr{cursor:pointer}
+#pl-tab .pl-tr:hover td{background:var(--sunk)}
+#pl-tab .pl-tr.on td{background:var(--sunk);font-weight:600}
+#pl-tab .pl-mes{color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.chart .pl-hit{fill:transparent;cursor:pointer}
+.chart .pl-hit:hover,.chart .pl-hit.on{fill:var(--ink);fill-opacity:.06}
+.chart .pl-fut{fill:var(--sunk);opacity:.5}
+.chart .pl-ev{font-size:11px;fill:var(--danger)}
+.pl-dia{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px;margin:6px 0 10px}
+.pl-dia[hidden]{display:none}
+.pl-dia-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.pl-dia-top h3{margin:0;font-family:var(--f-display);font-size:1.2rem}
+.pl-dia-nav{display:flex;gap:6px}
+.pl-dia-res,.pl-dia-cmp{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:.88rem}
+.pl-dia-res b{font-family:var(--f-mono)}
+.pl-dia-cmp i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.pl-dia .chart svg{min-width:0}
 .tbl-wrap{overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums}
 .tbl th,.tbl td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
@@ -668,6 +685,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="pl-sem">–</b><span id="pl-sem-l">dias sem chuva</span></div>
     </div>
     <div class="chart" id="pl-chart"></div>
+    <div class="pl-dia" id="pl-dia" hidden></div>
     <div class="tbl-wrap"><table class="tbl" id="pl-tab"></table></div>
     <div class="field">
       <span class="lbl">Eventos climáticos na safra</span>
@@ -1940,6 +1958,38 @@ function renderStats(){
 const safraDe=iso=>{const y=+iso.slice(0,4),m=+iso.slice(5,7);return m>=7?y:y-1};
 const safraLab=y=>`${String(y).slice(2)}/${String(y+1).slice(2)}`;
 const MESES=["Jul","Ago","Set","Out","Nov","Dez","Jan","Fev","Mar","Abr","Mai","Jun"];
+/* ---------- chuva dia a dia de um mês (abre ao tocar no mês do gráfico ou da tabela) ---------- */
+let plMes=null;
+function plAbreMes(i){plMes=plMes===i?null:i; renderChuvas(); if(plMes!=null) requestAnimationFrame(()=>$("#pl-dia")?.scrollIntoView({block:"start",behavior:"smooth"}))}
+function plDia(cur,antes){
+  const box=$("#pl-dia"); if(!box) return;
+  if(plMes==null){box.hidden=true; box.innerHTML=""; return}
+  const i=plMes, mk=mesKey(cur,i), [yy,mm]=mk.split("-").map(Number), nd=new Date(yy,mm,0).getDate(), hoje=todayISO();
+  const doDia=d=>{const iso=`${mk}-${String(d).padStart(2,"0")}`; const rs=registros.filter(r=>r.tipo==="chuva"&&r.data===iso); return {iso,mm:rs.reduce((s,r)=>s+(Number(r.campos?.mm)||0),0),n:rs.length,ev:rs.flatMap(r=>r.campos?.eventos||[])}};
+  const dias=Array.from({length:nd},(_,k)=>doDia(k+1)), tot=dias.reduce((s,d)=>s+d.mm,0), comChuva=dias.filter(d=>d.mm>0).length;
+  const maior=dias.reduce((m,d)=>d.mm>(m?.mm||0)?d:m,null);
+  const W=Math.max(320,Math.min(900,box.parentElement.clientWidth||640)),H=W<500?210:230,L=30,R=6,T=22,B=24, cw=(W-L-R)/nd, bw=Math.max(3,cw*.7);
+  const vmax=Math.max(...dias.map(d=>d.mm),10), passo=vmax>150?50:vmax>60?20:vmax>25?10:5, top=Math.ceil(vmax/passo)*passo, yv=v=>T+(H-T-B)*(1-v/top), cx=k=>L+cw*k+cw/2;
+  const cada=W<500?(nd>28?5:4):1;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chuva por dia em ${MESES[i]} de ${yy}">`;
+  for(let v=0;v<=top;v+=passo) s+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${yv(v)}" y2="${yv(v)}"/><text class="ax" x="${L-5}" y="${yv(v)+4}" text-anchor="end">${v}</text>`;
+  let acum=0, pts=[];
+  dias.forEach((d,k)=>{
+    if(d.mm>0) s+=`<rect class="bar" x="${cx(k)-bw/2}" y="${yv(d.mm)}" width="${bw}" height="${yv(0)-yv(d.mm)}" rx="1.5"><title>${brDate(d.iso)}: ${num(d.mm)} mm${d.ev.length?" · "+d.ev.join(", "):""}</title></rect>`+(cw>=16||d===maior?`<text class="val" x="${cx(k)}" y="${yv(d.mm)-4}" text-anchor="middle">${Math.round(d.mm)}</text>`:"")+(d.ev.length?`<text class="pl-ev" x="${cx(k)}" y="${T-8}" text-anchor="middle">⚠</text>`:"");
+    if((k+1)%cada===0||k===0) s+=`<text class="ax" x="${cx(k)}" y="${H-7}" text-anchor="middle">${k+1}</text>`;
+    if(d.iso>hoje&&!d.n) s+=`<rect class="pl-fut" x="${L+cw*k}" y="${T}" width="${cw}" height="${H-T-B}"/>`;
+  });
+  s+="</svg>";
+  const ant=antes.map(x=>({y:x.y,cor:x.cor,mm:x.t[i].mm}));
+  box.hidden=false;
+  box.innerHTML=`<div class="pl-dia-top"><h3>${["Julho","Agosto","Setembro","Outubro","Novembro","Dezembro","Janeiro","Fevereiro","Março","Abril","Maio","Junho"][i]} de ${yy} <span class="note">dia a dia</span></h3>
+      <div class="pl-dia-nav"><button type="button" class="btn ghost fn-mini" data-pld="-1" ${i===0?"disabled":""} aria-label="Mês anterior">‹</button><button type="button" class="btn ghost fn-mini" data-pld="1" ${i===11?"disabled":""} aria-label="Próximo mês">›</button><button type="button" class="btn ghost fn-mini" data-pld="x">Fechar</button></div></div>
+    <div class="pl-dia-res"><span><b>${num(tot)} mm</b> no mês</span><span><b>${comChuva}</b> dia${comChuva===1?"":"s"} com chuva</span>${maior?`<span>Maior: <b>${num(maior.mm)} mm</b> em ${brDate(maior.iso).slice(0,5)}</span>`:""}</div>
+    <div class="chart">${tot>0?s:`<p class="note">Nenhuma chuva lançada neste mês.</p>`}</div>
+    ${ant.length?`<div class="pl-dia-cmp"><span class="note">Mesmo mês em outras safras:</span>${ant.map(x=>`<span><i style="background:${x.cor}"></i>${safraLab(x.y)} <b>${x.mm?num(x.mm)+" mm":"–"}</b></span>`).join("")}</div>`:""}
+    ${dias.some(d=>d.ev.length)?`<p class="note">⚠ = evento climático: ${dias.filter(d=>d.ev.length).map(d=>`${brDate(d.iso).slice(0,5)} ${esc(d.ev.join(", "))}`).join(" · ")}</p>`:""}`;
+  box.querySelectorAll("[data-pld]").forEach(b=>b.onclick=()=>{const v=b.dataset.pld; if(v==="x"){plMes=null; renderChuvas(); return} plMes=Math.min(11,Math.max(0,plMes+Number(v))); renderChuvas()});
+}
 const PL_CORES=["#d95926","#199e70","#8e5bd0","#c98500","#d6457a"];
 let plOcultas=new Set(); try{plOcultas=new Set(JSON.parse(localStorage.getItem("pl-ocultas")||"[]"))}catch{}
 const mesKey=(y,i)=>`${i<6?y:y+1}-${String(i<6?i+7:i-5).padStart(2,"0")}`;
@@ -1985,18 +2035,24 @@ function renderChuvas(){
   };
   for(const x of [...visiveis].reverse()) s+=linha(x.t.map(m=>m.mm),x.cor,safraLab(x.y));
   if(verMedia) s+=linha(media,"var(--ink)","média",true);
+  // faixa invisível por mês: tocar abre a chuva dia a dia
+  a.forEach((x,i)=>{s+=`<rect class="pl-hit${plMes===i?" on":""}" data-plm="${i}" x="${L+cw*i}" y="${T-6}" width="${cw}" height="${H-T-B+22}"><title>Ver ${MESES[i]} dia a dia</title></rect>`});
   s+="</svg>";
   const chip=(k,cor,rot,on,tr)=>`<button type="button" class="pl-chip" data-plk="${k}" aria-pressed="${on}"><i style="${tr?`border-top:2px dashed ${cor};background:none;height:0`:`background:${cor}`}"></i>${rot}</button>`;
   $("#pl-chart").innerHTML=(daSafra.length?"":`<p class="note">Nenhuma chuva lançada na safra ${safraLab(cur)} ainda.</p>`)+s+
     `<div class="legend pl-leg"><span><i></i>Safra ${safraLab(cur)}</span>${antes.map(x=>chip(x.y,x.cor,`Safra ${safraLab(x.y)}`,!plOcultas.has(x.y))).join("")}${media?chip("media","var(--ink)",`Média das ${antes.length} anteriores`,verMedia,true):""}</div>`+
     (antes.length?`<p class="note pl-dica">Toque numa safra para mostrar ou esconder a linha.</p>`:`<p class="note pl-dica">Quando houver chuva lançada em safras anteriores, elas aparecem aqui como linhas para comparar.</p>`);
+  $("#pl-chart").querySelectorAll("[data-plm]").forEach(b=>b.onclick=()=>plAbreMes(+b.dataset.plm));
   $("#pl-chart").querySelectorAll("[data-plk]").forEach(b=>b.onclick=()=>{const k=b.dataset.plk==="media"?"media":+b.dataset.plk; plOcultas.has(k)?plOcultas.delete(k):plOcultas.add(k); try{localStorage.setItem("pl-ocultas",JSON.stringify([...plOcultas]))}catch{} renderChuvas()});
 
   // tabela: mês a mês com cada safra anterior e a diferença para a média
   const tt=t=>t.reduce((s,x)=>s+x.mm,0), dif=(v,m)=>{if(!m) return ""; const d=v-m; return `<small class="${d>=0?"pl-mais":"pl-menos"}">${d>=0?"+":"−"}${num(Math.abs(d))}</small>`};
   $("#pl-tab").innerHTML=`<thead><tr><th>Mês</th><th>${safraLab(cur)}</th><th>Dias</th>${antes.map(x=>`<th>${safraLab(x.y)}</th>`).join("")}${media?`<th>Média</th>`:""}</tr></thead><tbody>`+
-    a.map((x,i)=>`<tr><td>${MESES[i]}/${mesKey(cur,i).slice(2,4)}</td><td>${x.n?num(x.mm):"–"}${x.n&&media?" "+dif(x.mm,media[i]):""}</td><td>${x.n?x.dias:"–"}</td>${antes.map(p=>`<td>${p.t[i].mm?num(p.t[i].mm):"–"}</td>`).join("")}${media?`<td>${num(media[i])}</td>`:""}</tr>`).join("")+
+    a.map((x,i)=>`<tr class="pl-tr${plMes===i?" on":""}" data-plm="${i}" tabindex="0" role="button" aria-label="Ver a chuva de ${MESES[i]} dia a dia"><td><span class="pl-mes">${MESES[i]}/${mesKey(cur,i).slice(2,4)}</span></td><td>${x.n?num(x.mm):"–"}${x.n&&media?" "+dif(x.mm,media[i]):""}</td><td>${x.n?x.dias:"–"}</td>${antes.map(p=>`<td>${p.t[i].mm?num(p.t[i].mm):"–"}</td>`).join("")}${media?`<td>${num(media[i])}</td>`:""}</tr>`).join("")+
     `</tbody><tfoot><tr><td>Total</td><td>${num(total)}</td><td>${a.reduce((s,x)=>s+x.dias,0)}</td>${antes.map(p=>`<td>${num(tt(p.t))}</td>`).join("")}${media?`<td>${num(media.reduce((s,v)=>s+v,0))}</td>`:""}</tr></tfoot>`;
+
+  $("#pl-tab").querySelectorAll("[data-plm]").forEach(tr=>{tr.onclick=()=>plAbreMes(+tr.dataset.plm); tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault(); plAbreMes(+tr.dataset.plm)}}});
+  plDia(cur,antes);
 
   // eventos
   const evs=registros.filter(r=>safraDe(r.data)===cur&&((r.tipo==="chuva"&&(r.campos?.eventos||[]).length)||(r.tipo==="ocorrencia"&&String(r.campos?.categoria||"").startsWith("Clima"))))
