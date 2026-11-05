@@ -1077,7 +1077,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <h2>Lembretes <span class="note" id="lm-cont"></span></h2>
     <form class="sub" id="lm-form" autocomplete="off">
       <div class="row" style="justify-content:space-between"><h3 class="sub-h" id="lm-form-tit">Novo lembrete</h3><button type="button" class="link" id="lm-cancel" hidden>Cancelar edição</button></div>
-      <div class="lm-add"><input id="lm-txt" aria-label="Lembrete" placeholder="Escreva o lembrete" enterkeyhint="done"><button class="btn" type="submit" id="lm-salvar">Adicionar</button></div>
+      <div class="lm-add"><textarea id="lm-txt" rows="2" aria-label="Lembrete" placeholder="Escreva o lembrete" enterkeyhint="done"></textarea><button class="btn" type="submit" id="lm-salvar">Adicionar</button></div>
       <div class="lm-rap" aria-label="Data rápida"><span class="note">Quando:</span><button type="button" class="chip" data-lmdata="0">Hoje</button><button type="button" class="chip" data-lmdata="1">Amanhã</button><button type="button" class="chip" data-lmdata="7">Em 1 semana</button><button type="button" class="chip" data-lmdata="">Sem data</button></div>
       <details id="lm-mais" class="lm-mais">
         <summary>Data, alerta, responsável e observação</summary>

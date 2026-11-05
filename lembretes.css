@@ -1,7 +1,7 @@
 /* Diário da Lavoura — Lembretes */
-.lm-add{display:flex;gap:8px}
-.lm-add input{flex:1;min-width:0;font-size:1.05rem}
-.lm-add .btn{flex:none}
+.lm-add{display:flex;flex-direction:column;gap:8px}
+.lm-add textarea{width:100%;min-height:calc(2.7em + 22px);font-size:1.05rem;line-height:1.35;resize:none;overflow:hidden}
+.lm-add .btn{align-self:flex-end}
 .lm-rap{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .lm-rap .chip{font-size:.85rem;padding:5px 11px}
 .lm-mais summary{cursor:pointer;font-size:.9rem;color:var(--muted);font-weight:600}

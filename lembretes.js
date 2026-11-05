@@ -129,16 +129,22 @@ function respOpcoes(sel){
   $("#lm-resp").innerHTML=ops.map(([v,t])=>`<option value="${esc(v)}">${esc(t)}</option>`).join("");
   $("#lm-resp").value=sel||"todos";
 }
+/* caixa do lembrete cresce com o texto (frases compridas aparecem inteiras); Enter = Adicionar */
+function cresce(){const t=$("#lm-txt"); if(!t) return; t.style.height="auto"; t.style.height=t.scrollHeight+2+"px"}
+setTimeout(()=>{const t=$("#lm-txt"); if(!t) return;
+  t.addEventListener("input",cresce);
+  t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault(); $("#lm-form").requestSubmit()}});
+},0);
 function reset(){
   edit=null; $("#lm-form").reset(); $("#lm-form-tit").textContent="Novo lembrete"; $("#lm-cancel").hidden=true; $("#lm-salvar").textContent="Adicionar";
-  $("#lm-aviso").value="0"; respOpcoes("todos"); avisoVis();
+  $("#lm-aviso").value="0"; respOpcoes("todos"); avisoVis(); cresce();
 }
 function avisoVis(){ const v=$("#lm-data").value, tem=!!v;
   document.querySelectorAll("[data-lmdata]").forEach(b=>b.setAttribute("aria-pressed",(b.dataset.lmdata===""?"":soma(hoje(),Number(b.dataset.lmdata)))===v)); $("#lm-aviso").disabled=!tem; $("#lm-rep").disabled=!tem; $("#lm-hora").disabled=!tem }
 function editar(id){
   const l=lista.find(x=>x.id===id); if(!l) return;
   reset(); edit=id;
-  $("#lm-txt").value=l.texto; $("#lm-obs").value=l.obs||""; $("#lm-data").value=l.data||""; $("#lm-hora").value=l.hora||"";
+  $("#lm-txt").value=l.texto; cresce(); $("#lm-obs").value=l.obs||""; $("#lm-data").value=l.data||""; $("#lm-hora").value=l.hora||"";
   $("#lm-aviso").value=l.aviso==null?"":String(l.aviso); $("#lm-rep").value=l.repetir||""; respOpcoes(l.resp||"todos");
   $("#lm-mais").open=true; avisoVis();
   $("#lm-form-tit").textContent="Editar lembrete"; $("#lm-cancel").hidden=false; $("#lm-salvar").textContent="Salvar";
