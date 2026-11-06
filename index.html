@@ -360,6 +360,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .chart .pl-fut{fill:var(--sunk);opacity:.5}
 .chart .pl-selo text{font-size:8.5px;font-weight:700;fill:#fff;font-family:var(--f-mono);letter-spacing:.02em}
 .chart .pl-selo{cursor:help}
+.chart .pl-faixa{opacity:.28}
 .pl-evleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--ink);margin:4px 0 2px}
 .pl-evleg span{display:inline-flex;align-items:center;gap:6px}
 .pl-evleg b{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:15px;border-radius:4px;color:#fff;font-family:var(--f-mono);font-size:.64rem;padding:0 3px}
@@ -1984,6 +1985,13 @@ function plSelos(lista,x,y0,cw,rotulo){
   });
   return {s,n:tipos.length};
 }
+/* coluna colorida e transparente atrás da chuva, uma faixa por tipo de evento */
+function plFaixas(lista,x0,w,y,h){
+  const ss=[...new Set(lista.map(e=>plEvInfo(e.tipo).s))]; if(!ss.length) return "";
+  const fw=w/ss.length; let s="";
+  ss.forEach((sg,k)=>{const inf=plEvInfo(lista.find(e=>plEvInfo(e.tipo).s===sg).tipo); s+=`<rect class="pl-faixa" x="${(x0+k*fw).toFixed(1)}" y="${y}" width="${fw.toFixed(1)}" height="${h}" style="fill:${inf.cor}"/>`});
+  return s;
+}
 const plEvNome={GR:"Granizo",GE:"Geada",VT:"Vento forte / temporal",EX:"Enxurrada / erosão","!":"Ocorrência de clima"};
 const plEvLegenda=evs=>{const ss=[...new Set(evs.map(e=>plEvInfo(e.tipo).s))]; return ss.length?`<div class="pl-evleg">${ss.map(sg=>{const t=evs.find(e=>plEvInfo(e.tipo).s===sg).tipo, inf=plEvInfo(t); return `<span><b style="background:${inf.cor}">${sg}</b>${esc(plEvNome[sg]||t)}</span>`}).join("")}</div>`:""};
 
@@ -2004,7 +2012,7 @@ function plDia(cur,antes){
   const cada=W<500?(nd>28?5:4):1;
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chuva por dia em ${MESES[i]} de ${yy}">`;
   for(let v=0;v<=top;v+=passo) s+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${yv(v)}" y2="${yv(v)}"/><text class="ax" x="${L-5}" y="${yv(v)+4}" text-anchor="end">${v}</text>`;
-  let acum=0, pts=[];
+  dias.forEach((d,k)=>{const de=evDia(d); if(de.length) s+=plFaixas(de,L+cw*k+.5,Math.max(2,cw-1),T,H-T-B)});
   dias.forEach((d,k)=>{
     if(d.mm>0) s+=`<rect class="bar" x="${cx(k)-bw/2}" y="${yv(d.mm)}" width="${bw}" height="${yv(0)-yv(d.mm)}" rx="1.5"><title>${brDate(d.iso)}: ${num(d.mm)} mm${d.ev.length?" · "+d.ev.join(", "):""}</title></rect>`+(cw>=16||d===maior?`<text class="val" x="${cx(k)}" y="${yv(d.mm)-4}" text-anchor="middle">${Math.round(d.mm)}</text>`:"");
     const de=evDia(d); if(de.length) s+=plSelos(de,cx(k),4,cw,brDate(d.iso).slice(0,5)).s;
@@ -2061,6 +2069,7 @@ function renderChuvas(){
   const yv=v=>T+(H-T-B)*(1-v/top), cx=i=>L+cw*i+cw/2;
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chuva mensal da safra ${safraLab(cur)} em milímetros, comparada com as safras anteriores">`;
   for(let v=0;v<=top;v+=passo) s+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${yv(v)}" y2="${yv(v)}"/><text class="ax" x="${L-6}" y="${yv(v)+4}" text-anchor="end">${v}</text>`;
+  a.forEach((x,i)=>{const em=evMes(i); if(em.length) s+=plFaixas(em,L+cw*i+1,cw-2,T,H-T-B)});
   a.forEach((x,i)=>{
     if(x.mm>0) s+=`<rect class="bar" x="${cx(i)-bw/2}" y="${yv(x.mm)}" width="${bw}" height="${yv(0)-yv(x.mm)}" rx="2"><title>${MESES[i]} ${safraLab(cur)}: ${num(x.mm)} mm</title></rect><text class="val" x="${cx(i)}" y="${yv(x.mm)-5}" text-anchor="middle">${Math.round(x.mm)}</text>`;
     s+=`<text class="ax" x="${cx(i)}" y="${H-8}" text-anchor="middle">${MESES[i]}</text>`;
