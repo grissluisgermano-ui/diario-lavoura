@@ -1976,15 +1976,16 @@ function plEventos(de,ate){
 }
 /* selos (um por tipo) empilhados de cima para baixo no topo da coluna */
 function plSelos(lista,x,y0,cw,rotulo){
-  const tipos=[...new Set(lista.map(e=>e.tipo))]; let s="";
-  tipos.forEach((t,k)=>{const inf=plEvInfo(t), es=lista.filter(e=>e.tipo===t), y=y0+k*17;
-    const tit=`${rotulo}: ${t}${es.length>1?` (${es.length}×)`:""} — ${es.map(e=>brDate(e.data).slice(0,5)+(e.desc?" "+e.desc:"")).join("; ")}`;
+  const tipos=[...new Set(lista.map(e=>plEvInfo(e.tipo).s))]; let s=""; // um selo por sigla
+  tipos.forEach((sg,k)=>{const es=lista.filter(e=>plEvInfo(e.tipo).s===sg), inf=plEvInfo(es[0].tipo), y=y0+k*17;
+    const tit=`${rotulo}: ${[...new Set(es.map(e=>e.tipo==="Clima"?"ocorrência de clima":e.tipo))].join(", ")}${es.length>1?` (${es.length}×)`:""} — ${es.map(e=>brDate(e.data).slice(0,5)+(e.desc?" "+e.desc:"")).join("; ")}`;
     if(cw>=18) s+=`<g class="pl-selo"><title>${esc(tit)}</title><rect x="${x-10}" y="${y}" width="20" height="14" rx="4" style="fill:${inf.cor}"/><text x="${x}" y="${y+10.2}" text-anchor="middle">${inf.s}</text></g>`;
     else s+=`<g class="pl-selo"><title>${esc(tit)}</title><circle cx="${x}" cy="${y+6}" r="${Math.max(3,Math.min(6,cw/2-.5))}" style="fill:${inf.cor}"/></g>`;
   });
   return {s,n:tipos.length};
 }
-const plEvLegenda=evs=>{const ts=[...new Set(evs.map(e=>e.tipo))]; return ts.length?`<div class="pl-evleg">${ts.map(t=>{const inf=plEvInfo(t); return `<span><b style="background:${inf.cor}">${inf.s}</b>${esc(t==="Clima"?"Ocorrência de clima":t)}</span>`}).join("")}</div>`:""};
+const plEvNome={GR:"Granizo",GE:"Geada",VT:"Vento forte / temporal",EX:"Enxurrada / erosão","!":"Ocorrência de clima"};
+const plEvLegenda=evs=>{const ss=[...new Set(evs.map(e=>plEvInfo(e.tipo).s))]; return ss.length?`<div class="pl-evleg">${ss.map(sg=>{const t=evs.find(e=>plEvInfo(e.tipo).s===sg).tipo, inf=plEvInfo(t); return `<span><b style="background:${inf.cor}">${sg}</b>${esc(plEvNome[sg]||t)}</span>`}).join("")}</div>`:""};
 
 /* ---------- chuva dia a dia de um mês (abre ao tocar no mês do gráfico ou da tabela) ---------- */
 let plMes=null;
