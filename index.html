@@ -358,11 +358,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .chart .pl-hit{fill:transparent;cursor:pointer}
 .chart .pl-hit:hover,.chart .pl-hit.on{fill:var(--ink);fill-opacity:.06}
 .chart .pl-fut{fill:var(--sunk);opacity:.5}
-.chart .pl-selo text{font-size:8.5px;font-weight:700;fill:#fff;font-family:var(--f-mono);letter-spacing:.02em}
+.chart .pl-selo text{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
 .chart .pl-selo{cursor:help}
 .pl-evleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--ink);margin:4px 0 2px}
 .pl-evleg span{display:inline-flex;align-items:center;gap:6px}
-.pl-evleg b{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:15px;border-radius:4px;color:#fff;font-family:var(--f-mono);font-size:.64rem;padding:0 3px}
+.pl-evleg b{font-size:1rem;line-height:1;font-weight:400;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
 .pl-dia{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px;margin:6px 0 10px}
 .pl-dia[hidden]{display:none}
 .pl-dia-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
@@ -1963,8 +1963,8 @@ const safraDe=iso=>{const y=+iso.slice(0,4),m=+iso.slice(5,7);return m>=7?y:y-1}
 const safraLab=y=>`${String(y).slice(2)}/${String(y+1).slice(2)}`;
 const MESES=["Jul","Ago","Set","Out","Nov","Dez","Jan","Fev","Mar","Abr","Mai","Jun"];
 /* ---------- eventos climáticos nos gráficos de chuva ---------- */
-const PL_EV={"Granizo":{s:"GR",cor:"#7b4bc4"},"Geada":{s:"GE",cor:"#2f8fd1"},"Vento forte / temporal":{s:"VT",cor:"#5f6b73"},"Vento forte":{s:"VT",cor:"#5f6b73"},"Temporal":{s:"VT",cor:"#5f6b73"},"Enxurrada":{s:"EX",cor:"#9a5b2c"},"Enxurrada / erosão":{s:"EX",cor:"#9a5b2c"},"Clima":{s:"!",cor:"#c0392b"}};
-const plEvInfo=t=>PL_EV[t]||{s:String(t).slice(0,2).toUpperCase(),cor:"#c0392b"};
+const PL_EV={"Granizo":{s:"🧊",cor:"#7b4bc4"},"Geada":{s:"❄️",cor:"#2f8fd1"},"Vento forte / temporal":{s:"💨",cor:"#5f6b73"},"Vento forte":{s:"💨",cor:"#5f6b73"},"Temporal":{s:"⛈️",cor:"#5f6b73"},"Enxurrada / erosão":{s:"🌊",cor:"#9a5b2c"},"Enxurrada":{s:"🌊",cor:"#9a5b2c"},"Clima":{s:"⚠️",cor:"#c0392b"}};
+const plEvInfo=t=>PL_EV[t]||{s:"⚠️",cor:"#c0392b"};
 /* eventos de um período: chuvas com eventos marcados + ocorrências da categoria Clima */
 function plEventos(de,ate){
   const out=[];
@@ -1976,15 +1976,16 @@ function plEventos(de,ate){
 }
 /* selos (um por tipo) empilhados de cima para baixo no topo da coluna */
 function plSelos(lista,x,y0,cw,rotulo){
-  const tipos=[...new Set(lista.map(e=>e.tipo))]; let s="";
-  tipos.forEach((t,k)=>{const inf=plEvInfo(t), es=lista.filter(e=>e.tipo===t), y=y0+k*17;
-    const tit=`${rotulo}: ${t}${es.length>1?` (${es.length}×)`:""} — ${es.map(e=>brDate(e.data).slice(0,5)+(e.desc?" "+e.desc:"")).join("; ")}`;
-    if(cw>=18) s+=`<g class="pl-selo"><title>${esc(tit)}</title><rect x="${x-10}" y="${y}" width="20" height="14" rx="4" style="fill:${inf.cor}"/><text x="${x}" y="${y+10.2}" text-anchor="middle">${inf.s}</text></g>`;
-    else s+=`<g class="pl-selo"><title>${esc(tit)}</title><circle cx="${x}" cy="${y+6}" r="${Math.max(3,Math.min(6,cw/2-.5))}" style="fill:${inf.cor}"/></g>`;
+  const tipos=[...new Set(lista.map(e=>plEvInfo(e.tipo).s))]; let s=""; // um por emoji
+  tipos.forEach((em,k)=>{const es=lista.filter(e=>plEvInfo(e.tipo).s===em), inf={s:em}, y=y0+k*17;
+    const tit=`${rotulo}: ${[...new Set(es.map(e=>e.tipo==="Clima"?"ocorrência de clima":e.tipo))].join(", ")}${es.length>1?` (${es.length}×)`:""} — ${es.map(e=>brDate(e.data).slice(0,5)+(e.desc?" "+e.desc:"")).join("; ")}`;
+    const fs=Math.max(11,Math.min(14,cw));
+    s+=`<g class="pl-selo"><title>${esc(tit)}</title><text x="${x}" y="${y+7}" font-size="${fs}" text-anchor="middle" dominant-baseline="central">${inf.s}</text></g>`;
   });
   return {s,n:tipos.length};
 }
-const plEvLegenda=evs=>{const ts=[...new Set(evs.map(e=>e.tipo))]; return ts.length?`<div class="pl-evleg">${ts.map(t=>{const inf=plEvInfo(t); return `<span><b style="background:${inf.cor}">${inf.s}</b>${esc(t==="Clima"?"Ocorrência de clima":t)}</span>`}).join("")}</div>`:""};
+const plEvNome={"🧊":"Granizo","❄️":"Geada","💨":"Vento forte","⛈️":"Temporal","🌊":"Enxurrada / erosão","⚠️":"Ocorrência de clima"};
+const plEvLegenda=evs=>{const ems=[...new Set(evs.map(e=>plEvInfo(e.tipo).s))]; return ems.length?`<div class="pl-evleg">${ems.map(em=>`<span><b>${em}</b>${esc(plEvNome[em]||"")}</span>`).join("")}</div>`:""};
 
 /* ---------- chuva dia a dia de um mês (abre ao tocar no mês do gráfico ou da tabela) ---------- */
 let plMes=null;
