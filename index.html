@@ -1807,14 +1807,14 @@ function renderFotosForm(){
 }
 async function encolher(file){
   try{
-    const bmp=await createImageBitmap(file);
+    const bmp=await (window.abrirImagem?window.abrirImagem(file):createImageBitmap(file));
     const s=Math.min(1,1600/Math.max(bmp.width,bmp.height));
     const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
     c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     return (await new Promise(r=>c.toBlob(r,"image/jpeg",.82)))||file;
   }catch{return file}
 }
-const ERR_FOTO={too_large:"Foto grande demais (máx. 20 MB).",unsupported_type:"Formato de foto não aceito. Use JPG ou PNG.",quota_or_state:"Espaço para fotos esgotado.",rate_limited:"Muitas fotos de uma vez. Espere um pouco."};
+const ERR_FOTO={too_large:"Foto grande demais, mesmo reduzida.",unsupported_type:"Não consegui abrir esta foto. Use JPG ou PNG.",heic:"Não consegui converter esta foto do iPhone (HEIC). Confira a internet e tente de novo, ou envie a foto em JPG.",quota_or_state:"Espaço para fotos esgotado.",rate_limited:"Muitas fotos de uma vez. Espere um pouco."};
 $("#f-foto-in").addEventListener("change",e=>{
   for(const file of e.target.files){
     if(!assets) break;

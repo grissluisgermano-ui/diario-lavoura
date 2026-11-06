@@ -132,9 +132,28 @@
   } }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["src"] });
 
   const blobParaDataUrl = b => new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(b) });
+  /* Abre qualquer foto como imagem: JPG/PNG direto; se o navegador não abrir (ex.: HEIC do iPhone no Chrome),
+     tenta pela tag <img> e, se for HEIC, converte com a biblioteca heic2any (baixada só nessa hora). */
+  let heicLib = null;
+  const ehHeic = async b => /hei[cf]/i.test(b.type || "") || /\.hei[cf]$/i.test(b.name || "") ||
+    /ftyp(heic|heix|hevc|mif1|msf1)/.test(await b.slice(0, 32).text().catch(() => ""));
+  async function abrirImagem(blob) {
+    try { return await createImageBitmap(blob) } catch {}
+    try {
+      const url = URL.createObjectURL(blob), img = new Image(); img.src = url;
+      try { await img.decode(); return await createImageBitmap(img) } finally { URL.revokeObjectURL(url) }
+    } catch {}
+    if (await ehHeic(blob)) {
+      if (!window.heic2any) heicLib = heicLib || new Promise((ok, err) => { const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"; sc.onload = ok; sc.onerror = err; document.head.appendChild(sc) });
+      try { await heicLib; const j = await window.heic2any({ blob, toType: "image/jpeg", quality: 0.85 }); return await createImageBitmap(Array.isArray(j) ? j[0] : j) }
+      catch { heicLib = null; throw { code: "heic" } }
+    }
+    throw { code: "unsupported_type" };
+  }
+  window.abrirImagem = abrirImagem;
   async function reduzFoto(blob) {
     // Firestore aceita até 1 MB por documento: reduzimos até caber com folga (~700 KB em texto).
-    let bmp; try { bmp = await createImageBitmap(blob) } catch { return blobParaDataUrl(blob) }
+    const bmp = await abrirImagem(blob);
     for (const [lado, q] of [[1600, .8], [1400, .72], [1200, .65], [1000, .6], [800, .55]]) {
       const s = Math.min(1, lado / Math.max(bmp.width, bmp.height));
       const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);

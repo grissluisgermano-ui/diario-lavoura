@@ -7,7 +7,7 @@ App de gestão da lavoura do **Luis** (sócio com a irmã; o pai, **Nestor Griss
 - `index.html` — o app inteiro (HTML + CSS + JS num arquivo só). Nasceu como artifact do Claude.
 - `ponte.js` — recria, com Firebase, a API que o artifact usava (`window.claude.use("db" | "assets" | "downloads" | "sample" | "user")`). Por isso o código do `index.html` continua chamando `claude.use(...)`.
   - `db` → Firestore (API compat v10, mesma forma: `collection().doc().set/get/delete/onSnapshot`, `add`). Gravações não travam sem internet (resolvem em até 1,5 s e sobem depois).
-  - `assets` → fotos **reduzidas** (JPEG ≤ ~700 KB em base64) guardadas na coleção `fotos` (`{d: dataURL}`), sem Firebase Storage (que exigiria plano pago). `fotoSrc(id)` devolve `foto:<id>` e um MutationObserver troca pelo dataURL.
+  - `assets` → fotos **reduzidas** (JPEG ≤ ~700 KB em base64; `abrirImagem` abre também HEIC do iPhone, convertendo com heic2any 0.0.4 do jsdelivr só quando o navegador não abre) guardadas na coleção `fotos` (`{d: dataURL}`), sem Firebase Storage (que exigiria plano pago). `fotoSrc(id)` devolve `foto:<id>` e um MutationObserver troca pelo dataURL.
   - `downloads` → compartilhar (iPhone) ou baixar (computador).
   - `sample` → API da Anthropic direto do navegador, **opcional**, com a chave guardada só no aparelho (Configurações → Claude). Sem chave, `sample` é `null` e o app desliga Perguntar / leitura de PDF / princípio ativo automático (o XML da NF-e funciona sem Claude).
   - `user` → Firebase Auth (e-mail/senha) + coleção `usuarios/{uid}` `{nome, email}` para o "lançado por".
