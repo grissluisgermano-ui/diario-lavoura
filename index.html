@@ -372,6 +372,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pl-dia-res b{font-family:var(--f-mono)}
 .pl-dia-cmp i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .pl-dia .chart svg{min-width:0}
+.pl-snav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}
+.pl-snav b{font-size:1.02rem}
+.pl-snav .btn{min-width:72px}
 .pl-ac-h{margin:6px 0 0;font-size:.95rem}
 .tbl-wrap{overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums}
@@ -1989,7 +1992,9 @@ const plEvNome={GR:"Granizo",GE:"Geada",VT:"Vento forte / temporal",EX:"Enxurrad
 const plEvLegenda=evs=>{const ss=[...new Set(evs.map(e=>plEvInfo(e.tipo).s))]; return ss.length?`<div class="pl-evleg">${ss.map(sg=>{const t=evs.find(e=>plEvInfo(e.tipo).s===sg).tipo, inf=plEvInfo(t); return `<span><b style="background:${inf.cor}">${sg}</b>${esc(plEvNome[sg]||t)}</span>`}).join("")}</div>`:""};
 
 /* ---------- chuva dia a dia de um mês (abre ao tocar no mês do gráfico ou da tabela) ---------- */
-let plMes=null;
+let plMes=null, plAnos=[];
+/* troca a safra mostrada (‹ › do gráfico e do dia a dia) */
+function plIrSafra(y,mes){const sel=$("#sf-safra"); sel.value=String(y); if(mes!==undefined) plMes=mes; renderChuvas()}
 function plAbreMes(i){plMes=plMes===i?null:i; renderChuvas(); if(plMes!=null) requestAnimationFrame(()=>$("#pl-dia")?.scrollIntoView({block:"start",behavior:"smooth"}))}
 function plDia(cur,antes){
   const box=$("#pl-dia"); if(!box) return;
@@ -2014,7 +2019,7 @@ function plDia(cur,antes){
     if(d.iso>hoje&&!d.n) s+=`<rect class="pl-fut" x="${L+cw*k}" y="${T}" width="${cw}" height="${H-T-B}"/>`;
   });
   s+="</svg>";
-  const ant=antes.map(x=>({y:x.y,cor:x.cor,mm:x.t[i].mm}));
+  const ant=antes.filter(x=>!x.t[i].fut).map(x=>({y:x.y,cor:x.cor,mm:x.t[i].mm}));
   // chuva acumulada no mês: safra atual × mesmo mês das safras anteriores
   const acumDe=(mk2,ate)=>{const [y2,m2]=mk2.split("-").map(Number), n2=new Date(y2,m2,0).getDate(); let a=0; const out=[];
     for(let d=1;d<=n2;d++){const iso=`${mk2}-${String(d).padStart(2,"0")}`; if(ate&&iso>ate) break; a+=registros.filter(r=>r.tipo==="chuva"&&r.data===iso).reduce((s,r)=>s+(Number(r.campos?.mm)||0),0); out.push(a)} return out};
@@ -2032,14 +2037,17 @@ function plDia(cur,antes){
   }
   box.hidden=false;
   box.innerHTML=`<div class="pl-dia-top"><h3>${["Julho","Agosto","Setembro","Outubro","Novembro","Dezembro","Janeiro","Fevereiro","Março","Abril","Maio","Junho"][i]} de ${yy} <span class="note">dia a dia</span></h3>
-      <div class="pl-dia-nav"><button type="button" class="btn ghost fn-mini" data-pld="-1" ${i===0?"disabled":""} aria-label="Mês anterior">‹</button><button type="button" class="btn ghost fn-mini" data-pld="1" ${i===11?"disabled":""} aria-label="Próximo mês">›</button><button type="button" class="btn ghost fn-mini" data-pld="x">Fechar</button></div></div>
+      <div class="pl-dia-nav"><button type="button" class="btn ghost fn-mini" data-pld="-1" ${i===0&&!plAnos.some(y=>y<cur)?"disabled":""} aria-label="Mês anterior">‹</button><button type="button" class="btn ghost fn-mini" data-pld="1" ${i===11&&!plAnos.some(y=>y>cur)?"disabled":""} aria-label="Próximo mês">›</button><button type="button" class="btn ghost fn-mini" data-pld="x">Fechar</button></div></div>
     <div class="pl-dia-res"><span><b>${num(tot)} mm</b> no mês</span><span><b>${comChuva}</b> dia${comChuva===1?"":"s"} com chuva</span>${maior?`<span>Maior: <b>${num(maior.mm)} mm</b> em ${brDate(maior.iso).slice(0,5)}</span>`:""}</div>
     <div class="chart">${tot>0||evM.length?s:`<p class="note">Nenhuma chuva lançada neste mês.</p>`}</div>
     ${plEvLegenda(evM)}
     ${sa?`<h4 class="pl-ac-h">Chuva acumulada no mês</h4><div class="chart">${sa}</div>`:""}
     ${ant.length?`<div class="pl-dia-cmp"><span><i style="background:var(--t-chuva)"></i>${safraLab(cur)} <b>${num(tot)} mm</b>${mk.slice(0,7)===hoje.slice(0,7)?" até hoje":""}</span>${ant.map(x=>`<span><i style="background:${x.cor}"></i>${safraLab(x.y)} <b>${x.mm?num(x.mm)+" mm":"–"}</b></span>`).join("")}</div>`:""}
     ${evM.length?`<p class="note">Eventos no mês: ${evM.map(e=>`${brDate(e.data).slice(0,5)} ${esc(e.tipo==="Clima"?(e.desc||"ocorrência de clima"):e.tipo)}`).join(" · ")}</p>`:""}`;
-  box.querySelectorAll("[data-pld]").forEach(b=>b.onclick=()=>{const v=b.dataset.pld; if(v==="x"){plMes=null; renderChuvas(); return} plMes=Math.min(11,Math.max(0,plMes+Number(v))); renderChuvas()});
+  box.querySelectorAll("[data-pld]").forEach(b=>b.onclick=()=>{const v=b.dataset.pld; if(v==="x"){plMes=null; renderChuvas(); return} const n=plMes+Number(v);
+    if(n<0){const y=Math.max(...plAnos.filter(y=>y<cur)); if(isFinite(y)) plIrSafra(y,11); return}
+    if(n>11){const y=Math.min(...plAnos.filter(y=>y>cur)); if(isFinite(y)) plIrSafra(y,0); return}
+    plMes=n; renderChuvas()});
 }
 const PL_CORES=["#d95926","#199e70","#8e5bd0","#c98500","#d6457a"];
 let plOcultas=new Set(); try{plOcultas=new Set(JSON.parse(localStorage.getItem("pl-ocultas")||"[]"))}catch{}
@@ -2059,9 +2067,12 @@ function renderChuvas(){
     return {mm:rs.reduce((a,r)=>a+mmDe(r),0),dias:new Set(rs.filter(r=>mmDe(r)>0).map(r=>r.data)).size,n:rs.length}});
   const a=tot(cur);
   // safras anteriores com chuva lançada (as mais recentes primeiro, até 5)
-  const antes=anos.filter(y=>y<cur&&chuvas.some(r=>safraDe(r.data)===y)).slice(0,5).map((y,i)=>({y,t:tot(y),cor:PL_CORES[i%PL_CORES.length]}));
+  // outras safras com chuva (as mais próximas da escolhida, até 5); a cor fica sempre a mesma para cada safra
+  const antes=anos.filter(y=>y!==cur&&chuvas.some(r=>safraDe(r.data)===y)).sort((x,y)=>Math.abs(x-cur)-Math.abs(y-cur)||y-x).slice(0,5).sort((x,y)=>y-x)
+    .map(y=>({y,t:tot(y).map((m,i)=>({...m,fut:mesKey(y,i)>hoje.slice(0,7)})),cor:PL_CORES[(atual-y+PL_CORES.length-1)%PL_CORES.length]}));
+  plAnos=anos;
   const visiveis=antes.filter(x=>!plOcultas.has(x.y));
-  const media=antes.length>1?MESES.map((_,i)=>antes.reduce((s,x)=>s+x.t[i].mm,0)/antes.length):null, verMedia=media&&!plOcultas.has("media");
+  const media=antes.length>1?MESES.map((_,i)=>{const vs=antes.filter(x=>!x.t[i].fut); return vs.length?vs.reduce((s,x)=>s+x.t[i].mm,0)/vs.length:null}):null, verMedia=media&&!plOcultas.has("media");
   const daSafra=chuvas.filter(r=>safraDe(r.data)===cur);
   const total=a.reduce((s,x)=>s+x.mm,0);
   $("#pl-total").textContent=num(total)+" mm";
@@ -2074,7 +2085,7 @@ function renderChuvas(){
   const evS=plEventos(`${cur}-07-01`,`${cur+1}-06-30`), evMes=i=>{const k=mesKey(cur,i); return evS.filter(e=>e.data.slice(0,7)===k)};
   const pilhaS=Math.max(0,...MESES.map((_,i)=>new Set(evMes(i).map(e=>e.tipo)).size));
   const W=Math.max(320,Math.min(900,$("#pl-chart").clientWidth||640)),H=(W<500?240:260)+pilhaS*17,L=34,R=6,T=20+pilhaS*17,B=26, cw=(W-L-R)/12, bw=cw*.58;
-  const vmax=Math.max(...a.map(x=>x.mm),...visiveis.flatMap(x=>x.t.map(m=>m.mm)),...(verMedia?media:[0]),10);
+  const vmax=Math.max(...a.map(x=>x.mm),...visiveis.flatMap(x=>x.t.filter(m=>!m.fut).map(m=>m.mm)),...(verMedia?media.filter(v=>v!=null):[0]),10);
   const passo=vmax>400?200:vmax>200?100:vmax>80?50:20, top=Math.ceil(vmax/passo)*passo;
   const yv=v=>T+(H-T-B)*(1-v/top), cx=i=>L+cw*i+cw/2;
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chuva mensal da safra ${safraLab(cur)} em milímetros, comparada com as safras anteriores">`;
@@ -2086,26 +2097,30 @@ function renderChuvas(){
       const y0=Math.max(2,yv(x.mm)-(x.mm>0?18:3)-nt*17); // logo acima da barra
       s+=plSelos(em,cx(i),y0,cw,`${MESES[i]}/${mesKey(cur,i).slice(2,4)}`).s}});
   const linha=(vals,cor,rot,tracejado)=>{
-    const pts=vals.map((v,i)=>`${cx(i).toFixed(1)},${yv(v).toFixed(1)}`).join(" ");
-    return `<polyline class="pl-l" points="${pts}" style="stroke:${cor}"${tracejado?` stroke-dasharray="6 4"`:""}/>`+vals.map((v,i)=>`<circle class="pl-p" cx="${cx(i)}" cy="${yv(v)}" r="3.2" style="fill:${cor}"><title>${MESES[i]} ${rot}: ${num(v)} mm</title></circle>`).join("");
+    // meses que ainda não chegaram (safra em andamento) ficam sem ponto
+    const pts=vals.map((v,i)=>v==null?null:`${cx(i).toFixed(1)},${yv(v).toFixed(1)}`).filter(Boolean).join(" ");
+    return `<polyline class="pl-l" points="${pts}" style="stroke:${cor}"${tracejado?` stroke-dasharray="6 4"`:""}/>`+vals.map((v,i)=>v==null?"":`<circle class="pl-p" cx="${cx(i)}" cy="${yv(v)}" r="3.2" style="fill:${cor}"><title>${MESES[i]} ${rot}: ${num(v)} mm</title></circle>`).join("");
   };
-  for(const x of [...visiveis].reverse()) s+=linha(x.t.map(m=>m.mm),x.cor,safraLab(x.y));
+  for(const x of [...visiveis].reverse()) s+=linha(x.t.map(m=>m.fut?null:m.mm),x.cor,safraLab(x.y));
   if(verMedia) s+=linha(media,"var(--ink)","média",true);
   // faixa invisível por mês: tocar abre a chuva dia a dia
   a.forEach((x,i)=>{s+=`<rect class="pl-hit${plMes===i?" on":""}" data-plm="${i}" x="${L+cw*i}" y="${T-6}" width="${cw}" height="${H-T-B+22}"><title>Ver ${MESES[i]} dia a dia</title></rect>`});
   s+="</svg>";
   const chip=(k,cor,rot,on,tr)=>`<button type="button" class="pl-chip" data-plk="${k}" aria-pressed="${on}"><i style="${tr?`border-top:2px dashed ${cor};background:none;height:0`:`background:${cor}`}"></i>${rot}</button>`;
-  $("#pl-chart").innerHTML=(daSafra.length?"":`<p class="note">Nenhuma chuva lançada na safra ${safraLab(cur)} ainda.</p>`)+s+
-    plEvLegenda(evS)+`<div class="legend pl-leg"><span><i></i>Safra ${safraLab(cur)}</span>${antes.map(x=>chip(x.y,x.cor,`Safra ${safraLab(x.y)}`,!plOcultas.has(x.y))).join("")}${media?chip("media","var(--ink)",`Média das ${antes.length} anteriores`,verMedia,true):""}</div>`+
-    (antes.length?`<p class="note pl-dica">Toque numa safra para mostrar ou esconder a linha.</p>`:`<p class="note pl-dica">Quando houver chuva lançada em safras anteriores, elas aparecem aqui como linhas para comparar.</p>`);
+  const iA=anos.indexOf(cur), mais=anos[iA-1], menos=anos[iA+1];
+  const nav=`<div class="pl-snav"><button type="button" class="btn ghost fn-mini" data-pls="${menos??""}" ${menos==null?"disabled":""} aria-label="Safra anterior">‹ ${menos!=null?safraLab(menos):""}</button><b>Safra ${safraLab(cur)}</b><button type="button" class="btn ghost fn-mini" data-pls="${mais??""}" ${mais==null?"disabled":""} aria-label="Próxima safra">${mais!=null?safraLab(mais):""} ›</button></div>`;
+  $("#pl-chart").innerHTML=nav+(daSafra.length?"":`<p class="note">Nenhuma chuva lançada na safra ${safraLab(cur)} ainda.</p>`)+s+
+    plEvLegenda(evS)+`<div class="legend pl-leg"><span><i></i>Safra ${safraLab(cur)}</span>${antes.map(x=>chip(x.y,x.cor,`Safra ${safraLab(x.y)}`,!plOcultas.has(x.y))).join("")}${media?chip("media","var(--ink)",`Média das outras ${antes.length}`,verMedia,true):""}</div>`+
+    (antes.length?`<p class="note pl-dica">Toque numa safra para mostrar ou esconder a linha.</p>`:`<p class="note pl-dica">Quando houver chuva lançada em outras safras, elas aparecem aqui como linhas para comparar.</p>`);
   $("#pl-chart").querySelectorAll("[data-plm]").forEach(b=>b.onclick=()=>plAbreMes(+b.dataset.plm));
+  $("#pl-chart").querySelectorAll("[data-pls]").forEach(b=>b.onclick=()=>{if(b.dataset.pls) plIrSafra(+b.dataset.pls)});
   $("#pl-chart").querySelectorAll("[data-plk]").forEach(b=>b.onclick=()=>{const k=b.dataset.plk==="media"?"media":+b.dataset.plk; plOcultas.has(k)?plOcultas.delete(k):plOcultas.add(k); try{localStorage.setItem("pl-ocultas",JSON.stringify([...plOcultas]))}catch{} renderChuvas()});
 
   // tabela: mês a mês com cada safra anterior e a diferença para a média
   const tt=t=>t.reduce((s,x)=>s+x.mm,0), dif=(v,m)=>{if(!m) return ""; const d=v-m; return `<small class="${d>=0?"pl-mais":"pl-menos"}">${d>=0?"+":"−"}${num(Math.abs(d))}</small>`};
   $("#pl-tab").innerHTML=`<thead><tr><th>Mês</th><th>${safraLab(cur)}</th><th>Dias</th>${antes.map(x=>`<th>${safraLab(x.y)}</th>`).join("")}${media?`<th>Média</th>`:""}</tr></thead><tbody>`+
-    a.map((x,i)=>`<tr class="pl-tr${plMes===i?" on":""}" data-plm="${i}" tabindex="0" role="button" aria-label="Ver a chuva de ${MESES[i]} dia a dia"><td><span class="pl-mes">${MESES[i]}/${mesKey(cur,i).slice(2,4)}</span></td><td>${x.n?num(x.mm):"–"}${x.n&&media?" "+dif(x.mm,media[i]):""}</td><td>${x.n?x.dias:"–"}</td>${antes.map(p=>`<td>${p.t[i].mm?num(p.t[i].mm):"–"}</td>`).join("")}${media?`<td>${num(media[i])}</td>`:""}</tr>`).join("")+
-    `</tbody><tfoot><tr><td>Total</td><td>${num(total)}</td><td>${a.reduce((s,x)=>s+x.dias,0)}</td>${antes.map(p=>`<td>${num(tt(p.t))}</td>`).join("")}${media?`<td>${num(media.reduce((s,v)=>s+v,0))}</td>`:""}</tr></tfoot>`;
+    a.map((x,i)=>`<tr class="pl-tr${plMes===i?" on":""}" data-plm="${i}" tabindex="0" role="button" aria-label="Ver a chuva de ${MESES[i]} dia a dia"><td><span class="pl-mes">${MESES[i]}/${mesKey(cur,i).slice(2,4)}</span></td><td>${x.n?num(x.mm):"–"}${x.n&&media?" "+dif(x.mm,media[i]):""}</td><td>${x.n?x.dias:"–"}</td>${antes.map(p=>`<td>${p.t[i].mm?num(p.t[i].mm):"–"}</td>`).join("")}${media?`<td>${media[i]==null?"–":num(media[i])}</td>`:""}</tr>`).join("")+
+    `</tbody><tfoot><tr><td>Total</td><td>${num(total)}</td><td>${a.reduce((s,x)=>s+x.dias,0)}</td>${antes.map(p=>`<td>${num(tt(p.t))}</td>`).join("")}${media?`<td>${num(media.reduce((s,v)=>s+(v||0),0))}</td>`:""}</tr></tfoot>`;
 
   $("#pl-tab").querySelectorAll("[data-plm]").forEach(tr=>{tr.onclick=()=>plAbreMes(+tr.dataset.plm); tr.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault(); plAbreMes(+tr.dataset.plm)}}});
   plDia(cur,antes);
