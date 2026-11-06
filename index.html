@@ -205,6 +205,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .es-pane{display:flex;flex-direction:column;gap:14px}
 .es-pane[hidden]{display:none}
 .ne-vazio{display:none}
+.pe-form,.ent-ed{display:flex;flex-direction:column;gap:8px;background:var(--sunk);border-radius:10px;padding:10px 12px;margin:6px 0}
+.pe-conv{display:flex;flex-direction:column;gap:4px}
+.pe-conv[hidden]{display:none}
+.pe-conv .note{margin:0}
 #ne-box[hidden]+.ne-vazio{display:block}
 .tabs .tabs-s button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--accent)}
 .tabs button[aria-selected="true"]{background:var(--tab-on);color:var(--tab-on-ink);box-shadow:0 1px 3px rgba(0,0,0,.18)}
@@ -1642,7 +1646,74 @@ function resumoProd(prod){
   const saldo=entrou-usado;
   return {entrou,usado,saldo,programado,disponivel:saldo-programado,custo,custoLiq,usos,semConv,valorSaldo:custo!=null?Math.max(saldo,0)*custo:0};
 }
+/* ---------- editar produto e entradas do estoque ---------- */
+let esEdit=null;
+function peForm(e){
+  return `<div class="pe-form" data-pe="${e.id}">
+    <div class="grid2">
+      <div class="field"><label>Nome comercial</label><input class="pe-nome" value="${esc(e.comercial)}"></div>
+      <div class="field"><label>Princípio ativo</label><input class="pe-gen" value="${esc(e.generico||"")}"></div>
+      <div class="field"><label>Classe</label><select class="pe-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===e.classe?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Unidade do estoque</label><select class="pe-un">${["L","kg","sc","un"].map(u=>`<option ${u===e.unidade?"selected":""}>${u}</option>`).join("")}</select></div>
+    </div>
+    <div class="pe-conv" hidden>
+      <div class="field"><label class="pe-conv-l">Converter as entradas</label><input class="pe-fator" inputmode="decimal" value="1"></div>
+      <p class="note pe-conv-n"></p>
+    </div>
+    <div class="row"><button type="button" class="btn fn-mini pe-ok">Salvar produto</button><button type="button" class="link pe-x">Cancelar</button><span class="note pe-st" role="status"></span></div>
+  </div>`;
+}
+function peLiga(box){
+  const e=estoque.find(x=>x.id===box.dataset.pe); if(!e) return;
+  const un=box.querySelector(".pe-un"), fat=box.querySelector(".pe-fator"), conv=box.querySelector(".pe-conv");
+  const ent=(e.entradas||[]).reduce((t,x)=>t+(Number(x.quantidade)||0),0);
+  const mostra=()=>{const mudou=un.value!==e.unidade; conv.hidden=!mudou||!(e.entradas||[]).length;
+    box.querySelector(".pe-conv-l").textContent=`Quantos ${un.value} tem cada 1 ${e.unidade}? (ex.: galão de 5 L → 5)`;
+    const f=parseNum(fat.value)||1; box.querySelector(".pe-conv-n").textContent=`As entradas passam de ${num(ent)} ${e.unidade} para ${num(ent*f)} ${un.value}. O valor pago não muda. Deixe 1 se as quantidades já estão certas.`};
+  un.onchange=mostra; fat.oninput=mostra; mostra();
+  box.querySelector(".pe-x").onclick=()=>{esEdit=null; renderEstoque()};
+  box.querySelector(".pe-ok").onclick=async ev=>{
+    const st=t=>box.querySelector(".pe-st").textContent=t;
+    const nome=box.querySelector(".pe-nome").value.trim(); if(!nome){st("Informe o nome.");return}
+    const outro=prodEstoque(nome); if(outro&&outro.id!==e.id){st("Já existe outro produto com esse nome.");return}
+    const f=un.value!==e.unidade?(parseNum(fat.value)||1):1; if(!(f>0)){st("Confira a conversão.");return}
+    ev.target.disabled=true;
+    try{
+      const {id,...doc}=e, antigo=e.comercial;
+      doc.comercial=nome; doc.generico=box.querySelector(".pe-gen").value.trim(); doc.classe=box.querySelector(".pe-cla").value; doc.unidade=un.value;
+      if(f!==1) doc.entradas=(e.entradas||[]).map(x=>({...x,quantidade:+((Number(x.quantidade)||0)*f).toFixed(3)}));
+      await db.collection("estoque").doc(id).set(doc);
+      // atividades que usam o produto passam a mostrar o nome novo
+      if(antigo!==nome){const a=antigo.toLowerCase();
+        for(const r of registros){const ps=r.campos?.produtos||[]; if(!ps.some(p=>p.produtoId===id||(!p.produtoId&&String(p.nome).toLowerCase()===a))) continue;
+          const {id:rid,...rd}=r; rd.campos={...rd.campos,produtos:ps.map(p=>p.produtoId===id||(!p.produtoId&&String(p.nome).toLowerCase()===a)?{...p,nome,produtoId:id}:p)}; await col.doc(rid).set(rd)}}
+      esEdit=null; renderEstoque();
+    }catch{st("Não foi possível salvar. Tente de novo."); ev.target.disabled=false}
+  };
+}
+function entEditar(b,id,i){
+  const e=estoque.find(x=>x.id===id), x=e?.entradas?.[i]; if(!x) return;
+  const row=b.closest(".ent"); if(row.nextElementSibling?.classList.contains("ent-ed")){row.nextElementSibling.remove();return}
+  const f=document.createElement("div"); f.className="ent-ed";
+  f.innerHTML=`<div class="grid2">
+    <div class="field"><label>Data</label><input type="date" class="ee-d" value="${esc(x.data||"")}"></div>
+    <div class="field"><label>Quantidade (${e.unidade})</label><input class="ee-q" inputmode="decimal" value="${String(x.quantidade??"").replace(".",",")}"></div>
+    <div class="field"><label>Valor total (R$)</label><input class="ee-v" inputmode="decimal" value="${x.valorTotal!=null?Number(x.valorTotal).toFixed(2).replace(".",","):""}"></div>
+    <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div></div>
+    <div class="row"><button type="button" class="btn fn-mini ee-ok">Salvar entrada</button><button type="button" class="link ee-x">Cancelar</button></div>`;
+  row.after(f);
+  f.querySelector(".ee-x").onclick=()=>f.remove();
+  f.querySelector(".ee-ok").onclick=async ev=>{
+    const q=parseNum(f.querySelector(".ee-q").value), v=parseNum(f.querySelector(".ee-v").value);
+    if(!(q>0)){f.querySelector(".ee-q").focus();return}
+    ev.target.disabled=true;
+    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim()});
+    try{await db.collection("estoque").doc(id).set(doc)}catch{ev.target.disabled=false}
+  };
+}
 function renderEstoque(){
+  // o app redesenha a lista quando chega qualquer novidade da nuvem: guarda o que está sendo digitado na edição
+  const peAtual=document.querySelector(".pe-form"), peRasc=peAtual?[...peAtual.querySelectorAll("input,select")].map(i=>i.value):null, peFoco=peAtual?[...peAtual.querySelectorAll("input,select")].indexOf(document.activeElement):-1;
   const q=$("#es-busca").value.trim().toLowerCase();
   const rs=estoque.map(e=>({e,s:resumoProd(e)}));
   $("#es-n").textContent=estoque.length;
@@ -1663,10 +1734,16 @@ function renderEstoque(){
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
-    <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
+    ${esEdit===e.id?peForm(e):""}
+    <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
   </article>`).join("");
+  $("#es-lista").querySelectorAll("[data-edprod]").forEach(b=>b.onclick=()=>{esEdit=esEdit===b.dataset.edprod?null:b.dataset.edprod; renderEstoque(); if(esEdit) document.querySelector(`.pe-form[data-pe="${esEdit}"] input`)?.focus()});
+  $("#es-lista").querySelectorAll(".pe-form").forEach(box=>{
+    if(peRasc&&box.dataset.pe===peAtual.dataset.pe){const els=[...box.querySelectorAll("input,select")]; els.forEach((el,k)=>{if(peRasc[k]!=null) el.value=peRasc[k]}); if(peFoco>=0) els[peFoco]?.focus()}
+    peLiga(box)});
+  $("#es-lista").querySelectorAll("[data-edent]").forEach(b=>b.onclick=()=>{const [id,i]=b.dataset.edent.split(":"); entEditar(b,id,+i)});
   $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada);esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
   $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
   $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
