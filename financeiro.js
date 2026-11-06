@@ -1183,6 +1183,24 @@ function renderSafra(){
 /* ---------- ligação com o app ---------- */
 window.finImportarXml=f=>importarXml(f);
 window.finColecoes=()=>({fin_contas:fnContas,fin_lanc:fnLanc});
+/* usado pelo "Lançar o mês" das notas antigas (lote-notas.js): conta a pagar por parcela, já paga no vencimento se pedir */
+window.finLote={
+  contas:()=>fnContas, contaPadrao, lembraConta,
+  jaLancada:fin=>!!jaLancada(fin.chave,fin.numero,fin.emit),
+  async lancarNota(fin,{pago,conta,itens}){
+    if(!db||!fin||jaLancada(fin.chave,fin.numero,fin.emit)) return 0;
+    const cat=itens?.length?catDosItens(itens.map(i=>({classe:i.classe,desc:i.nome,valor:i.v}))):fin.categoria;
+    const parcs=parcelasDaNota(fin), grupo=parcs.length>1?rid():null, agora=new Date().toISOString();
+    for(let i=0;i<parcs.length;i++){
+      const b={natureza:"pagar",descricao:`Compra de ${catNome(cat).toLowerCase()} — NF ${fin.numero}`,pessoa:fin.emit,categoria:cat,forma:formaNota(fin),competencia:fin.data,
+        vencimento:parcs[i].venc,valor:parcs[i].valor,status:pago&&parcs[i].venc<=hoje()?"pago":"aberto",nf:fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",contrato:fin.contrato||"",criadoEm:agora};
+      if(b.status==="pago"){b.pagoEm=parcs[i].venc; b.contaId=conta}
+      if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
+      await db.collection("fin_lanc").add(b);
+    }
+    return parcs.length;
+  }
+};
 window.finPlanilha=function(add,dt){
   const ord=[...fnLanc].sort((a,b)=>String(a.vencimento).localeCompare(String(b.vencimento)));
   add("Financeiro",ord.map(l=>({"Tipo":FN_NAT[l.natureza]||l.natureza,"Descrição":l.descricao||"","Parcela":l.parcela||"","Fornecedor / comprador":l.pessoa||"",

@@ -60,6 +60,39 @@ function importarNotasEmail() {
   console.log(`${emails} e-mails novos lidos: ${novas} notas novas, ${repetidas} já estavam no app, ${canceladas} cancelamentos${doSpam ? `, ${doSpam} tirados do Spam` : ""}.`);
 }
 
+/**
+ * NOTAS ANTIGAS — rode UMA vez "buscarNotasAntigas" depois de trazer os e-mails antigos (ex.: do Hotmail) para o Gmail.
+ * Lê TODOS os e-mails com XML do Gmail, de qualquer data, aos poucos (o Google limita cada execução a 6 minutos):
+ * cria um agendamento que continua de 10 em 10 minutos de onde parou e se apaga sozinho quando termina.
+ * Notas que já estão no app (ou que foram excluídas nele) não entram de novo.
+ */
+const ANT_POS = "notasAntigasPos", ANT_BUSCA = 'in:anywhere -in:trash has:attachment (filename:xml OR filename:zip)';
+function buscarNotasAntigas() {
+  PropertiesService.getScriptProperties().setProperty(ANT_POS, "0");
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === "continuarNotasAntigas").forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger("continuarNotasAntigas").timeBased().everyMinutes(10).create();
+  continuarNotasAntigas();
+}
+function continuarNotasAntigas() {
+  const props = PropertiesService.getScriptProperties(), inicio = Date.now();
+  let pos = Number(props.getProperty(ANT_POS) || 0), novas = 0, repetidas = 0, fim = false;
+  const etiqueta = GmailApp.getUserLabelByName(NOTAS_ETIQUETA) || GmailApp.createLabel(NOTAS_ETIQUETA);
+  while (Date.now() - inicio < 4.5 * 60 * 1000) {
+    const conversas = GmailApp.search(ANT_BUSCA, pos, 20);
+    if (!conversas.length) { fim = true; break }
+    for (const conversa of conversas) {
+      let temNota = false;
+      for (const msg of conversa.getMessages()) for (const anexo of msg.getAttachments()) for (const xml of xmlsDoAnexo(anexo)) {
+        const r = guardarXmlNota(xml, msg); if (r) temNota = true; if (r === "nova") novas++; else if (r === "repetida") repetidas++;
+      }
+      if (temNota) { if (conversa.isInSpam()) conversa.moveToInbox(); conversa.addLabel(etiqueta) }
+    }
+    pos += conversas.length; props.setProperty(ANT_POS, String(pos));
+  }
+  console.log(`Notas antigas: ${pos} conversas lidas até agora; nesta rodada ${novas} notas novas e ${repetidas} que já estavam no app.${fim ? " TERMINOU." : " Continua em 10 minutos."}`);
+  if (fim) ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === "continuarNotasAntigas").forEach(t => ScriptApp.deleteTrigger(t));
+}
+
 /** Textos XML de um anexo: o próprio .xml, ou os .xml de dentro de um .zip (inclusive em subpastas). */
 function xmlsDoAnexo(anexo) {
   const nome = anexo.getName() || "", tipo = anexo.getContentType() || "";

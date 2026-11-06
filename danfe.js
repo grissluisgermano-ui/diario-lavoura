@@ -141,7 +141,12 @@ function lancada(chave){
   if((typeof estoque!=="undefined"?estoque:[]).some(p=>(p.entradas||[]).some(x=>x.chave===chave))) return true;
   return (window.finColecoes?.().fin_lanc||[]).some(l=>l.chave===chave);
 }
-const pendentes=()=>nfeDocs.filter(d=>d.origem==="email"&&!d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+const pendentesTodas=()=>nfeDocs.filter(d=>d.origem==="email"&&!d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+/* notas com mais de 90 dias vão para "Notas antigas" (lançadas por mês, em lote-notas.js) e não contam na bolinha */
+const corte=()=>{const d=new Date(); d.setDate(d.getDate()-90); return d.toISOString().slice(0,10)};
+const pendentes=()=>{const c=corte(); return pendentesTodas().filter(d=>!d.data||d.data>=c)};
+window.nePendentesAntigas=()=>{const c=corte(); return pendentesTodas().filter(d=>d.data&&d.data<c)};
+window.neLancada=lancada;
 const arquivo=d=>new File([d.xml],`NFe${d.id}.xml`,{type:"text/xml"});
 function resumoNota(d){
   let fin=null; try{fin=window.finDadosXml?.(new DOMParser().parseFromString(d.xml,"application/xml"))}catch{}
@@ -149,7 +154,9 @@ function resumoNota(d){
     venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:""};
 }
 const ignoradas=()=>nfeDocs.filter(d=>d.origem==="email"&&d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
-const excluirNota=id=>db.collection("nfe").doc(id).delete(); // a ponte guarda uma cópia na Lixeira (Histórico) por 30 dias
+/* a ponte guarda uma cópia na Lixeira (Histórico) por 30 dias; fica um "marcador" sem o XML para o script do Gmail não trazer a nota de novo */
+const excluirNota=async id=>{const d=nfeDocs.find(x=>x.id===id); await db.collection("nfe").doc(id).delete();
+  try{await db.collection("nfe").doc(id).set({excluida:true,excluidaEm:new Date().toISOString(),numero:d?.numero||"",emit:d?.emit||"",data:d?.data||""})}catch{}};
 function pintaIgnoradas(){
   const el=document.getElementById("ne-ign"); if(!el) return;
   const is=ignoradas(); el.hidden=!is.length; if(!is.length){el.innerHTML="";return}
@@ -169,6 +176,7 @@ function pintaIgnoradas(){
 window.nePintar=function(){
   const box=document.getElementById("ne-box"), av=document.getElementById("fn-ne"); if(!box) return;
   pintaIgnoradas();
+  try{window.nePintarAntigas?.()}catch(e){console.error(e)}
   const ps=pendentes();
   box.hidden=!ps.length; if(av) av.hidden=!ps.length;
   window.marca?.("estoque:notas",ps.length);
