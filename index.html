@@ -1659,7 +1659,7 @@ function renderEstoque(){
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
   </article>`).join("");
