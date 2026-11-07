@@ -770,6 +770,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="mq-alert">–</b><span>revisões a vencer</span></div>
     </div>
     <div id="mq-alertas" class="alertas"></div>
+    <div class="row"><button type="button" class="btn ghost" data-pted="maquinas:__novo">+ Nova máquina</button></div>
+    <div id="mq-novo"></div>
     <div class="field"><span class="lbl">Máquina</span><div class="chips" id="mq-chips"></div></div>
     <div id="mq-cards" class="es-lista"></div>
 
@@ -870,6 +872,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="stat"><b id="bf-pend">–</b><span>serviços pendentes</span></div>
     </div>
     <div id="bf-pendentes" class="alertas"></div>
+    <div class="row"><button type="button" class="btn ghost" data-pted="benfeitorias:__novo">+ Nova benfeitoria</button></div>
+    <div id="bf-novo"></div>
     <div class="field"><span class="lbl">Benfeitoria</span><div class="chips" id="bf-chips"></div></div>
     <div id="bf-cards" class="es-lista"></div>
 
@@ -2241,7 +2245,8 @@ let ptEdit=null;
 const ptNums=x=>`<span>Aquisição <b>${x.aquisicao?brDate(x.aquisicao):"–"}</b></span><span>Valor <b>${Number(x.valor)>0?brl(Number(x.valor)):"–"}</b></span>`;
 function ptForm(c,x){
   const maq=c==="maquinas", opts=(arr,v)=>(v&&!arr.includes(v)?[v,...arr]:arr).map(t=>`<option ${t===v?"selected":""}>${esc(t)}</option>`).join("");
-  return `<div class="pe-form pt-form" data-pt="${c}:${x.id}"><div class="grid2">
+  const novo=x.id==="__novo";
+  return `<div class="pe-form pt-form" data-pt="${c}:${x.id}">${novo?`<h3 class="sub-h">${maq?"Nova máquina":"Nova benfeitoria"}</h3>`:""}<div class="grid2">
     <div class="field"><label>Nome</label><input class="pt-nome" value="${esc(x.nome||"")}"></div>
     <div class="field"><label>Tipo</label><select class="pt-tipo">${opts(maq?TIPOS_MAQ:TIPOS_BF,x.tipo)}</select></div>
     ${maq?`<div class="field"><label>Modelo</label><input class="pt-modelo" value="${esc(x.modelo||"")}"></div>
@@ -2249,7 +2254,7 @@ function ptForm(c,x){
     :`<div class="field"><label>Local</label><select class="pt-local">${opts(LOCAIS,x.local)}</select></div>`}
     <div class="field"><label>Data de aquisição</label><input type="date" class="pt-aq" value="${esc(x.aquisicao||"")}"></div>
     <div class="field"><label>Valor (R$)</label><input class="pt-valor" inputmode="decimal" placeholder="0,00" value="${Number(x.valor)>0?Number(x.valor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}):""}"></div>
-  </div><div class="row"><button type="button" class="btn fn-mini pt-ok">Salvar</button><button type="button" class="link pt-x">Cancelar</button><span class="note pt-st" role="status"></span></div></div>`;
+  </div><div class="row"><button type="button" class="btn fn-mini pt-ok">${novo?"Cadastrar":"Salvar"}</button><button type="button" class="link pt-x">Cancelar</button><span class="note pt-st" role="status"></span></div></div>`;
 }
 // guarda o que está sendo digitado quando a lista é redesenhada
 function ptRasc(){const f=document.querySelector(".pt-form"); if(!f) return null; const els=[...f.querySelectorAll("input,select")]; return {k:f.dataset.pt,v:els.map(i=>i.value),foco:els.indexOf(document.activeElement)}}
@@ -2257,7 +2262,7 @@ function ptVolta(r){if(!r) return; const f=document.querySelector(`.pt-form[data
 function ptLiga(cont,lista,render){
   cont.querySelectorAll("[data-pted]").forEach(b=>b.onclick=()=>{ptEdit=ptEdit===b.dataset.pted?null:b.dataset.pted; render(); document.querySelector(".pt-form input")?.focus()});
   cont.querySelectorAll(".pt-form").forEach(box=>{
-    const [c,id]=box.dataset.pt.split(":"), x=lista().find(y=>y.id===id); if(!x) return;
+    const [c,id]=box.dataset.pt.split(":"), novo=id==="__novo", x=novo?{id}:lista().find(y=>y.id===id); if(!x) return;
     const st=t=>box.querySelector(".pt-st").textContent=t, v=k=>box.querySelector(k)?.value.trim();
     box.querySelector(".pt-x").onclick=()=>{ptEdit=null; render()};
     box.querySelector(".pt-ok").onclick=async ev=>{
@@ -2267,7 +2272,7 @@ function ptLiga(cont,lista,render){
       if(c==="maquinas"){doc.modelo=v(".pt-modelo"); doc.ano=v(".pt-ano")} else doc.local=v(".pt-local");
       doc.aquisicao=v(".pt-aq")||null; doc.valor=valor;
       ev.target.disabled=true;
-      try{await db.collection(c).doc(id).set(doc); ptEdit=null; render()}catch{st("Não foi possível salvar. Tente de novo."); ev.target.disabled=false}
+      try{if(novo) await db.collection(c).add({...doc,criadoEm:new Date().toISOString()}); else await db.collection(c).doc(id).set(doc); ptEdit=null; render()}catch{st("Não foi possível salvar. Tente de novo."); ev.target.disabled=false}
     };
   });
 }
@@ -2286,7 +2291,7 @@ function renderMaquinas(){
   $("#mq-chips").querySelectorAll("button").forEach(b=>b.onclick=()=>{mqSel=b.dataset.id;renderMaquinas()});
   // cartões
   const vis=infos.filter(x=>!mqSel||x.m.id===mqSel), rasc=ptRasc();
-  $("#mq-cards").innerHTML=!maquinas.length?`<div class="empty">Nenhuma máquina cadastrada.<br>No formulário abaixo, escolha <b>Cadastrar nova máquina</b> ao registrar a primeira manutenção.</div>`:
+  $("#mq-cards").innerHTML=!maquinas.length?`<div class="empty">Nenhuma máquina cadastrada.<br>Toque em <b>+ Nova máquina</b> para cadastrar.</div>`:
     vis.map(({m,i})=>`<article class="pc">
       <div class="pc-top"><div><b class="pc-nome">${esc(m.nome)}</b><div class="pc-gen">${esc([m.tipo,m.modelo,m.ano].filter(Boolean).join(" · "))}</div></div>
         <div class="pc-saldo"><b>${i.horAtual!=null?fmtH(i.horAtual):"–"}</b><span>horímetro</span></div></div>
@@ -2301,7 +2306,9 @@ function renderMaquinas(){
       <div class="row" style="justify-content:space-between">${i.status?`<span class="pill ${i.status}">${STATUS_TXT[i.status]}</span>`:"<span></span>"}
         <div class="rec-actions"><button type="button" class="link" data-mqnova="${m.id}">+ Registrar manutenção</button><button type="button" class="link" data-pted="maquinas:${m.id}">Editar</button><button type="button" class="link danger" data-mqdel="${m.id}">Excluir máquina</button></div></div>
     </article>`).join("");
-  ptLiga($("#mq-cards"),()=>maquinas,renderMaquinas); ptVolta(rasc);
+  $("#mq-novo").innerHTML=ptEdit==="maquinas:__novo"?ptForm("maquinas",{id:"__novo"}):"";
+  $('[data-pted="maquinas:__novo"]').hidden=ptEdit==="maquinas:__novo";
+  ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc);
   $("#mq-cards").querySelectorAll("[data-mqnova]").forEach(b=>b.onclick=()=>{mqReset();$("#mq-maq").value=b.dataset.mqnova;mqSyncNova();$("#mq-form").scrollIntoView({block:"start"})});
   $("#mq-cards").querySelectorAll("[data-mqdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("maquinas").doc(b.dataset.mqdel).delete()}));
   // select do formulário
@@ -2620,7 +2627,7 @@ function renderBenf(){
   $("#bf-chips").innerHTML=`<button type="button" class="chip" aria-pressed="${!bfSel}" data-id="">Todas</button>`+benf.map(b=>`<button type="button" class="chip" aria-pressed="${bfSel===b.id}" data-id="${b.id}">${esc(b.nome)}</button>`).join("");
   $("#bf-chips").querySelectorAll("button").forEach(b=>b.onclick=()=>{bfSel=b.dataset.id;renderBenf()});
   const vis=benf.filter(b=>!bfSel||b.id===bfSel), rasc=ptRasc();
-  $("#bf-cards").innerHTML=!benf.length?`<div class="empty">Nenhuma benfeitoria cadastrada.<br>No formulário abaixo, escolha <b>Cadastrar nova benfeitoria</b> ao registrar o primeiro serviço.</div>`:
+  $("#bf-cards").innerHTML=!benf.length?`<div class="empty">Nenhuma benfeitoria cadastrada.<br>Toque em <b>+ Nova benfeitoria</b> para cadastrar.</div>`:
     vis.map(b=>{const i=infoBf(b);return `<article class="pc">
       <div class="pc-top"><div><b class="pc-nome">${esc(b.nome)}</b><div class="pc-gen">${esc([b.tipo,b.local].filter(Boolean).join(" · "))}</div></div>
         <div class="pc-saldo"><b>${brl(i.gastoSafra)}</b><span>na safra</span></div></div>
@@ -2635,7 +2642,9 @@ function renderBenf(){
       <div class="row" style="justify-content:space-between">${i.pend.length?`<span class="pill venc">${i.pend.length} pendente${i.pend.length>1?"s":""}</span>`:"<span></span>"}
         <div class="rec-actions"><button type="button" class="link" data-bfnovo="${b.id}">+ Registrar serviço</button><button type="button" class="link" data-pted="benfeitorias:${b.id}">Editar</button><button type="button" class="link danger" data-bfdel="${b.id}">Excluir</button></div></div>
     </article>`}).join("");
-  ptLiga($("#bf-cards"),()=>benf,renderBenf); ptVolta(rasc);
+  $("#bf-novo").innerHTML=ptEdit==="benfeitorias:__novo"?ptForm("benfeitorias",{id:"__novo",local:"Sede"}):"";
+  $('[data-pted="benfeitorias:__novo"]').hidden=ptEdit==="benfeitorias:__novo";
+  ptLiga($("#view-benfeitorias"),()=>benf,renderBenf); ptVolta(rasc);
   $("#bf-cards").querySelectorAll("[data-bfnovo]").forEach(b=>b.onclick=()=>{bfReset();$("#bf-item").value=b.dataset.bfnovo;bfSyncNova();$("#bf-form").scrollIntoView({block:"start"})});
   $("#bf-cards").querySelectorAll("[data-bfdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("benfeitorias").doc(b.dataset.bfdel).delete()}));
   const cur=$("#bf-item").value;
