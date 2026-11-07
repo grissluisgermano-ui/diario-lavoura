@@ -44,7 +44,9 @@
     return Promise.race([p, new Promise(r => setTimeout(() => { if (!fim) aviso("Sem internet: salvo no aparelho, sobe para a nuvem quando voltar o sinal.", true); r() }, 1500))]);
   }
   /* Lixeira: tudo o que é excluído pelo app vai antes para a coleção "lixeira" e fica 30 dias */
-  const LIX_DIAS = 30, SEM_LIXEIRA = new Set(["lixeira", "fotos", "usuarios"]);
+  const LIX_DIAS = 30, SEM_LIXEIRA = new Set(["lixeira", "fotos", "usuarios", "arquivos", "arquivos_partes"]);
+  // fotos e arquivos ligados a um documento (fotos + documentos anexados em máquinas/benfeitorias)
+  const anexos = d => ({ fotos: [...(d?.fotos || []), ...(d?.docs || []).filter(x => x.tipo === "foto").map(x => x.id)], arqs: (d?.docs || []).filter(x => x.tipo === "arquivo").map(x => x.id) });
   async function paraLixeira(r) {
     const col = r.parent?.id; if (!col || SEM_LIXEIRA.has(col)) return;
     let s; try { s = await r.get() } catch { return }
@@ -77,11 +79,15 @@
     ouvir: (fn) => fs.collection("lixeira").onSnapshot(s => fn(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}),
     async restaurar(item) {
       await naoTrava(fs.collection(item.colecao).doc(item.docId).set(item.dados));
-      for (const f of item.dados?.fotos || []) fs.collection("fotos").doc(f).set({ excluidoEm: null }, { merge: true }).catch(() => {});
+      const ax = anexos(item.dados);
+      for (const f of ax.fotos) fs.collection("fotos").doc(f).set({ excluidoEm: null }, { merge: true }).catch(() => {});
+      for (const f of ax.arqs) fs.collection("arquivos").doc(f).set({ excluidoEm: null }, { merge: true }).catch(() => {});
       await naoTrava(fs.collection("lixeira").doc(item.id).delete());
     },
     async apagar(item) {
-      for (const f of item.dados?.fotos || []) fs.collection("fotos").doc(f).delete().catch(() => {});
+      const ax = anexos(item.dados);
+      for (const f of ax.fotos) fs.collection("fotos").doc(f).delete().catch(() => {});
+      for (const f of ax.arqs) apagaArquivo(f);
       await naoTrava(fs.collection("lixeira").doc(item.id).delete());
     },
   };
@@ -92,9 +98,11 @@
     const corte = new Date(Date.now() - LIX_DIAS * 864e5).toISOString();
     try {
       const a = await fs.collection("lixeira").where("excluidoEm", "<", corte).get();
-      a.docs.forEach(d => { for (const f of d.data().dados?.fotos || []) fs.collection("fotos").doc(f).delete().catch(() => {}); d.ref.delete().catch(() => {}) });
+      a.docs.forEach(d => { const ax = anexos(d.data().dados); for (const f of ax.fotos) fs.collection("fotos").doc(f).delete().catch(() => {}); for (const f of ax.arqs) apagaArquivo(f); d.ref.delete().catch(() => {}) });
       const b = await fs.collection("fotos").where("excluidoEm", "<", corte).get();
       b.docs.forEach(d => d.ref.delete().catch(() => {}));
+      const c = await fs.collection("arquivos").where("excluidoEm", "<", corte).get();
+      c.docs.forEach(d => apagaArquivo(d.id));
     } catch (e) { console.warn("limpeza da lixeira", e) }
   }
   document.addEventListener("ponte:pronto", () => setTimeout(limpaLixeira, 8000));
@@ -173,6 +181,42 @@
     },
     // A foto não é apagada na hora: fica marcada e só some depois de 30 dias (para a Lixeira poder recuperar o registro com as fotos)
     async delete(id) { return naoTrava(fs.collection("fotos").doc(id).set({ excluidoEm: new Date().toISOString() }, { merge: true })) },
+  };
+
+  /* ---------- Arquivos (PDF e outros documentos), guardados no Firestore em partes de ~500 KB ----------
+     arquivos/{id} {nome, tipo, tam, partes, criadoEm, criadoPor, excluidoEm?} + arquivos_partes/{id}_{n} {d: base64} */
+  const PARTE = 700000, ARQ_MAX = 10 * 1024 * 1024;
+  function apagaArquivo(id) {
+    fs.collection("arquivos").doc(id).get().then(s => {
+      const n = s.exists ? (s.data().partes || 0) : 0;
+      for (let i = 0; i < n; i++) fs.collection("arquivos_partes").doc(id + "_" + i).delete().catch(() => {});
+      s.exists && s.ref.delete().catch(() => {});
+    }).catch(() => {});
+  }
+  const cacheArq = new Map();
+  ponte.arquivos = {
+    max: ARQ_MAX,
+    async salvar(file) {
+      if (file.size > ARQ_MAX) throw { code: "too_large" };
+      const u = await blobParaDataUrl(file), b64 = u.slice(u.indexOf(",") + 1);
+      const r = fs.collection("arquivos").doc(), partes = Math.max(1, Math.ceil(b64.length / PARTE));
+      const info = { nome: file.name || "arquivo", tipo: file.type || "application/octet-stream", tam: file.size, partes };
+      for (let i = 0; i < partes; i++) await naoTrava(fs.collection("arquivos_partes").doc(r.id + "_" + i).set({ d: b64.slice(i * PARTE, (i + 1) * PARTE) }));
+      await naoTrava(r.set({ ...info, criadoEm: new Date().toISOString(), criadoPor: ponte.usuario?.uid || null }));
+      cacheArq.set(r.id, file);
+      return { id: r.id, ...info };
+    },
+    async abrir(id) {
+      if (cacheArq.has(id)) return cacheArq.get(id);
+      const s = await fs.collection("arquivos").doc(id).get(); if (!s.exists) throw { code: "not_found" };
+      const m = s.data(); let b64 = "";
+      for (let i = 0; i < (m.partes || 0); i++) { const p = await fs.collection("arquivos_partes").doc(id + "_" + i).get(); if (!p.exists) throw { code: "not_found" }; b64 += p.data().d }
+      const bin = atob(b64), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const f = new File([bytes], m.nome || "arquivo", { type: m.tipo || "application/octet-stream" });
+      cacheArq.set(id, f); return f;
+    },
+    // como as fotos: fica marcado e só some depois de 30 dias
+    excluir: id => naoTrava(fs.collection("arquivos").doc(id).set({ excluidoEm: new Date().toISOString() }, { merge: true })),
   };
 
   /* ---------- Downloads (backup, relatórios, fotos .zip) ---------- */
