@@ -8,7 +8,7 @@
  *   restaurado em Histórico → Restaurar backup.
  * - Planilha Excel: mantém "Diário da Lavoura - dados atuais.xlsx" sempre atualizada (o app gera a planilha
  *   uma vez por dia quando alguém abre) e guarda uma cópia por mês, "diario-lavoura-planilha-AAAA-MM.xlsx".
- * - Copia as fotos novas (JPG) para a subpasta "Fotos" e os documentos (PDF etc.) das máquinas e benfeitorias para "Arquivos".
+ * - Copia as fotos novas (JPG) para a subpasta "Fotos".
  * - Avisa o app que o backup do mês foi feito (o aviso vermelho some).
  *
  * Instalação: cole este arquivo em script.google.com, ajuste o appsscript.json e rode "instalar" uma vez.
@@ -55,7 +55,6 @@ function backupDiario(forcar) {
 
   try { salvarPlanilha(pasta, mes) } catch (e) { console.warn("Planilha: " + e.message) }
   copiarFotos(pegaPasta("Fotos", pasta), inicio);
-  copiarArquivos(pegaPasta("Arquivos", pasta), inicio);
 }
 
 /* ---------- Planilha Excel (gerada pelo próprio app e guardada no banco em partes) ---------- */
@@ -101,30 +100,6 @@ function copiarFotos(pastaFotos, inicio) {
     if (m) { pastaFotos.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], id + ".jpg")); novas++ }
   }
   console.log(`${novas} fotos novas copiadas (${ids.length} no app).`);
-}
-
-/* ---------- Arquivos (PDF e outros documentos das máquinas/benfeitorias) ----------
-   No app: arquivos/{id} {nome, tipo, partes} + arquivos_partes/{id}_{n} {d: base64}. No Drive: "<id> - <nome>". */
-function copiarArquivos(pastaArq, inicio) {
-  const ja = new Set(); const it = pastaArq.getFiles();
-  while (it.hasNext()) ja.add(it.next().getName().split(" - ")[0]);
-  const lista = []; let token = "";
-  do {
-    const r = chamar(`${BASE}/arquivos?pageSize=300${token ? "&pageToken=" + encodeURIComponent(token) : ""}`);
-    for (const d of r.documents || []) lista.push({ id: d.name.split("/").pop(), f: d.fields || {} });
-    token = r.nextPageToken || "";
-  } while (token);
-  let novos = 0;
-  for (const a of lista) {
-    if (ja.has(a.id) || a.f.excluidoEm?.stringValue) continue;
-    if (Date.now() - inicio > LIMITE_MS) { console.log(`${novos} arquivos copiados; o resto continua amanhã.`); return }
-    const n = Number(a.f.partes?.integerValue || a.f.partes?.doubleValue || 0); let b64 = "";
-    try { for (let i = 0; i < n; i++) b64 += chamar(`${BASE}/arquivos_partes/${a.id}_${i}`).fields?.d?.stringValue || "" } catch (e) { continue }
-    if (!b64) continue;
-    const nome = (a.f.nome?.stringValue || "arquivo").replace(/[\\/]/g, "-");
-    pastaArq.createFile(Utilities.newBlob(Utilities.base64Decode(b64), a.f.tipo?.stringValue || "application/octet-stream", `${a.id} - ${nome}`)); novos++;
-  }
-  console.log(`${novos} arquivos novos copiados (${lista.length} no app).`);
 }
 
 /* ---------- Firestore (REST) ---------- */

@@ -21,7 +21,6 @@
 <link rel="stylesheet" href="financeiro.css">
 <link rel="stylesheet" href="danfe.css">
 <link rel="stylesheet" href="lote-notas.css">
-<link rel="stylesheet" href="anexos.css">
 <link rel="stylesheet" href="lembretes.css">
 <link rel="stylesheet" href="vinculo.css">
 <link rel="stylesheet" href="mapa.css">
@@ -2293,7 +2292,7 @@ function renderMaquinas(){
   // cartões
   const vis=infos.filter(x=>!mqSel||x.m.id===mqSel), rasc=ptRasc();
   $("#mq-cards").innerHTML=!maquinas.length?`<div class="empty">Nenhuma máquina cadastrada.<br>Toque em <b>+ Nova máquina</b> para cadastrar.</div>`:
-    vis.map(({m,i})=>`<article class="pc">${window.axCapa?axCapa("maquinas",m):""}
+    vis.map(({m,i})=>`<article class="pc">
       <div class="pc-top"><div><b class="pc-nome">${esc(m.nome)}</b><div class="pc-gen">${esc([m.tipo,m.modelo,m.ano].filter(Boolean).join(" · "))}</div></div>
         <div class="pc-saldo"><b>${i.horAtual!=null?fmtH(i.horAtual):"–"}</b><span>horímetro</span></div></div>
       <div class="pc-nums">
@@ -2304,13 +2303,12 @@ function renderMaquinas(){
         ${ptNums(m)}
       </div>
       ${ptEdit==="maquinas:"+m.id?ptForm("maquinas",m):""}
-      ${window.axBloco?axBloco("maquinas",m):""}
       <div class="row" style="justify-content:space-between">${i.status?`<span class="pill ${i.status}">${STATUS_TXT[i.status]}</span>`:"<span></span>"}
         <div class="rec-actions"><button type="button" class="link" data-mqnova="${m.id}">+ Registrar manutenção</button><button type="button" class="link" data-pted="maquinas:${m.id}">Editar</button><button type="button" class="link danger" data-mqdel="${m.id}">Excluir máquina</button></div></div>
     </article>`).join("");
   $("#mq-novo").innerHTML=ptEdit==="maquinas:__novo"?ptForm("maquinas",{id:"__novo"}):"";
   $('[data-pted="maquinas:__novo"]').hidden=ptEdit==="maquinas:__novo";
-  ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc); window.axLiga?.($("#mq-cards"),"maquinas");
+  ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc);
   $("#mq-cards").querySelectorAll("[data-mqnova]").forEach(b=>b.onclick=()=>{mqReset();$("#mq-maq").value=b.dataset.mqnova;mqSyncNova();$("#mq-form").scrollIntoView({block:"start"})});
   $("#mq-cards").querySelectorAll("[data-mqdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("maquinas").doc(b.dataset.mqdel).delete()}));
   // select do formulário
@@ -2630,7 +2628,7 @@ function renderBenf(){
   $("#bf-chips").querySelectorAll("button").forEach(b=>b.onclick=()=>{bfSel=b.dataset.id;renderBenf()});
   const vis=benf.filter(b=>!bfSel||b.id===bfSel), rasc=ptRasc();
   $("#bf-cards").innerHTML=!benf.length?`<div class="empty">Nenhuma benfeitoria cadastrada.<br>Toque em <b>+ Nova benfeitoria</b> para cadastrar.</div>`:
-    vis.map(b=>{const i=infoBf(b);return `<article class="pc">${window.axCapa?axCapa("benfeitorias",b):""}
+    vis.map(b=>{const i=infoBf(b);return `<article class="pc">
       <div class="pc-top"><div><b class="pc-nome">${esc(b.nome)}</b><div class="pc-gen">${esc([b.tipo,b.local].filter(Boolean).join(" · "))}</div></div>
         <div class="pc-saldo"><b>${brl(i.gastoSafra)}</b><span>na safra</span></div></div>
       <div class="pc-nums">
@@ -2641,13 +2639,12 @@ function renderBenf(){
         ${ptNums(b)}
       </div>
       ${ptEdit==="benfeitorias:"+b.id?ptForm("benfeitorias",b):""}
-      ${window.axBloco?axBloco("benfeitorias",b):""}
       <div class="row" style="justify-content:space-between">${i.pend.length?`<span class="pill venc">${i.pend.length} pendente${i.pend.length>1?"s":""}</span>`:"<span></span>"}
         <div class="rec-actions"><button type="button" class="link" data-bfnovo="${b.id}">+ Registrar serviço</button><button type="button" class="link" data-pted="benfeitorias:${b.id}">Editar</button><button type="button" class="link danger" data-bfdel="${b.id}">Excluir</button></div></div>
     </article>`}).join("");
   $("#bf-novo").innerHTML=ptEdit==="benfeitorias:__novo"?ptForm("benfeitorias",{id:"__novo",local:"Sede"}):"";
   $('[data-pted="benfeitorias:__novo"]').hidden=ptEdit==="benfeitorias:__novo";
-  ptLiga($("#view-benfeitorias"),()=>benf,renderBenf); ptVolta(rasc); window.axLiga?.($("#bf-cards"),"benfeitorias");
+  ptLiga($("#view-benfeitorias"),()=>benf,renderBenf); ptVolta(rasc);
   $("#bf-cards").querySelectorAll("[data-bfnovo]").forEach(b=>b.onclick=()=>{bfReset();$("#bf-item").value=b.dataset.bfnovo;bfSyncNova();$("#bf-form").scrollIntoView({block:"start"})});
   $("#bf-cards").querySelectorAll("[data-bfdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("benfeitorias").doc(b.dataset.bfdel).delete()}));
   const cur=$("#bf-item").value;
@@ -3895,9 +3892,6 @@ function fotosTodas(){
   for(const r of registros) add(r.tipo==="chuva"?"chuvas":"lavoura",r,[TIPOS[r.tipo]?.label,r.nome,(r.talhoes||[]).length===TALHOES.length?"propriedade":(r.talhoes||[]).join(" ")].filter(Boolean).join(" "));
   for(const n of notas) add("anotacoes",n,[CAT_NT[n.categoria]?.l,n.titulo].filter(Boolean).join(" "));
   for(const x of manut) add("maquinas",x,nomeMaq(x.maquinaId));
-  const docFotos=x=>({fotos:(x.docs||[]).filter(d=>d.tipo==="foto").map(d=>d.id)});
-  for(const m of maquinas){add("maquinas",{fotos:m.fotos||[]},m.nome+" foto"); add("maquinas",docFotos(m),m.nome+" documento")}
-  for(const b of benf){add("benfeitorias",{fotos:b.fotos||[]},b.nome+" foto"); add("benfeitorias",docFotos(b),b.nome+" documento")}
   for(const x of bfServ) add("benfeitorias",x,nomeBf(x.benfId));
   return out;
 }
@@ -4197,7 +4191,6 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script src="lote-notas.js"></script>
-<script src="anexos.js"></script>
 <script>
 (function(){
   const v=window.APP_VERSAO||{n:"?",data:""}, $=s=>document.querySelector(s);
