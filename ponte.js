@@ -141,21 +141,32 @@
 
   const blobParaDataUrl = b => new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(b) });
   /* Abre qualquer foto como imagem: JPG/PNG direto; se o navegador não abrir (ex.: HEIC do iPhone no Chrome),
-     tenta pela tag <img> e, se for HEIC, converte com a biblioteca heic2any (baixada só nessa hora). */
-  let heicLib = null;
+     tenta pela tag <img> e, se for HEIC, converte:
+     1º heic-to (libheif nova, abre as fotos dos iPhones recentes com HDR; arquivo guardado no próprio app, vendor/),
+     2º heic2any (antiga, do jsdelivr) como última tentativa. */
+  const carregaJs = src => new Promise((ok, err) => { const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = () => { sc.remove(); err() }; document.head.appendChild(sc) });
+  let heicTo = null, heic2 = null;
   const ehHeic = async b => /hei[cf]/i.test(b.type || "") || /\.hei[cf]$/i.test(b.name || "") ||
-    /ftyp(heic|heix|hevc|mif1|msf1)/.test(await b.slice(0, 32).text().catch(() => ""));
+    /ftyp(heic|heix|heim|heis|hevc|hevx|mif1|msf1|avif)/.test(await b.slice(0, 32).text().catch(() => ""));
+  async function converteHeic(blob) {
+    try {
+      if (!window.HeicTo) await (heicTo = heicTo || carregaJs("vendor/heic-to-1.6.6.js"));
+      return await window.HeicTo({ blob, type: "bitmap" });
+    } catch (e) { heicTo = null; console.warn("heic-to:", e) }
+    try {
+      if (!window.heic2any) await (heic2 = heic2 || carregaJs("https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"));
+      const j = await window.heic2any({ blob, toType: "image/jpeg", quality: 0.85 });
+      return await createImageBitmap(Array.isArray(j) ? j[0] : j);
+    } catch (e) { heic2 = null; console.warn("heic2any:", e) }
+    throw { code: "heic" };
+  }
   async function abrirImagem(blob) {
     try { return await createImageBitmap(blob) } catch {}
     try {
       const url = URL.createObjectURL(blob), img = new Image(); img.src = url;
       try { await img.decode(); return await createImageBitmap(img) } finally { URL.revokeObjectURL(url) }
     } catch {}
-    if (await ehHeic(blob)) {
-      if (!window.heic2any) heicLib = heicLib || new Promise((ok, err) => { const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"; sc.onload = ok; sc.onerror = err; document.head.appendChild(sc) });
-      try { await heicLib; const j = await window.heic2any({ blob, toType: "image/jpeg", quality: 0.85 }); return await createImageBitmap(Array.isArray(j) ? j[0] : j) }
-      catch { heicLib = null; throw { code: "heic" } }
-    }
+    if (await ehHeic(blob)) return converteHeic(blob);
     throw { code: "unsupported_type" };
   }
   window.abrirImagem = abrirImagem;

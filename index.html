@@ -1896,7 +1896,7 @@ async function encolher(file){
     return (await new Promise(r=>c.toBlob(r,"image/jpeg",.82)))||file;
   }catch{return file}
 }
-const ERR_FOTO={too_large:"Foto grande demais, mesmo reduzida.",unsupported_type:"Não consegui abrir esta foto. Use JPG ou PNG.",heic:"Não consegui converter esta foto do iPhone (HEIC). Confira a internet e tente de novo, ou envie a foto em JPG.",quota_or_state:"Espaço para fotos esgotado.",rate_limited:"Muitas fotos de uma vez. Espere um pouco."};
+const ERR_FOTO={too_large:"Foto grande demais, mesmo reduzida.",unsupported_type:"Não consegui abrir esta foto. Use JPG ou PNG.",heic:"Não consegui abrir esta foto do iPhone (HEIC). Tente de novo; se continuar, abra a foto no Mac (Fotos ou Pré-Visualização) e exporte em JPG.",quota_or_state:"Espaço para fotos esgotado.",rate_limited:"Muitas fotos de uma vez. Espere um pouco."};
 $("#f-foto-in").addEventListener("change",e=>{
   for(const file of e.target.files){
     if(!assets) break;
