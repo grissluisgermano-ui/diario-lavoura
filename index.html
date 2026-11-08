@@ -104,6 +104,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rec-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
 .rec-tipo{font-family:var(--f-display);font-weight:700;font-size:1.1rem;color:var(--c)}
 .rec-talhoes{font-size:.85rem;color:var(--muted)}
+.rec-periodo{font-size:.85rem;color:var(--ink);margin:2px 0}
 .rec-campos{font-size:.92rem;display:flex;flex-wrap:wrap;gap:4px 14px}
 .rec-campos b{font-weight:600}
 .rec-desc{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -603,7 +604,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </div>
     <div class="grid2">
       <div class="field"><label for="f-data" id="f-data-l">Data</label><input type="date" id="f-data" required></div>
+      <div class="field" id="f-fim-box"><label for="f-fim" id="f-fim-l">Até (se levou mais de um dia)</label><input type="date" id="f-fim"></div>
     </div>
+    <p class="note" id="f-fim-n" hidden></p>
     <div class="field" id="talhoes-box">
       <span class="lbl">Talhões</span>
       <div class="chips" id="talhoes"></div>
@@ -1847,7 +1850,7 @@ function atualizaAreas(){
 }
 const areaTotal=r=>(r.talhoes||[]).reduce((s,n)=>s+(Number(r.areas?.[n])||haDe(n)),0);
 function renderCampos(vals){
-  $("#talhoes-box").hidden=tipo==="chuva";
+  $("#talhoes-box").hidden=tipo==="chuva"; $("#f-fim-box").hidden=tipo==="chuva"; fimNota();
   renderNomeSug();
   $("#sit-box").hidden=tipo==="chuva";
   $("#campos").innerHTML=TIPOS[tipo].campos.map(c=>{
@@ -1867,7 +1870,7 @@ function renderCampos(vals){
 }
 function resetForm(){
   editing=null; custoAnterior={}; $("#form-title").textContent="Novo registro"; $("#cancel-edit").hidden=true; $("#salvar").textContent="Salvar registro";
-  situacao="executada"; $("#f-data").value=todayISO(); $("#f-desc").value=""; $("#f-nome").value=""; talhoesSel=new Set(); areasSel={}; tipo="plantio";
+  situacao="executada"; $("#f-data").value=todayISO(); $("#f-fim").value=""; $("#f-desc").value=""; $("#f-nome").value=""; talhoesSel=new Set(); areasSel={}; tipo="plantio";
   renderTipos(); renderTalhoes(); renderCampos({}); setSituacao("executada");
   descartarNovas(); fotosForm=[]; renderFotosForm();
 }
@@ -1920,6 +1923,8 @@ $("#view-lancar").addEventListener("submit",async e=>{
   e.preventDefault();
   if(!col){flash("Sem conexão com o banco de dados.");return}
   const data=$("#f-data").value; if(!data){flash("Informe a data.");return}
+  const dataFim=tipo==="chuva"?"":$("#f-fim").value;
+  if(dataFim&&dataFim<data){flash("A data final (Até) está antes da data de início. Confira.");return}
   if(tipo==="chuva") talhoesSel=new Set(TALHOES.map(t=>t.n));
   if(!talhoesSel.size){flash("Escolha ao menos um talhão.");return}
   const areas={};
@@ -1936,6 +1941,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
   if(TIPOS[tipo].prods){const ps=readProds(); if(ps.length) campos.produtos=ps}
   const body={data,tipo,talhoes:TALHOES.map(t=>t.n).filter(n=>talhoesSel.has(n)),campos,descricao:$("#f-desc").value.trim()};
   if(tipo!=="chuva"){const nm=$("#f-nome").value.trim(); if(nm) body.nome=nm}
+  if(dataFim&&dataFim>data) body.dataFim=dataFim;
   if(enviando){flash("Aguarde as fotos terminarem de enviar.");return}
   if(tipo!=="chuva") body.areas=areas;
   if(TIPOS[tipo].prods&&campos.produtos?.length){
@@ -1950,7 +1956,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
     if(editing){const old=registros.find(r=>r.id===editing); body.criadoEm=old?.criadoEm||new Date().toISOString(); await col.doc(editing).set(body);
       novasFotos.clear(); for(const id of (old?.fotos||[])) if(!body.fotos.includes(id)) assets?.delete(id).catch(()=>{});
       resetForm(); flash("Registro atualizado.")}
-    else{body.criadoEm=new Date().toISOString(); await col.add(body); novasFotos.clear(); const keepDate=data; resetForm(); $("#f-data").value=keepDate; flash("Registro salvo.")}
+    else{body.criadoEm=new Date().toISOString(); await col.add(body); novasFotos.clear(); const keepDate=data; resetForm(); $("#f-data").value=keepDate; fimNota(); flash("Registro salvo.")}
   }catch(err){flash(err?.code==="quota_exceeded"?"Limite de registros atingido.":"Não foi possível salvar. Tente de novo.")}
   finally{$("#salvar").disabled=false}
 });
@@ -1974,6 +1980,14 @@ function talhoesTxt(t,areas){
   if(t.length===TALHOES.length&&!t.some(parcial)) return "Toda a propriedade";
   return t.map(n=>parcial(n)?`${n} (${num(areas[n])} de ${num(haDe(n))} ha)`:n).join(", ");
 }
+// Período: atividade de vários dias (data = início, dataFim = último dia)
+const diasEntre=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5);
+const periodoTxt=r=>r.dataFim&&r.dataFim>r.data?`${brDate(r.data).slice(0,r.data.slice(0,4)===r.dataFim.slice(0,4)?5:10)} a ${brDate(r.dataFim)} (${diasEntre(r.data,r.dataFim)+1} dias)`:"";
+function fimNota(){const a=$("#f-data").value,b=$("#f-fim").value,n=$("#f-fim-n"); if(!n) return;
+  if(tipo!=="chuva"&&a&&b&&b>a){n.textContent=`Período de ${diasEntre(a,b)+1} dias: ${brDate(a)} a ${brDate(b)}.`;n.hidden=false}
+  else if(tipo!=="chuva"&&a&&b&&b<a){n.textContent="A data final está antes do início.";n.hidden=false}
+  else n.hidden=true}
+document.addEventListener("input",e=>{if(e.target.id==="f-data"||e.target.id==="f-fim") fimNota()});
 function renderLista(){
   const ft=$("#fl-tipo").value, fh=$("#fl-talhao").value, fs=$("#fl-sit").value, q=$("#fl-busca").value.trim().toLowerCase();
   const rows=registros.filter(r=>(!ft||r.tipo===ft)&&(!fs||(fs==="programada")===ehProg(r))&&(!fh||(r.talhoes||[]).includes(fh))&&
@@ -1997,6 +2011,7 @@ function recCard(r,extra="",acoesExtra=""){
   const cs=linhaCampos(r), prog=ehProg(r), temSit=r.tipo!=="chuva";
   return `<article class="rec ${temSit?(prog?"st-programada":"st-executada"):""}" style="--c:var(--t-${r.tipo})">
       <div class="rec-top"><span class="rec-tipo">${esc(TIPOS[r.tipo]?.label||r.tipo)}${r.nome?` · <span class="rec-nome">${esc(r.nome)}</span>`:""}</span>${temSit?`<span class="st-pill" style="--c2:var(${prog?"--danger":"--ok"})">${prog?"Programada":"Executada"}</span>`:""}</div>
+      ${periodoTxt(r)?`<div class="rec-periodo">Período: <b>${periodoTxt(r)}</b></div>`:""}
       <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
       ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc</span></li>`).join("")}</ul>`:""}
@@ -2013,11 +2028,11 @@ function editar(id,executarAgora){
   if(r.tipo==="chuva") return chEditar(id);
   editing=id; tipo=r.tipo; talhoesSel=new Set(r.talhoes||[]); areasSel={...(r.areas||{})};
   custoAnterior={}; for(const p of r.campos?.produtos||[]) if(p.custoUnit!=null) custoAnterior[p.produtoId||String(p.nome).toLowerCase()]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst,custoUnitLiq:p.custoUnitLiq};
-  $("#f-data").value=r.data; $("#f-desc").value=r.descricao||""; $("#f-nome").value=r.nome||"";
+  $("#f-data").value=r.data; $("#f-fim").value=r.dataFim||""; $("#f-desc").value=r.descricao||""; $("#f-nome").value=r.nome||"";
   descartarNovas(); fotosForm=(r.fotos||[]).map(id=>({id,src:fotoSrc(id)})); renderFotosForm();
   renderTipos(); renderTalhoes(); renderCampos({...(r.campos||{}),_romaneios:r.romaneios});
   $("#form-title").textContent=executarAgora?"Executar atividade programada":"Editar registro"; $("#cancel-edit").hidden=false; $("#salvar").textContent=executarAgora?"Confirmar execução":"Salvar alterações";
-  if(executarAgora){custoAnterior={}; $("#f-data").value=todayISO(); setSituacao("executada")} else setSituacao(r.situacao==="programada"?"programada":"executada");
+  if(executarAgora){custoAnterior={}; $("#f-data").value=todayISO(); $("#f-fim").value=""; setSituacao("executada")} else setSituacao(r.situacao==="programada"?"programada":"executada");
   if(executarAgora) $("#salvar").textContent="Confirmar execução"; else $("#salvar").textContent="Salvar alterações";
   show("lancar"); window.scrollTo({top:0});
 }
@@ -3135,7 +3150,7 @@ function planilhaBackup(){
   const add=(nome,rows)=>{const r=rows.length?rows:[{"Sem dados":""}];const ws=XLSX.utils.json_to_sheet(r);
     ws["!cols"]=Object.keys(r[0]).map(k=>({wch:Math.min(60,Math.max(12,k.length+2,...r.slice(0,200).map(x=>String(x[k]??"").length)))}));XLSX.utils.book_append_sheet(wb,ws,nome)};
   const regs=[...registros].sort((a,b)=>a.data.localeCompare(b.data));
-  add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
+  add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
     "Cultura":r.campos?.cultura||"","Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
     "Produtos":(r.campos?.produtos||[]).map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; "),"Custo/ha (R$)":r.custoHa??"","Custo total (R$)":r.custoTotal??"",
     "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc`).join("; "),
@@ -3387,7 +3402,7 @@ function setSituacao(s){
   $("#sit").innerHTML=[["executada","Executada"],["programada","Programada"]].map(([k,l])=>`<button type="button" class="chip sit-chip ${k}" aria-pressed="${k===s}" data-k="${k}"><span class="dot"></span>${l}</button>`).join("");
   $("#sit").querySelectorAll("button").forEach(b=>b.onclick=()=>setSituacao(b.dataset.k));
   $("#sit-hint").textContent=s==="programada"?"Fica na aba Programação e não dá baixa no estoque até ser executada.":"";
-  $("#f-data-l").textContent=s==="programada"?"Data prevista":"Data";
+  $("#f-data-l").textContent=s==="programada"?"Início previsto":"Data (ou início)"; $("#f-fim-l").textContent=s==="programada"?"Até (previsto, se mais de um dia)":"Até (se levou mais de um dia)";
   if(!editing) $("#salvar").textContent=s==="programada"?"Salvar programação":"Salvar registro";
   if(TIPOS[tipo]?.roms) $("#roms-box").hidden=s==="programada";
   $("#sit-box").hidden=tipo==="chuva";
@@ -4069,7 +4084,7 @@ function regTexto(){
   return [...registros].sort((a,b)=>a.data.localeCompare(b.data)).map(r=>{
     const ps=r.campos?.produtos||[];
     const cs=[...linhaCampos(r).map(c=>`${c.k}: ${c.v}`),...(ps.length?[`Produtos (${ps.length}): ${ps.map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; ")}`]:[]),...(r.custoHa!=null?[`Custo da aplicação: ${brl(r.custoHa)}/ha, total ${brl(r.custoTotal)}${r.semCusto?` (${r.semCusto} produto(s) sem preço, não somados)`:""}`]:[]),...((r.romaneios||[]).length?[`Romaneios: ${r.romaneios.map(x=>`nº ${x.numero||"-"} ${x.data?brDate(x.data):""} ${x.hora||""} ${x.local||"-"} ${num(x.sacas)} sc`).join("; ")} (total ${num(r.romaneios.reduce((s,x)=>s+(Number(x.sacas)||0),0))} sc)`]:[]),...((r.fotos||[]).length?[`Fotos anexadas: ${r.fotos.length} [id ${r.id}]`]:[])].join("; ");
-    return `${brDate(r.data)} | ${ehProg(r)?"PROGRAMADA (ainda não executada) ":""}${TIPOS[r.tipo]?.label||r.tipo}${r.nome?" ("+r.nome+")":""} | ${talhoesTxt(r.talhoes,r.areas)} | ${cs||"-"} | ${(r.descricao||"-").replace(/\n/g," ")}${r.criadoPor?" | lançado por "+quem(r.criadoPor):""}${r.editadoPor?", editado por "+quem(r.editadoPor):""}`;
+    return `${brDate(r.data)}${r.dataFim?" a "+brDate(r.dataFim):""} | ${ehProg(r)?"PROGRAMADA (ainda não executada) ":""}${TIPOS[r.tipo]?.label||r.tipo}${r.nome?" ("+r.nome+")":""} | ${talhoesTxt(r.talhoes,r.areas)} | ${cs||"-"} | ${(r.descricao||"-").replace(/\n/g," ")}${r.criadoPor?" | lançado por "+quem(r.criadoPor):""}${r.editadoPor?", editado por "+quem(r.editadoPor):""}`;
   }).join("\n");
 }
 function mdLite(t){
