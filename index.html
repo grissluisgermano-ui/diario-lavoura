@@ -2243,6 +2243,9 @@ function proxTxt(p){return [p.proxData?brDate(p.proxData):"",p.proxHoras?fmtH(p.
 const STATUS_TXT={venc:"Vencida",prox:"Vence em breve",ok:"Em dia"};
 // Patrimônio: aquisição e valor no cartão + editar máquina/benfeitoria
 let ptEdit=null;
+// fabricante sugerido pelo nome/modelo (só preenche o formulário; grava ao Salvar)
+const PT_MARCAS=[[/john\s*deere|\bjd\b|\bsts\b|pulverizador 47\d\d/i,"John Deere"],[/\bcase\b/i,"Case IH"],[/new\s*holland/i,"New Holland"],[/massey/i,"Massey Ferguson"],[/valtra/i,"Valtra"],[/stara/i,"Stara"],[/\bjan\b|tritton|lancer/i,"Jan"],[/jacto/i,"Jacto"],[/\bjcb\b/i,"JCB"],[/kuhn/i,"Kuhn"],[/stihl|\bfs\s*\d|\bbg\s*\d/i,"Stihl"],[/guerra/i,"Guerra"],[/mercedes/i,"Mercedes-Benz"],[/\btka\b/i,"TKA"],[/grazmec/i,"Grazmec"],[/baldan/i,"Baldan"],[/tatu|marchesan/i,"Tatu Marchesan"],[/semeato/i,"Semeato"],[/vence\s*tudo/i,"Vence Tudo"],[/\bbros\b|honda/i,"Honda"],[/ranger|\bford\b/i,"Ford"],[/toyota|hilux/i,"Toyota"],[/volkswagen|\bvw\b|amarok/i,"Volkswagen"],[/chevrolet|\bs10\b/i,"Chevrolet"],[/\bfiat\b|strada|toro/i,"Fiat"]];
+const ptMarca=x=>{const t=[x.nome,x.modelo].filter(Boolean).join(" "); return (PT_MARCAS.find(([r])=>r.test(t))||[])[1]||""};
 const ptNums=x=>`<span>Aquisição <b>${x.aquisicao?brDate(x.aquisicao):"–"}</b></span><span>Valor <b>${Number(x.valor)>0?brl(Number(x.valor)):"–"}</b></span>`;
 function ptForm(c,x){
   const maq=c==="maquinas", opts=(arr,v)=>(v&&!arr.includes(v)?[v,...arr]:arr).map(t=>`<option ${t===v?"selected":""}>${esc(t)}</option>`).join("");
@@ -2250,7 +2253,8 @@ function ptForm(c,x){
   return `<div class="pe-form pt-form" data-pt="${c}:${x.id}">${novo?`<h3 class="sub-h">${maq?"Nova máquina":"Nova benfeitoria"}</h3>`:""}<div class="grid2">
     <div class="field"><label>Nome</label><input class="pt-nome" value="${esc(x.nome||"")}"></div>
     <div class="field"><label>Tipo</label><select class="pt-tipo">${opts(maq?TIPOS_MAQ:TIPOS_BF,x.tipo)}</select></div>
-    ${maq?`<div class="field"><label>Modelo</label><input class="pt-modelo" value="${esc(x.modelo||"")}"></div>
+    ${maq?`<div class="field"><label>Fabricante</label><input class="pt-fab" value="${esc(x.fabricante||(novo?"":ptMarca(x)))}" placeholder="Ex.: John Deere, Stara, Jacto">${!x.fabricante&&!novo&&ptMarca(x)?`<span class="note">Sugestão pelo nome. Confira e salve.</span>`:""}</div>
+    <div class="field"><label>Modelo</label><input class="pt-modelo" value="${esc(x.modelo||"")}"></div>
     <div class="field"><label>Ano de fabricação</label><input class="pt-ano" inputmode="numeric" value="${esc(x.ano||"")}"></div>`
     :`<div class="field"><label>Local</label><select class="pt-local">${opts(LOCAIS,x.local)}</select></div>`}
     <div class="field"><label>Data de aquisição</label><input type="date" class="pt-aq" value="${esc(x.aquisicao||"")}"></div>
@@ -2270,7 +2274,7 @@ function ptLiga(cont,lista,render){
       const nome=v(".pt-nome"); if(!nome){st("Informe o nome.");return}
       const vt=v(".pt-valor"), valor=vt?horNum(vt):null; if(vt&&!(valor>=0)){st("Confira o valor.");return}
       const {id:_,...doc}=x; doc.nome=nome; doc.tipo=v(".pt-tipo");
-      if(c==="maquinas"){doc.modelo=v(".pt-modelo"); doc.ano=v(".pt-ano")} else doc.local=v(".pt-local");
+      if(c==="maquinas"){doc.fabricante=v(".pt-fab"); doc.modelo=v(".pt-modelo"); doc.ano=v(".pt-ano")} else doc.local=v(".pt-local");
       doc.aquisicao=v(".pt-aq")||null; doc.valor=valor;
       ev.target.disabled=true;
       try{if(novo) await db.collection(c).add({...doc,criadoEm:new Date().toISOString()}); else await db.collection(c).doc(id).set(doc); ptEdit=null; render()}catch{st("Não foi possível salvar. Tente de novo."); ev.target.disabled=false}
@@ -2294,7 +2298,7 @@ function renderMaquinas(){
   const vis=infos.filter(x=>!mqSel||x.m.id===mqSel), rasc=ptRasc();
   $("#mq-cards").innerHTML=!maquinas.length?`<div class="empty">Nenhuma máquina cadastrada.<br>Toque em <b>+ Nova máquina</b> para cadastrar.</div>`:
     vis.map(({m,i})=>`<article class="pc">${window.axCapa?axCapa("maquinas",m):""}
-      <div class="pc-top"><div><b class="pc-nome">${esc(m.nome)}</b><div class="pc-gen">${esc([m.tipo,m.modelo,m.ano].filter(Boolean).join(" · "))}</div></div>
+      <div class="pc-top"><div><b class="pc-nome">${esc(m.nome)}</b><div class="pc-gen">${esc([m.tipo,m.fabricante,m.modelo,m.ano].filter(Boolean).join(" · "))}</div></div>
         <div class="pc-saldo"><b>${i.horAtual!=null?fmtH(i.horAtual):"–"}</b><span>horímetro</span></div></div>
       <div class="pc-nums">
         <span>Última troca de óleo <b>${i.oleo?brDate(i.oleo.data)+(i.oleo.horimetro?` · ${fmtH(i.oleo.horimetro)}`:""):"–"}</b></span>
@@ -2420,7 +2424,7 @@ $("#mq-form").addEventListener("submit",async ev=>{
 });
 function maquinasTexto(){
   if(!maquinas.length&&!manut.length) return "";
-  const ms=maquinas.map(m=>{const i=infoMaq(m);return `${m.nome} | ${[m.tipo,m.modelo,m.ano].filter(Boolean).join(", ")||"-"}${m.aquisicao?` | aquisição ${brDate(m.aquisicao)}`:""}${Number(m.valor)>0?` | valor ${brl(m.valor)}`:""} | horímetro atual ${i.horAtual!=null?fmtH(i.horAtual):"não informado"} | próxima manutenção ${i.comProx?proxTxt(i.comProx):"não definida"}${i.status?` (${STATUS_TXT[i.status]})`:""}`}).join("\n");
+  const ms=maquinas.map(m=>{const i=infoMaq(m);return `${m.nome} | ${[m.tipo,m.fabricante,m.modelo,m.ano].filter(Boolean).join(", ")||"-"}${m.aquisicao?` | aquisição ${brDate(m.aquisicao)}`:""}${Number(m.valor)>0?` | valor ${brl(m.valor)}`:""} | horímetro atual ${i.horAtual!=null?fmtH(i.horAtual):"não informado"} | próxima manutenção ${i.comProx?proxTxt(i.comProx):"não definida"}${i.status?` (${STATUS_TXT[i.status]})`:""}`}).join("\n");
   const ls=[...manut].sort((a,b)=>a.data.localeCompare(b.data)).map(x=>`${brDate(x.data)} | ${nomeMaq(x.maquinaId)} | ${(x.servicos||[]).join(", ")||"-"} | horímetro ${x.horimetro!=null?fmtH(x.horimetro):"-"} | itens: ${(x.itens||[]).map(i=>`${i.desc||"item"}${i.valor!=null?" "+brl(i.valor):""}`).join("; ")||"-"} | total ${brl(x.custoTotal||0)} | oficina ${x.oficina||"-"} | ${(x.descricao||"-").replace(/\n/g," ")}`).join("\n");
   return `\n\nMáquinas (nome | tipo/modelo/ano | situação):\n${ms||"-"}\n\nManutenções de máquinas (data | máquina | serviços | horímetro | peças e serviços com valor | total | oficina | descrição):\n${ls||"-"}`;
 }
@@ -3145,7 +3149,7 @@ function planilhaBackup(){
   add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome(m.para||"pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
     "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas):"","Observação":m.obs||""})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
-  add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
+  add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Fabricante":m.fabricante||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
   add("Manutenções",[...manut].reverse().map(x=>({"Data":dt(x.data),"Máquina":nomeMaq(x.maquinaId),"Serviços":(x.servicos||[]).join(", "),"Horímetro":x.horimetro??"","Peças e serviços":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Oficina":x.oficina||"","Próxima":proxTxt(x),"Descrição":x.descricao||""})));
   const {apos}=dsCalc();
   add("Diesel",[...diesel].sort((a,b)=>a.data.localeCompare(b.data)||String(a.criadoEm).localeCompare(String(b.criadoEm))).map(d=>({"Data":dt(d.data),"Tipo":MODOS[d.tipo]||d.tipo,"Máquina":d.maquinaId?nomeMaq(d.maquinaId):"","Litros":d.tipo==="ajuste"?"":(d.tipo==="saida"?-d.litros:d.litros),"Nível medido (L)":d.tipo==="ajuste"?d.nivel:"","Horímetro":d.horimetro??"","Operador":d.operador||"","Valor (R$)":d.valorTotal??"","Fornecedor":d.fornecedor||"","NF":d.nf||"","Tanque após (L)":apos[d.id],"Observação":d.obs||""})));
