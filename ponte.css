@@ -16,3 +16,8 @@ img[src^="foto:"]{opacity:0}
 #ponte-login .pl-msg{margin:0;min-height:1.2em;text-align:center;font-size:14px;color:var(--danger,#B03A2B)}
 #ponte-aviso{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:10000;max-width:min(92vw,520px);background:var(--danger,#B03A2B);color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.2)}
 #ponte-aviso.leve{background:var(--ink,#1C2419);color:var(--bg,#fff)}
+
+/* Fila de envio (o que foi salvo sem internet): faixa abaixo do cabeçalho */
+#ponte-fila{display:block;width:100%;box-sizing:border-box;margin:0 0 10px;border:0;border-radius:12px;padding:11px 14px;font:inherit;font-size:15px;line-height:1.35;text-align:left;cursor:pointer;background:#8a5a00;color:#fff}
+#ponte-fila.env{background:#2f5d8a}
+#ponte-fila.ok{background:var(--ok,#2E6B3A)}

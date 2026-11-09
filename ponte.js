@@ -29,19 +29,64 @@
   /* Snapshots: sempre avisar quando sair do cache e chegar do servidor (status "Salvo na nuvem"). */
   const Q = firebase.firestore.Query.prototype, origSnap = Q.onSnapshot;
   Q.onSnapshot = function (a, b, c) {
-    if (typeof a === "function") return origSnap.call(this, { includeMetadataChanges: true }, a, b);
+    if (typeof a === "function") {
+      const chave = ++fila.n, fn = a;
+      const un = origSnap.call(this, { includeMetadataChanges: true }, snap => {
+        fila.porLista.set(chave, new Set(snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.ref.path)));
+        fn(snap); fila.pinta();
+      }, b);
+      return () => { fila.porLista.delete(chave); fila.pinta(); un() };
+    }
     return origSnap.apply(this, arguments);
   };
+
+  /* Fila de envio: o que foi salvo sem internet fica no aparelho até o app ser aberto com sinal.
+     Mostra "N lançamentos ainda não foram para a nuvem" e, quando sobem, "Tudo enviado". */
+  const fila = { n: 0, porLista: new Map(), outros: false, tinha: false,
+    total() { const u = new Set(); for (const v of this.porLista.values()) v.forEach(x => u.add(x)); return u.size },
+    pinta() {
+      const n = this.total(), pend = n > 0 || this.outros;
+      let el = document.getElementById("ponte-fila");
+      if (!pend) {
+        if (this.tinha && el) { el.className = "ok"; el.innerHTML = "✓ Tudo enviado para a nuvem. Já aparece nos outros aparelhos."; clearTimeout(this.t); this.t = setTimeout(() => { el.hidden = true }, 5000); el.hidden = false }
+        this.tinha = false; return;
+      }
+      if (!el) { el = document.createElement("button"); el.type = "button"; el.id = "ponte-fila";
+        const ref = document.getElementById("bk-alerta"); ref ? ref.before(el) : document.body.prepend(el);
+        el.onclick = () => aviso("Estes lançamentos estão guardados só neste aparelho. Eles sobem sozinhos assim que o app estiver aberto com internet (Wi-Fi ou dados). Deixe o app aberto alguns segundos, até aparecer \"Tudo enviado\".") }
+      clearTimeout(this.t); this.tinha = true; el.className = navigator.onLine ? "env" : "";
+      const q = n ? `${n} lançamento${n > 1 ? "s" : ""}` : "dados";
+      el.innerHTML = navigator.onLine ? `<b>⏳ Enviando ${q} para a nuvem…</b> Deixe o app aberto até aparecer "Tudo enviado".`
+        : `<b>📵 Sem internet:</b> ${q} guardado${n === 1 ? "" : "s"} só neste aparelho. Abra o app com internet para enviar.`;
+      const sy = document.getElementById("sync"); if (sy) sy.textContent = navigator.onLine ? "Enviando…" : "Guardado no aparelho";
+      el.hidden = false;
+    },
+    // pergunta ao Firestore se ainda há gravações na fila (pega também fotos e o que não está em nenhuma lista)
+    confere() {
+      if (this.conferindo || !ponte.usuario) return; this.conferindo = true;
+      const p = fs.waitForPendingWrites(); let fim = false;
+      p.then(() => { fim = true; this.outros = false; this.conferindo = false; this.pinta() }, () => { fim = true; this.conferindo = false });
+      setTimeout(() => { if (!fim) { this.outros = true; this.pinta() } }, 2500);
+    },
+    // celular voltou do bolso ou o sinal voltou: força a reconexão para a fila subir logo
+    acorda() {
+      if (!ponte.usuario || !navigator.onLine || !(this.total() || this.outros)) return;
+      fs.disableNetwork().then(() => fs.enableNetwork()).catch(() => {}).finally(() => this.confere());
+    } };
+  addEventListener("online", () => { fila.pinta(); fila.acorda() });
+  addEventListener("offline", () => fila.pinta());
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fila.acorda() });
+  ponte.fila = fila;
 
   /* Gravações: no campo, sem sinal, o Firestore guarda na fila e sobe depois.
      Não deixamos o botão "Salvar" travado esperando o servidor. */
   function naoTrava(p) {
-    let fim = false;
+    let fim = false; setTimeout(() => fila.confere(), 0);
     p.then(() => { fim = true }, e => {
       fim = true; console.error(e);
       aviso(e?.code === "permission-denied" ? "Sem permissão para salvar. Entre de novo com seu e-mail." : "Não foi possível salvar na nuvem: " + (e?.message || e));
     });
-    return Promise.race([p, new Promise(r => setTimeout(() => { if (!fim) aviso("Sem internet: salvo no aparelho, sobe para a nuvem quando voltar o sinal.", true); r() }, 1500))]);
+    return Promise.race([p, new Promise(r => setTimeout(() => { if (!fim) aviso("Sem internet: salvo neste aparelho. Abra o app com internet para enviar para a nuvem.", true); r() }, 1500))]);
   }
   /* Lixeira: tudo o que é excluído pelo app vai antes para a coleção "lixeira" e fica 30 dias */
   const LIX_DIAS = 30, SEM_LIXEIRA = new Set(["lixeira", "fotos", "usuarios", "arquivos", "arquivos_partes"]);
@@ -376,6 +421,7 @@
     } catch (e) { if (e?.code === "permission-denied") { aviso("Este e-mail não tem permissão de acesso ao diário."); await auth.signOut(); return } }
     resolve(true);
     document.dispatchEvent(new CustomEvent("ponte:pronto"));
+    setTimeout(() => fila.confere(), 1500);
   });
 
   /* ---------- Seção "Conta" e "Claude" em Configurações ---------- */
