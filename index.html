@@ -1248,7 +1248,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <script>
 let TALHOES=[{n:"Talhão 1",ha:80},{n:"Talhão 2",ha:50},{n:"Talhão 3",ha:62.5},{n:"Talhão 4",ha:50},{n:"Talhão 5",ha:50},{n:"Potreiro",ha:20}];
 const TIPOS={
-  plantio:{label:"Plantio",campos:["cultura","cultivar","emergencia"],prods:"kg/ha"},
+  plantio:{label:"Plantio",campos:["cultura","cultivar","emergencia","inicio"],prods:"kg/ha"},
   chuva:{label:"Chuva",campos:["mm","eventos"]},
   aplicacao:{label:"Aplicação",campos:["cultura","alvo","carencia"],prods:"L/ha"},
   adubacao:{label:"Adubação",campos:["cultura"],prods:"kg/ha"},
@@ -1260,6 +1260,7 @@ const CAMPOS={
   cultura:{label:"Cultura",type:"list",opts:["Soja","Milho","Trigo","Feijão","Aveia","Pastagem"]},
   cultivar:{label:"Cultivar / híbrido",type:"text"},
   emergencia:{label:"Emergência (quando nasceu, opcional)",type:"date"},
+  inicio:{label:"Início da cultura (manejo antes do plantio, opcional)",type:"date",dica:"Dessecação e outros manejos neste talhão desta data até o plantio contam para esta cultura e esta safra — mesmo que sejam da safra anterior pelo calendário."},
   carencia:{label:"Carência (dias, opcional)",type:"number",step:"1"},
   mm:{label:"Chuva (mm)",type:"number",step:"0.1"},
   implemento:{label:"Implemento",type:"multi",opts:["Rolo-faca","Grade niveladora","Grade aradora","Escarificador","Subsolador","Terraceador","Outro"]},
@@ -1929,7 +1930,7 @@ function renderCampos(vals){
     else if(f.type==="multi") return `<div class="field" style="grid-column:1/-1"><span class="lbl">${f.label}</span><div class="chips multi" id="${id}">${f.opts.map(o=>`<button type="button" class="chip" aria-pressed="${(vals[c]||[]).includes(o)}" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div></div>`;
     else if(f.type==="list") input=`<input id="${id}" list="dl-${c}" value="${v}"><datalist id="dl-${c}">${f.opts.map(o=>`<option value="${esc(o)}">`).join("")}</datalist>`;
     else input=`<input id="${id}" type="${f.type==="number"?"number":f.type==="date"?"date":"text"}" ${f.step?`step="${f.step}" inputmode="decimal"`:""} placeholder="${esc(f.ph||"")}" value="${v}">`;
-    return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
+    return `<div class="field"${f.dica?` style="grid-column:1/-1"`:""}><label for="${id}">${f.label}</label>${input}${f.dica?`<small class="note">${esc(f.dica)}</small>`:""}</div>`;
   }).join("");
   $("#campos").querySelectorAll(".multi .chip").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
   renderProds(vals.produtos);
@@ -2006,6 +2007,8 @@ $("#view-lancar").addEventListener("submit",async e=>{
   for(const c of TIPOS[tipo].campos){
     if(CAMPOS[c].type==="multi"){const sel=[...$("#c-"+c).querySelectorAll('[aria-pressed="true"]')].map(b=>b.dataset.v); if(sel.length) campos[c]=sel; continue}
     const v=$("#c-"+c).value.trim(); if(v!=="") campos[c]=CAMPOS[c].type==="number"?Number(v):v}
+  if(campos.inicio&&campos.inicio>data){flash("O início da cultura deve ser antes do plantio (ou no mesmo dia). Confira.");$("#c-inicio").focus();return}
+  if(campos.inicio===data) delete campos.inicio;
   if(TIPOS[tipo].prods){const ps=readProds(); if(ps.length) campos.produtos=ps}
   const body={data,tipo,talhoes:TALHOES.map(t=>t.n).filter(n=>talhoesSel.has(n)),campos,descricao:$("#f-desc").value.trim()};
   if(tipo!=="chuva"){const nm=$("#f-nome").value.trim(); if(nm) body.nome=nm}
@@ -2033,7 +2036,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
 function linhaCampos(r){
   const out=Object.entries(r.campos||{}).map(([k,v])=>{
     const f=CAMPOS[k]; if(!f) return "";
-    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":k==="emergencia"?brDate(v):k==="carencia"?num(v)+" dias":v;
+    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":k==="emergencia"||k==="inicio"?brDate(v):k==="carencia"?num(v)+" dias":v;
     return {k:f.label.replace(/ \(.*\)/,""),v:val};
   }).filter(Boolean);
   if(r.tipo!=="chuva"&&(r.talhoes||[]).length) out.push({k:"Área",v:num(areaTotal(r))+" ha"});
@@ -2131,6 +2134,41 @@ function renderStats(){
 /* ---------- Chuvas ---------- */
 const safraDe=iso=>{const y=+iso.slice(0,4),m=+iso.slice(5,7);return m>=7?y:y-1};
 const safraLab=y=>`${String(y).slice(2)}/${String(y+1).slice(2)}`;
+/* ---------- Dono do lançamento: o manejo antes do plantio conta para a cultura plantada depois ----------
+   Ex.: dessecação em junho para a cevada plantada em julho → conta para a Cevada, safra do plantio.
+   Vale (no mesmo talhão, sem colheita entre o lançamento e o plantio):
+   - quando o plantio tem "Início da cultura" (campos.inicio) e o lançamento é desta data em diante; ou
+   - quando o plantio não tem início e o lançamento já diz a mesma cultura (até 180 dias antes do plantio,
+     e não há uma lavoura dessa cultura ainda no campo naquela data). */
+let donoCache={regs:null,m:new Map()};
+function donoReg(r){
+  if(!r||!r.data||["plantio","colheita","chuva"].includes(r.tipo)||!(r.talhoes||[]).length) return null;
+  if(donoCache.regs!==registros) donoCache={regs:registros,m:new Map()};
+  if(r.id&&donoCache.m.has(r.id)) return donoCache.m.get(r.id);
+  const nk=x=>String(x||"").trim().toLowerCase(), rc=nk(r.campos?.cultura), tem=(x,t)=>(x.talhoes||[]).includes(t);
+  const DIA=864e5, dd=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/DIA);
+  const votos=new Map();
+  for(const t of r.talhoes){
+    const cols=registros.filter(c=>c.tipo==="colheita"&&!ehProg(c)&&tem(c,t));
+    const ps=registros.filter(p=>p.tipo==="plantio"&&p.id!==r.id&&tem(p,t)&&p.data>=r.data&&!cols.some(c=>c.data>r.data&&c.data<p.data)).sort((a,b)=>a.data.localeCompare(b.data));
+    let dono=null;
+    for(const p of ps){
+      const ini=p.campos?.inicio, pc=nk(p.campos?.cultura);
+      if(ini){if(ini<=r.data&&(!rc||!pc||rc===pc)){dono=p;break} continue}
+      if(!rc||rc!==pc||dd(r.data,p.data)>180) continue;
+      // já tem lavoura dessa cultura no campo nesta data? então o lançamento é dela
+      const noCampo=registros.some(q=>q.tipo==="plantio"&&!ehProg(q)&&tem(q,t)&&q.data<r.data&&nk(q.campos?.cultura)===rc&&!cols.some(c=>c.data>=q.data&&c.data<=r.data));
+      if(!noCampo) dono=p; break;
+    }
+    if(dono){const a=Number(r.areas?.[t])||haDe(t), v=votos.get(dono)||{p:dono,a:0,ts:[]}; v.a+=a; v.ts.push(t); votos.set(dono,v)}
+  }
+  const best=[...votos.values()].sort((a,b)=>b.a-a.a)[0];
+  const res=best?{p:best.p,talhoes:best.ts,safra:safraDe(best.p.data),cultura:best.p.campos?.cultura||"",cultivar:best.p.campos?.cultivar||""}:null;
+  if(r.id) donoCache.m.set(r.id,res);
+  return res;
+}
+const safraReg=r=>donoReg(r)?.safra??safraDe(r.data);        // safra a que o lançamento pertence
+const culturaReg=r=>r.campos?.cultura||donoReg(r)?.cultura||""; // cultura informada, ou a do plantio a que pertence
 const MESES=["Jul","Ago","Set","Out","Nov","Dez","Jan","Fev","Mar","Abr","Mai","Jun"];
 /* ---------- eventos climáticos nos gráficos de chuva ---------- */
 const PL_EV={"Granizo":{s:"GR",cor:"#7b4bc4"},"Geada":{s:"GE",cor:"#2f8fd1"},"Vento forte / temporal":{s:"VT",cor:"#5f6b73"},"Vento forte":{s:"VT",cor:"#5f6b73"},"Temporal":{s:"VT",cor:"#5f6b73"},"Enxurrada":{s:"EX",cor:"#9a5b2c"},"Enxurrada / erosão":{s:"EX",cor:"#9a5b2c"},"Clima":{s:"!",cor:"#c0392b"}};
@@ -3219,7 +3257,7 @@ function planilhaBackup(){
     ws["!cols"]=Object.keys(r[0]).map(k=>({wch:Math.min(60,Math.max(12,k.length+2,...r.slice(0,200).map(x=>String(x[k]??"").length)))}));XLSX.utils.book_append_sheet(wb,ws,nome)};
   const regs=[...registros].sort((a,b)=>a.data.localeCompare(b.data));
   add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
-    "Cultura":r.campos?.cultura||"","Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
+    "Safra":r.tipo!=="chuva"?safraLab(safraReg(r)):"","Cultura":culturaReg(r),"Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
     "Produtos":(r.campos?.produtos||[]).map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; "),"Custo/ha (R$)":r.custoHa??"","Custo total (R$)":r.custoTotal??"",
     "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc`).join("; "),
     "Sacas entregues":(r.romaneios||[]).reduce((s,x)=>s+(Number(x.sacas)||0),0)||"","Descrição":r.descricao||"","Fotos":(r.fotos||[]).length||"","Lançado por":quem(r.criadoPor),"Editado por":quem(r.editadoPor)})));
@@ -3627,11 +3665,11 @@ function vstack(id,meses,series,{fmt=brlC}={}){
 }
 function pnFiltros(){
   const sy=safraDe(todayISO());
-  const anos=[...new Set([sy,...registros.map(r=>safraDe(r.data)),...manut.map(x=>safraDe(x.data)),...diesel.map(x=>safraDe(x.data))])].sort((a,b)=>b-a);
+  const anos=[...new Set([sy,...registros.map(r=>safraReg(r)),...manut.map(x=>safraDe(x.data)),...diesel.map(x=>safraDe(x.data))])].sort((a,b)=>b-a);
   const keep=(id,html)=>{const v=$(id).value; $(id).innerHTML=html; if([...$(id).options].some(o=>o.value===v)) $(id).value=v};
   keep("#pn-safra",anos.map(y=>`<option value="${y}">${safraLab(y)}</option>`).join("")+`<option value="todas">Todas</option>`);
   keep("#pn-talhao",`<option value="">Todos</option>`+TALHOES.map(t=>`<option>${esc(t.n)}</option>`).join(""));
-  const cults=[...new Set(registros.map(r=>r.campos?.cultura).filter(Boolean).map(normCult))].sort();
+  const cults=[...new Set(registros.map(culturaReg).filter(Boolean).map(normCult))].sort();
   keep("#pn-cult",`<option value="">Todas</option>`+cults.map(c=>`<option>${esc(c)}</option>`).join(""));
 }
 ["#pn-safra","#pn-talhao","#pn-cult"].forEach(s=>$(s).addEventListener("change",renderPainel));
@@ -3642,7 +3680,8 @@ function renderPainel(){
   const naSafra=d=>todas||safraDe(d)===sy;
   const mesIdx=d=>{const m=+d.slice(5,7);return m>=7?m-7:m+5};
   const areaT=r=>ft?(Number(r.areas?.[ft])||(r.talhoes?.includes(ft)?haDe(ft):0)):areaTotal(r);
-  const exec=registros.filter(r=>!ehProg(r)&&naSafra(r.data)&&(!fc||normCult(r.campos?.cultura)===fc)&&(!ft||(r.talhoes||[]).includes(ft)));
+  const naSafraR=r=>todas||safraReg(r)===sy;
+  const exec=registros.filter(r=>!ehProg(r)&&naSafraR(r)&&(!fc||normCult(culturaReg(r))===fc)&&(!ft||(r.talhoes||[]).includes(ft)));
   $("#pn-escopo").hidden=!(ft||fc); $("#pn-escopo").textContent=(ft||fc)?`Talhão e cultura filtram insumos, produção e atividades. Diesel, máquinas, benfeitorias e grãos mostram a propriedade toda.`:"";
   // insumos
   const custoReg=r=>(Number(r.custoHa)||0)*areaT(r);
@@ -3726,7 +3765,7 @@ function renderPainel(){
   }
   // atividades
   const tiposAt=Object.keys(TIPOS).filter(k=>k!=="chuva");
-  const base=registros.filter(r=>naSafra(r.data)&&(!fc||normCult(r.campos?.cultura)===fc)&&(!ft||(r.talhoes||[]).includes(ft)));
+  const base=registros.filter(r=>(todas||safraReg(r)===sy)&&(!fc||normCult(culturaReg(r))===fc)&&(!ft||(r.talhoes||[]).includes(ft)));
   const linhasAt=tiposAt.map(k=>{const rs=base.filter(r=>r.tipo===k);return {k,ex:rs.filter(r=>!ehProg(r)).length,pr:rs.filter(ehProg).length,ha:rs.filter(r=>!ehProg(r)).reduce((s,r)=>s+areaT(r),0)}}).filter(x=>x.ex||x.pr);
   $("#pn-ativ").innerHTML=linhasAt.length?`<table class="pn-ativ"><thead><tr><th>Tipo</th><th>Executadas</th><th>Área</th><th>Programadas</th></tr></thead><tbody>${linhasAt.map(x=>`<tr><td>${esc(TIPOS[x.k].label)}</td><td>${x.ex}</td><td>${num(x.ha)} ha</td><td>${x.pr?`<span class="pill venc">${x.pr}</span>`:"–"}</td></tr>`).join("")}</tbody></table>`:`<div class="pn-vazio">Nenhuma atividade para este filtro.</div>`;
 }
@@ -3736,10 +3775,10 @@ const JSPDF="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js", AU
 const dtBR=iso=>iso?brDate(iso):"";
 const FMT={txt:v=>v??"",num:v=>v==null||v===""?"":num(v),brl:v=>v==null||v===""?"":brl(v),data:v=>dtBR(v),sc:v=>v==null||v===""?"":num(v),mm:v=>v==null||v===""?"":num(v)};
 const prodsTxt=r=>(r.campos?.produtos||[]).map(p=>prodTxt(p)).join("; ");
-const regCult=r=>r.campos?.cultura?normCult(r.campos.cultura):"";
+const regCult=r=>{const c=culturaReg(r); return c?normCult(c):""};
 const RELS=[
  {id:"caderno",nome:"Caderno de campo (atividades)",desc:"Todas as operações da lavoura com talhões, produtos, doses e custos.",filtros:["periodo","talhao","cultura","tipo","situacao"],
-  gerar(F){const rs=registros.filter(r=>r.tipo!=="chuva"&&F.dentro(r.data)&&F.talhaoOk(r)&&F.cultOk(regCult(r))&&(!F.tipo||r.tipo===F.tipo)&&F.sitOk(r)).sort((a,b)=>a.data.localeCompare(b.data));
+  gerar(F){const rs=registros.filter(r=>r.tipo!=="chuva"&&F.dentroR(r)&&F.talhaoOk(r)&&F.cultOk(regCult(r))&&(!F.tipo||r.tipo===F.tipo)&&F.sitOk(r)).sort((a,b)=>a.data.localeCompare(b.data));
    const linhas=rs.map(r=>[r.data,ehProg(r)?"Programada":"Executada",TIPOS[r.tipo]?.label||r.tipo,r.nome||"",talhoesTxt(F.talhao?[F.talhao]:r.talhoes,r.areas),F.area(r),regCult(r),
      [linhaCampos(r).filter(c=>!["Área","Cultura","Custo/ha","Custo total"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),prodsTxt(r)].filter(Boolean).join(" | "),r.custoHa??"",r.custoHa!=null?r.custoHa*F.area(r):"",r.descricao||"",quem(r.criadoPor)]);
    const porTipo={}; rs.forEach(r=>{const k=TIPOS[r.tipo]?.label||r.tipo; porTipo[k]=(porTipo[k]||0)+1});
@@ -3747,7 +3786,7 @@ const RELS=[
     totais:{5:linhas.reduce((s,l)=>s+(l[5]||0),0),9:linhas.reduce((s,l)=>s+(+l[9]||0),0)},resumo:[["Atividades",rs.length],...Object.entries(porTipo)]}}},
  {id:"insumos",nome:"Insumos aplicados por produto",desc:"Cada produto de cada aplicação, plantio ou adubação: dose, quantidade total e custo.",filtros:["periodo","talhao","cultura","classe","situacao"],
   gerar(F){const linhas=[],tot={};
-   for(const r of registros.filter(r=>TIPOS[r.tipo]?.prods&&F.dentro(r.data)&&F.talhaoOk(r)&&F.cultOk(regCult(r))&&F.sitOk(r)).sort((a,b)=>a.data.localeCompare(b.data)))
+   for(const r of registros.filter(r=>TIPOS[r.tipo]?.prods&&F.dentroR(r)&&F.talhaoOk(r)&&F.cultOk(regCult(r))&&F.sitOk(r)).sort((a,b)=>a.data.localeCompare(b.data)))
     for(const p of r.campos?.produtos||[]){const e=p.produtoId?estoque.find(x=>x.id===p.produtoId):prodEstoque(p.nome);
      if(F.classe&&(e?.classe||"")!==F.classe) continue;
      const a=F.area(r), f=e?FATOR[e.unidade]?.[p.unidade]:null, d=typeof p.dose==="number"?p.dose:parseNum(p.dose), q=f!=null&&d>0?d*f*a:null, c=p.custoHa!=null?p.custoHa*a:null;
@@ -3815,7 +3854,7 @@ const RELS=[
  {id:"custos",nome:"Custos consolidados por mês",desc:"Insumos aplicados, diesel, manutenção e benfeitorias, mês a mês.",filtros:["periodo","talhao"],
   gerar(F){const {custo:cl}=dsCalc(), m={};
    const add=(d,k,v)=>{if(!v) return; const mk=d.slice(0,7);(m[mk]??={insumos:0,diesel:0,manut:0,benf:0})[k]+=v};
-   for(const r of registros) if(!ehProg(r)&&r.custoHa>0&&F.dentro(r.data)&&F.talhaoOk(r)) add(r.data,"insumos",r.custoHa*F.area(r));
+   for(const r of registros) if(!ehProg(r)&&r.custoHa>0&&F.dentroR(r)&&F.talhaoOk(r)) add(r.data,"insumos",r.custoHa*F.area(r));
    if(cl!=null) for(const d of diesel) if(d.tipo==="saida"&&F.dentro(d.data)) add(d.data,"diesel",(+d.litros||0)*cl);
    for(const x of manut) if(F.dentro(x.data)) add(x.data,"manut",+x.custoTotal||0);
    for(const x of bfServ) if(x.status!=="pendente"&&F.dentro(x.data)) add(x.data,"benf",+x.custoTotal||0);
@@ -3828,7 +3867,7 @@ let rlAtual=null;
 $("#rl-tipo").innerHTML=RELS.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join("");
 function rlFiltrosHtml(def){
   const sy=safraDe(todayISO());
-  const anos=[...new Set([sy,...registros.map(r=>safraDe(r.data))])].sort((a,b)=>b-a);
+  const anos=[...new Set([sy,...registros.map(r=>safraReg(r))])].sort((a,b)=>b-a);
   const f={
     periodo:`<div class="field"><label for="rl-per">Período</label><select id="rl-per">${anos.map(y=>`<option value="s${y}">Safra ${safraLab(y)}</option>`).join("")}<option value="mes">Este mês</option><option value="todas">Tudo</option><option value="pers">Escolher datas…</option></select></div>
       <div class="field rl-datas" hidden><label for="rl-de">De</label><input type="date" id="rl-de"></div><div class="field rl-datas" hidden><label for="rl-ate">Até</label><input type="date" id="rl-ate"></div>`,
@@ -3844,11 +3883,13 @@ function rlFiltrosHtml(def){
 function rlLerFiltros(){
   const v=id=>$(id)?.value||"";
   const per=v("#rl-per")||"todas"; let de="",ate="",rot="Tudo";
-  if(per.startsWith("s")){const y=+per.slice(1); de=`${y}-07-01`; ate=`${y+1}-06-30`; rot=`Safra ${safraLab(y)} (01/07/${y} a 30/06/${y+1})`}
+  let safraF=null;
+  if(per.startsWith("s")){const y=+per.slice(1); safraF=y; de=`${y}-07-01`; ate=`${y+1}-06-30`; rot=`Safra ${safraLab(y)} (01/07/${y} a 30/06/${y+1})`}
   else if(per==="mes"){const h=todayISO(); de=h.slice(0,8)+"01"; ate=h.slice(0,8)+"31"; rot=`${h.slice(5,7)}/${h.slice(0,4)}`}
   else if(per==="pers"){de=v("#rl-de"); ate=v("#rl-ate"); rot=`${de?brDate(de):"início"} a ${ate?brDate(ate):"hoje"}`}
   const F={talhao:v("#rl-talhao"),cult:v("#rl-cult"),tipo:v("#rl-tp"),sit:$("#rl-sit")?v("#rl-sit"):"",classe:v("#rl-cla"),maquina:v("#rl-maq"),titular:v("#rl-tit"),rotPer:rot};
   F.dentro=d=>!!d&&(!de||d>=de)&&(!ate||d<=ate);
+  F.dentroR=r=>safraF!=null?safraReg(r)===safraF:F.dentro(r.data); // lançamento da lavoura: pela safra a que pertence (manejo antes do plantio entra na safra do plantio)
   F.talhaoOk=r=>!F.talhao||(r.talhoes||[]).includes(F.talhao);
   F.cultOk=c=>!F.cult||c===F.cult;
   F.sitOk=r=>!F.sit||(F.sit==="programada")===ehProg(r);

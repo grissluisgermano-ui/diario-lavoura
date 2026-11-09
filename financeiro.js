@@ -1154,6 +1154,7 @@ function renderSafra(){
   const sy0=safraDe(hoje());
   const anos=new Set([sy0]); for(const l of fnLanc) if(l.natureza!=="transf"&&(l.competencia||l.vencimento)) anos.add(safraLanc(l));
   for(const r of registros) if(r.tipo==="colheita"||r.tipo==="plantio") anos.add(safraDe(r.data));
+  if(typeof safraReg==="function") for(const r of registros) if(!ehProg(r)&&r.custoHa>0) anos.add(safraReg(r));
   const keep=$("#rs-safra").value;
   $("#rs-safra").innerHTML=[...anos].sort((a,b)=>b-a).map(y=>`<option value="${y}">${safraLab(y)}</option>`).join("");
   if([...$("#rs-safra").options].some(o=>o.value===keep)) $("#rs-safra").value=keep;
@@ -1212,7 +1213,8 @@ function renderSafra(){
   const areaPlant=Object.keys(plant).reduce((t,c)=>t+areaCult(c),0);
   /* ---- insumos: aplicados (registros) quando houver; senão as compras do Financeiro ---- */
   const insReg={}, insRegC={};
-  for(const r of registros) if(!ehProg(r)&&naS(r.data)&&r.custoHa>0){const c=nc(r.campos?.cultura);
+  const naSR=r=>(typeof safraReg==="function"?safraReg(r):safraDe(r.data))===sy, cultR=r=>typeof culturaReg==="function"?culturaReg(r):r.campos?.cultura;
+  for(const r of registros) if(!ehProg(r)&&naSR(r)&&r.custoHa>0){const c=nc(cultR(r));
     for(const t of r.talhoes||[]){const v=(Number(r.custoHaLiq??r.custoHa)||0)*(Number(r.areas?.[t])||haDe(t)); insReg[t]=(insReg[t]||0)+v; if(c) insRegC[c]=(insRegC[c]||0)+v}}
   const usaReg=Object.keys(insReg).length>0;
   /* ---- distribui cada custo: talhões marcados → cultura marcada → geral (rateio) ---- */

@@ -34,12 +34,17 @@ linhaCampos=function(r){
   const out=origLinha.apply(this,arguments);
   try{
     if(!r||r.tipo==="chuva"||r.tipo==="plantio"||!(r.talhoes||[]).length) return out;
+    const dn=typeof donoReg==="function"?donoReg(r):null;
+    if(dn){ // manejo antes do plantio: conta para a cultura plantada depois
+      const parte=dn.talhoes.length<r.talhoes.length?` (${dn.talhoes.join(", ")})`:"", d=dias(r.data,dn.p.data);
+      out.push({k:"Conta para",v:`${[dn.cultura||"Plantio",dn.cultivar].filter(Boolean).join(" · ")} · safra ${safraLab(dn.safra)}${parte} — ${d?`${d} dia${d===1?"":"s"} antes do plantio`:"no dia do plantio"} (${brDate(dn.p.data)}${ehProg(dn.p)?", programado":""})`});
+    }
     const partes=[], vistos=new Map();
     for(const t of r.talhoes){const c=ciclo(t,r.data,r.campos?.cultura); if(!c||c.colheita&&c.colheita.id!==r.id) continue;
       const k=txtCiclo(c); vistos.set(k,[...(vistos.get(k)||[]),t])}
     if(vistos.size===1&&r.talhoes.length===[...vistos.values()][0].length) partes.push([...vistos.keys()][0]);
     else for(const [k,ts] of vistos) partes.push(`${ts.join(", ")}: ${k}`);
-    if(partes.length) out.push({k:"Ciclo",v:partes.join(" · ")});
+    if(partes.length&&!dn) out.push({k:"Ciclo",v:partes.join(" · ")});
     if(r.tipo==="aplicacao"){
       const ants=r.talhoes.map(t=>{const c=ciclo(t,r.data,r.campos?.cultura); return registros.filter(x=>x.id!==r.id&&x.tipo==="aplicacao"&&exec(x)&&tem(x,t)&&x.data<=r.data&&(!c||x.data>=c.p.data)).sort((a,b)=>b.data.localeCompare(a.data))[0]}).filter(Boolean);
       if(ants.length){const d=Math.min(...ants.map(a=>dias(a.data,r.data))); out.push({k:"Desde a aplicação anterior",v:`${d} dia${d===1?"":"s"}`})}
@@ -149,7 +154,8 @@ function periodo(t){
   if(ls.length){ // lavouras ativas: começa depois da colheita anterior ao primeiro plantio ativo
     const p0=ls.flatMap(g=>g.vars.flatMap(v=>v.ps)).sort((a,b)=>a.data.localeCompare(b.data))[0];
     const ant=registros.filter(r=>r.tipo==="colheita"&&exec(r)&&tem(r,t)&&r.data<p0.data).sort((a,b)=>b.data.localeCompare(a.data))[0];
-    const ini=ant?soma(ant.data,1):safraDe(p0.data)+"-07-01";
+    let ini=ant?soma(ant.data,1):safraDe(p0.data)+"-07-01";
+    for(const p of ls.flatMap(g=>g.vars.flatMap(v=>v.ps))) if(p.campos?.inicio&&p.campos.inicio<ini) ini=p.campos.inicio; // início da cultura (manejo antes do plantio)
     const c=L?{p:L.p,dap:L.dap,dae:L.dae,colheita:null,cultura:sel.G.cultura,cultivar:sel.V?.cultivar||""}:null;
     const tit=L?`${sel.G.cultura}${sel.V?.cultivar?" · "+sel.V.cultivar:""} · ${num(L.area)} ha`:ls.map(g=>`${g.cultura} ${num(g.area)} ha`).join(" + ");
     return {c,ini,fim:null,tit:tit+` · safra ${safraLab(safraDe(p0.data))}`,ls,sel,filtro:r=>casa(r,sel.G,sel.V)};
@@ -158,7 +164,8 @@ function periodo(t){
   if(!c){const y=safraDe(hoje); return {c:null,ini:y+"-07-01",fim:null,tit:`Safra ${safraLab(y)}`}}
   // começa logo depois da colheita anterior (pega a dessecação/pré-plantio); sem colheita anterior, no início da safra do plantio
   const ant=registros.filter(r=>r.tipo==="colheita"&&exec(r)&&tem(r,t)&&r.data<c.p.data).sort((a,b)=>b.data.localeCompare(a.data))[0];
-  const ini=ant?soma(ant.data,1):safraDe(c.p.data)+"-07-01";
+  let ini=ant?soma(ant.data,1):safraDe(c.p.data)+"-07-01";
+  if(c.p.campos?.inicio&&c.p.campos.inicio<ini) ini=c.p.campos.inicio;
   return {c,ini,fim:c.colheita?c.colheita.data:null,tit:`${c.cultura||"Cultura"}${c.cultivar?" · "+c.cultivar:""} · safra ${safraLab(safraDe(c.p.data))}`};
 }
 function telaTalhao(){
