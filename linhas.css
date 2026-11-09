@@ -22,3 +22,10 @@ article.lx.open>.lx-det>.rec-top:first-child,article.lx.open>.lx-det>.pc-top,art
 #nt-lista article.lx.open>.lx-det>.rec-top:first-child{display:flex}
 article.lx .lx-det .ax-capa{margin:0 0 4px;border-radius:8px}
 #lista .day,#pg-lista,#fn-lista,#fn-pend,#mq-cards,#bf-cards,#nt-lista{gap:6px}
+
+/* Botão de lançamento abaixo do título (form-botao.js) */
+.fb-bar{display:flex;margin:-4px 0 4px}
+.fb-bt{font-weight:600}
+.panel.split>.fb-bar{grid-column:1/-1}
+.panel.split.fb-fechado{grid-template-columns:minmax(0,1fr)}
+.panel.split.fb-fechado>.sp-side{display:none}
