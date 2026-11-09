@@ -5,7 +5,7 @@
 .ci-top h3{margin:0;font-family:var(--f-display);font-size:1.15rem}
 .ci-top .note{font-size:.78rem}
 .ci-lista{display:grid;gap:10px}
-@media (min-width:700px){.ci-lista{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}}
+/* uma embaixo da outra também no computador (pedido do Luis) */
 .ci-t{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
 .ci-t.vazio{align-items:center;opacity:.8}
 .ci-mini{flex:none}
@@ -49,3 +49,10 @@ body.ct-aberto{overflow:hidden}
 .ct-dap{font-family:var(--f-mono);font-size:.8rem;color:var(--accent);font-weight:600;margin-left:6px}
 .ct-fut{font-size:.8rem;color:var(--danger);font-weight:600;margin-left:6px}
 .ct-lista .day{margin-top:4px}
+/* várias culturas/variedades no mesmo talhão */
+.ci-chips{gap:6px}
+.ci-chip{padding:4px 10px;font-size:.85rem}
+.ci-chip small{opacity:.75;margin-left:2px}
+.ci-vars .ci-chip{font-size:.8rem}
+.ci-lav{display:flex;flex-direction:column;gap:4px;padding:6px 0;border-top:1px dashed var(--line)}
+.ci-lav:first-of-type{border-top:0}
