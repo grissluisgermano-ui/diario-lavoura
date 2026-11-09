@@ -174,7 +174,7 @@ function renderResumo(){
   const al=[];
   if(venc.length) al.push(`<div class="falta fn-al">${venc.length} conta${venc.length===1?"":"s"} vencida${venc.length===1?"":"s"} (${brl(soma(venc))}). <button type="button" class="link" data-fnir="vencidas">Ver</button></div>`);
   const pendA=pendencias("atual"), pendR=pendencias("retro"), pend=fnPendModo==="retro"?pendR:pendA;
-  $("#fn-alertas").innerHTML=al.join("");
+  $("#fn-alertas").innerHTML=al.join(""); renderAgenda();
   $("#fn-alertas").querySelectorAll("[data-fnir]").forEach(b=>b.onclick=()=>{fnFiltro=b.dataset.fnir;show("fin_contas")});
   // contas
   $("#fn-contas").innerHTML=fnContas.length?fnContas.map(c=>`<article class="fn-conta" style="--c:var(${c.tipo==="cartao"?"--s2":c.tipo==="coop"?"--t-colheita":c.tipo==="especie"?"--s4":"--accent"})">
@@ -906,6 +906,61 @@ async function aegImportar(){
   }catch(e){st(erroTxt(e)); b.disabled=false}
 }
 
+/* ---------- AGENDA: contas a pagar e a receber por vencimento (Resumo) + aviso no topo ---------- */
+const AG_PER=[["venc","Vencidas"],["hoje","Hoje"],["sem","Esta semana"],["mes","Este mês"],["ano","Este ano"]];
+let agSel=null; // "pagar:hoje" etc.
+function agLimites(){
+  const h=hoje(), d=new Date(h+"T12:00:00"), dw=d.getDay(); d.setDate(d.getDate()+(dw===0?0:7-dw));
+  return {h, sem:d.toISOString().slice(0,10), mes:h.slice(0,7)+"-31", ano:h.slice(0,4)+"-12-31"};
+}
+function agContas(nat,per){
+  const L=agLimites(), ab=fnLanc.filter(l=>l.status!=="pago"&&l.natureza===nat&&l.vencimento);
+  const f={venc:v=>v<L.h, hoje:v=>v===L.h, sem:v=>v>=L.h&&v<=L.sem, mes:v=>v>=L.h&&v<=L.mes, ano:v=>v>=L.h&&v<=L.ano}[per];
+  return ab.filter(l=>f(l.vencimento)).sort((a,b)=>a.vencimento.localeCompare(b.vencimento)||vp(b)-vp(a));
+}
+function renderAgenda(){
+  const box=$("#fn-ag"); if(!box) return;
+  const soma=a=>a.reduce((t,l)=>t+vp(l),0);
+  const linha=nat=>`<div class="ag-row ag-${nat}"><span class="ag-lab">${nat==="pagar"?"A pagar":"A receber"}</span><div class="ag-tiles">${AG_PER.map(([k,t])=>{const a=agContas(nat,k), sel=agSel===nat+":"+k;
+    return `<button type="button" class="ag-tile${sel?" sel":""}${k==="venc"&&a.length?" ag-alerta":""}" data-ag="${nat}:${k}" aria-pressed="${sel}"><span>${t}</span><b>${a.length?brlC(soma(a)):"–"}</b><small>${a.length} conta${a.length===1?"":"s"}</small></button>`}).join("")}</div></div>`;
+  let lista="";
+  if(agSel){
+    const [nat,per]=agSel.split(":"), a=agContas(nat,per), r=nat==="receber";
+    lista=`<div class="ag-lista"><div class="row" style="justify-content:space-between"><b>${r?"A receber":"A pagar"} — ${AG_PER.find(x=>x[0]===per)[1].toLowerCase()}: ${brl(soma(a))}</b><button type="button" class="link" data-agx>Fechar</button></div>
+      ${a.length?a.map(l=>`<div class="ag-it"><div class="ag-it-t"><b>${esc(l.descricao)}${l.parcela?` <small class="note">${esc(l.parcela)}</small>`:""}</b><small>${[l.pessoa,catNome(l.categoria)].filter(Boolean).map(esc).join(" · ")}</small></div>
+        <div class="ag-it-v"><span class="mov-q ${r?"in":"out"}">${r?"+":"−"}${brl(vp(l))}</span>${situacao(l)}</div>
+        <div class="ag-it-b"><button type="button" class="btn fn-mini" data-agpg="${l.id}">${r?"Receber":"Pagar"}</button><button type="button" class="link" data-agab="${l.id}">Ver</button></div></div>`).join(""):`<p class="note">Nenhuma conta ${r?"a receber":"a pagar"} neste período.</p>`}</div>`;
+  }
+  box.innerHTML=`<h3>Contas por vencimento <small>toque num quadro para ver a lista</small></h3>${linha("pagar")}${linha("receber")}${lista}`;
+  box.querySelectorAll("[data-ag]").forEach(b=>b.onclick=()=>{agSel=agSel===b.dataset.ag?null:b.dataset.ag; renderAgenda()});
+  box.querySelector("[data-agx]")?.addEventListener("click",()=>{agSel=null; renderAgenda()});
+  const vai=(id,pagar)=>{const l=fnLanc.find(x=>x.id===id); if(!l) return; fnFiltro="abertas"; $("#fn-busca").value=""; fnBaixa=pagar?id:null; show("fin_contas");
+    setTimeout(()=>{const a=$("#bx-"+id)?.closest("article"); if(a){a.classList.add("open"); a.scrollIntoView({block:"center",behavior:"smooth"})}},150)};
+  box.querySelectorAll("[data-agpg]").forEach(b=>b.onclick=()=>vai(b.dataset.agpg,true));
+  box.querySelectorAll("[data-agab]").forEach(b=>b.onclick=()=>vai(b.dataset.agab,false));
+}
+// aviso no topo do app (como o dos lembretes): contas vencidas ou que vencem hoje
+const AG_DISP="fn-ag-dispensa";
+function agAviso(){
+  let box=$("#fn-alerta-top");
+  if(!box){box=document.createElement("div"); box.className="lm-alerta fn-alerta-top"; box.id="fn-alerta-top"; box.hidden=true; box.setAttribute("role","status");
+    box.innerHTML=`<span class="lm-al-ic" aria-hidden="true">💰</span><div class="lm-al-txt"><b id="fn-at-tit"></b><span id="fn-at-sub"></span></div><div class="lm-al-bt"><button type="button" class="btn" id="fn-at-ver">Ver</button><button type="button" class="link" id="fn-at-x">Agora não</button></div>`;
+    ($("#lm-alerta")||$("#bk-alerta")||$("header")).after(box);
+    $("#fn-at-x").onclick=()=>{try{localStorage.setItem(AG_DISP,box.dataset.k||"")}catch{} box.hidden=true};
+    $("#fn-at-ver").onclick=()=>{agSel=box.dataset.ir||null; show("fin_resumo"); setTimeout(()=>$("#fn-ag")?.scrollIntoView({block:"start",behavior:"smooth"}),120)}}
+  const pv=agContas("pagar","venc"), ph=agContas("pagar","hoje"), rv=agContas("receber","venc"), rh=agContas("receber","hoje");
+  const n=pv.length+ph.length+rv.length+rh.length, h=hoje(), k=h+"|"+[pv,ph,rv,rh].map(a=>a.length).join(",");
+  let disp=""; try{disp=localStorage.getItem(AG_DISP)||""}catch{}
+  if(!n||disp===k||visivel("fin_resumo")){box.hidden=true;return}
+  const soma=a=>a.reduce((t,l)=>t+vp(l),0), pt=(v,hj)=>[v.length?`${v.length} vencida${v.length>1?"s":""}`:"",hj.length?`${hj.length} vence${hj.length>1?"m":""} hoje`:""].filter(Boolean).join(" e ");
+  const partes=[pv.length||ph.length?`a pagar: ${pt(pv,ph)} (${brlC(soma([...pv,...ph]))})`:"",rv.length||rh.length?`a receber: ${pt(rv,rh)} (${brlC(soma([...rv,...rh]))})`:""].filter(Boolean);
+  $("#fn-at-tit").textContent="Contas "+partes.join(" · ");
+  const prim=[...pv,...ph,...rv,...rh][0]; $("#fn-at-sub").textContent=prim.descricao+(n>1?` e mais ${n-1}`:"");
+  box.dataset.k=k; box.dataset.ir=pv.length?"pagar:venc":ph.length?"pagar:hoje":rv.length?"receber:venc":"receber:hoje"; box.hidden=false;
+}
+
+{const sh=window.show; if(typeof sh==="function") window.show=function(){const r=sh.apply(this,arguments); try{agAviso()}catch{} return r}}
+
 /* ---------- LISTA de contas a pagar e a receber ---------- */
 function situacao(l){
   const h=hoje();
@@ -1258,6 +1313,7 @@ window.finAgenda=()=>{clearTimeout(window.finAgenda.t); window.finAgenda.t=setTi
   {const h=hoje(); window.marca?.("fin_contas",fnLanc.filter(l=>l.status!=="pago"&&l.natureza!=="transf"&&l.vencimento&&l.vencimento<h).length);
    try{window.marca?.("fin_resumo",pendencias("atual").length)}catch{}}
   for(const v of ["fin_resumo","fin_contas","fin_caixa","fin_safra"]) if(visivel(v)){try{window.finRender(v)}catch(e){console.error(e)}}
+  try{agAviso()}catch(e){console.error(e)}
   const dl=[...new Set(fnLanc.map(l=>l.pessoa).filter(Boolean))]; $("#dl-fn-pessoa").innerHTML=dl.map(p=>`<option value="${esc(p)}">`).join("");
   $("#dl-fn-tit").innerHTML=[...new Set(fnLanc.map(l=>l.titular).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
   $("#dl-fn-contrato").innerHTML=[...new Set(fnLanc.map(l=>l.contrato).filter(Boolean))].slice(-80).map(p=>`<option value="${esc(p)}">`).join("");

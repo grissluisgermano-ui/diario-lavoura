@@ -111,3 +111,31 @@
 .fi-l2 input{min-width:0}
 @media (max-width:520px){.fi-l2{grid-template-columns:1fr 1fr}}
 .fn-item2 .rm,.anx-it .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:40px;width:40px;font-size:1.1rem;cursor:pointer}
+
+/* Contas por vencimento (Resumo) */
+.fn-ag h3{margin:0;font-size:1rem}
+.fn-ag h3 small{font-weight:400;color:var(--muted);font-size:.8rem;margin-left:6px}
+.ag-row{display:flex;flex-direction:column;gap:6px}
+.ag-lab{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ag-pagar .ag-lab{color:var(--danger)}
+.ag-receber .ag-lab{color:var(--ok,#2E6B3A)}
+.ag-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+@media (max-width:640px){.ag-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ag-tile[data-ag$=":venc"]{grid-column:1/-1}}
+.ag-tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;min-width:0}
+.ag-tile:hover{background:var(--sunk)}
+.ag-tile:focus-visible{outline:2px solid var(--accent)}
+.ag-tile span{font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ag-tile b{font-family:var(--f-mono);font-weight:500;font-size:.98rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag-tile small{font-size:.74rem;color:var(--muted)}
+.ag-pagar .ag-tile.sel{border-color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
+.ag-receber .ag-tile.sel{border-color:var(--ok,#2E6B3A);box-shadow:inset 0 0 0 1px var(--ok,#2E6B3A)}
+.ag-tile.ag-alerta{border-color:var(--danger)}
+.ag-tile.ag-alerta b{color:var(--danger)}
+.ag-lista{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:8px}
+.ag-it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.ag-it-t b{display:block}
+.ag-it-t small{display:block;color:var(--muted);font-size:.8rem}
+.ag-it-v{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.ag-it-b{grid-column:1/-1;display:flex;gap:14px;align-items:center}
+.lm-alerta.fn-alerta-top{background:#F8DCD6;color:#4A120A;border-color:#E3A396}
+.lm-alerta.fn-alerta-top .lm-al-bt .btn{background:#4A120A;color:#F8DCD6;border-color:#4A120A}
