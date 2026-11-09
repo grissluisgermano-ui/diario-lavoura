@@ -759,10 +759,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <form class="sub" id="es-form" autocomplete="off">
       <h3 class="sub-h">Lançar entrada no estoque</h3>
       <div class="nf-imp">
-        <div><b>Importar nota fiscal</b><div class="note">XML da NF-e, PDF (DANFE) ou foto da nota. O app lê os produtos e você confere antes de lançar.</div></div>
-        <label class="btn ghost foto-btn" for="nf-in">Escolher arquivo</label>
-        <input id="nf-in" type="file" accept=".xml,text/xml,application/xml,.pdf,application/pdf,image/*" hidden>
+        <div><b>Importar XML da nota</b><div class="note">O app lê os produtos do XML da NF-e e você confere antes de lançar.</div></div>
+        <label class="btn ghost foto-btn" for="nf-in">Escolher XML</label>
+        <input id="nf-in" type="file" accept=".xml,text/xml,application/xml" hidden>
       </div>
+      <div class="field"><span class="lbl">Foto ou PDF da nota <small class="note">(opcional — fica guardado junto da entrada, para consultar depois)</small></span><div id="es-anx"></div></div>
       <p class="note" id="nf-st" role="status"></p>
       <div id="nf-rev" hidden></div>
 
@@ -1116,6 +1117,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
           <div class="field"><label for="fn-conta">Conta</label><select id="fn-conta"></select></div>
         </div>
       </div>
+      <div class="field" data-fn="norm"><span class="lbl">Foto ou PDF da nota <small class="note">(opcional — fica guardado junto do lançamento)</small></span><div id="fn-anx"></div></div>
       <div class="field"><label for="fn-obs">Observação</label><input id="fn-obs" placeholder="Opcional"></div>
       <label class="nf-chk" id="fn-rec-box" data-fn="norm"><input type="checkbox" id="fn-rec"> Repetir todo mês (salário, internet, luz, consórcio…)</label>
       <div class="row"><button class="btn" type="submit" id="fn-salvar">Salvar</button><span class="toast" id="fn-toast" role="status"></span></div>
@@ -1237,6 +1239,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <div class="lb" id="lb" hidden><button type="button" class="lb-x" id="lb-x" aria-label="Fechar foto">×</button><img id="lb-img" alt="Foto do registro"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="anexo-nota.js"></script>
 <script>
 let TALHOES=[{n:"Talhão 1",ha:80},{n:"Talhão 2",ha:50},{n:"Talhão 3",ha:62.5},{n:"Talhão 4",ha:50},{n:"Talhão 5",ha:50},{n:"Potreiro",ha:20}];
 const TIPOS={
@@ -1633,21 +1636,23 @@ async function nfLancar(){
     un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value)}));
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return} }
   if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
+  if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
+  const anx=esAnx.get();
   $("#nf-lancar").disabled=true; let ok=0;
   try{
     // agrupa itens repetidos do mesmo produto
     const grupos=new Map();
     for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});
       ok++;
     }
-    let fin=""; if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
+    let fin=""; if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
     if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
-    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
+    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
   finally{const b=$("#nf-lancar"); if(b) b.disabled=false}
 }
@@ -1731,15 +1736,18 @@ function entEditar(b,id,i){
     <div class="field"><label>Data</label><input type="date" class="ee-d" value="${esc(x.data||"")}"></div>
     <div class="field"><label>Quantidade (${e.unidade})</label><input class="ee-q" inputmode="decimal" value="${String(x.quantidade??"").replace(".",",")}"></div>
     <div class="field"><label>Valor total (R$)</label><input class="ee-v" inputmode="decimal" value="${x.valorTotal!=null?Number(x.valorTotal).toFixed(2).replace(".",","):""}"></div>
-    <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div></div>
+    <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div>
+    <div class="field" style="grid-column:1/-1"><span class="lbl">Foto ou PDF da nota</span><div class="ee-anx"></div></div></div>
     <div class="row"><button type="button" class="btn fn-mini ee-ok">Salvar entrada</button><button type="button" class="link ee-x">Cancelar</button></div>`;
   row.after(f);
+  const w=anxCampo(f.querySelector(".ee-anx")); w.set(x.anexos);
   f.querySelector(".ee-x").onclick=()=>f.remove();
   f.querySelector(".ee-ok").onclick=async ev=>{
     const q=parseNum(f.querySelector(".ee-q").value), v=parseNum(f.querySelector(".ee-v").value);
     if(!(q>0)){f.querySelector(".ee-q").focus();return}
+    if(w.ocupado()) return;
     ev.target.disabled=true;
-    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim()});
+    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim(),anexos:w.get()});
     try{await db.collection("estoque").doc(id).set(doc)}catch{ev.target.disabled=false}
   };
 }
@@ -1774,7 +1782,7 @@ function renderEstoque(){
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
@@ -1823,14 +1831,17 @@ $("#es-vt").addEventListener("input",()=>{esUltimo="vt";const q=parseNum($("#es-
 $("#es-qtd").addEventListener("input",()=>{const q=parseNum($("#es-qtd").value);if(!(q>0))return;
   if(esUltimo==="vu"){const v=parseNum($("#es-vu").value);if(v>=0)$("#es-vt").value=fmt2(q*v)}else{const v=parseNum($("#es-vt").value);if(v>=0)$("#es-vu").value=fmt2(v/q)}});
 function esFlash(m){$("#es-toast").textContent=m;clearTimeout(esFlash.t);esFlash.t=setTimeout(()=>$("#es-toast").textContent="",3500)}
-function esReset(){["#es-com","#es-gen","#es-qtd","#es-vu","#es-vt","#es-orig","#es-classe"].forEach(s=>$(s).value="");for(const s of ["#es-gen","#es-classe","#es-un"]){delete $(s).dataset.touched} delete $("#es-gen").dataset.ia; $("#es-ia-st").textContent=""; iaUltimo=""; esSync()}
+const esAnx=anxCampo($("#es-anx"));
+function esReset(){esAnx.limpar();["#es-com","#es-gen","#es-qtd","#es-vu","#es-vt","#es-orig","#es-classe"].forEach(s=>$(s).value="");for(const s of ["#es-gen","#es-classe","#es-un"]){delete $(s).dataset.touched} delete $("#es-gen").dataset.ia; $("#es-ia-st").textContent=""; iaUltimo=""; esSync()}
 $("#es-form").addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(!db){esFlash("Sem conexão com o banco de dados.");return}
   const comercial=$("#es-com").value.trim(); if(!comercial){esFlash("Informe o nome comercial.");$("#es-com").focus();return}
   const qtd=parseNum($("#es-qtd").value); if(!(qtd>0)){esFlash("Informe a quantidade.");$("#es-qtd").focus();return}
   const vt=parseNum($("#es-vt").value);
+  if(esAnx.ocupado()){esFlash("Aguarde o anexo terminar de enviar.");return}
   const entrada={data:$("#es-data").value||todayISO(),quantidade:qtd,valorTotal:vt>0?vt:null}; const orig=$("#es-orig").value.trim(); if(orig) entrada.origem=orig;
+  const anx=esAnx.get(); if(anx.length) entrada.anexos=anx;
   const gen=$("#es-gen").value.trim(), e=prodEstoque(comercial);
   $("#es-salvar").disabled=true;
   try{

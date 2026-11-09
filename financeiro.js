@@ -4,11 +4,12 @@
    Coleções: fin_contas {nome,tipo,saldoInicial,dataInicial}
              fin_lanc   {natureza:pagar|receber|transf, descricao, pessoa, categoria, forma, competencia, vencimento,
                          valor, status:aberto|pago, pagoEm, valorPago, contaId, contaDestino, parcela, grupo,
-                         nf, chave, titular, itens:[{desc,valor}], origem, quitGraos:{sacas,cultura,local,grId}, obs}
+                         nf, chave, titular, itens:[{desc,valor,qtd?,un?,vu?}], anexos:[{id,nome,tipo,mime,tam,em}], origem, quitGraos:{sacas,cultura,local,grId}, obs}
                          contrato, safra, cultura, talhoes:[], tags, juros}
              config/financeiro {inicio, ignorados:[], categorias:{pagar:[{k,l,papel}],receber:[…]}, recorrentes:[…], apelidos:{nomeNormalizado:nomeCurto}} */
 (function(){
 "use strict";
+const fnAnx=anxCampo(document.getElementById("fn-anx"));  // foto ou PDF da nota (anexo-nota.js)
 
 /* Categorias: as do Aegro de vocês + as do app. "papel" diz como cada uma entra no Resultado:
    custo (custo da lavoura) · invest (investimento, fora do custo) · financ (só os juros são custo) ·
@@ -138,6 +139,7 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     const k=`est|${norm(x.origem)}|${x.nf?String(x.nf).replace(/^0+/,""):x.data}`;
     const p=g.get(k)||{k,natureza:"pagar",data:x.data,nf:x.nf||"",pessoa:x.origem||"",categoria:"insumos",fonte:"Estoque",itens:[],valor:0,chave:x.chave||""};
     p.itens.push({desc:`${e.comercial} — ${num(x.quantidade)} ${e.unidade}`,valor:Number(x.valorTotal),classe:e.classe}); p.valor+=Number(x.valorTotal); if(x.contrato&&!p.contrato) p.contrato=x.contrato;
+    for(const a of x.anexos||[]) if(!(p.anexos||=[]).some(y=>y.id===a.id)) p.anexos.push(a);
     if(x.data<p.data) p.data=x.data; g.set(k,p);
   }
   for(const p of g.values()){p.categoria=catDosItens(p.itens); p.itens=p.itens.map(({classe,...i})=>i); p.descricao=`Compra de ${catNome(p.categoria).toLowerCase()}${p.nf?" — NF "+p.nf:""}`; if(livre(p.k,p.data)) out.push(p)}
@@ -470,16 +472,42 @@ function opcoesConta(sel,val,vazio){
   $(sel).innerHTML=(vazio?`<option value="">${vazio}</option>`:"")+fnContas.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join("");
   if(val) $(sel).value=val;
 }
+const FN_UN=["un","L","kg","sc","t","cx","pç","m","m²","m³","h","serv"];
+const n2=v=>v!=null&&v!==""&&Number.isFinite(Number(v))?String(+Number(v).toFixed(4)).replace(".",","):"";
+// texto do item para cartões, livro caixa e planilha: "Desc — 10 L × R$ 25,00"
+window.itTxt=i=>`${i.desc||"Item"}${i.qtd!=null?` — ${num(i.qtd)} ${i.un||""}${i.vu!=null?` × ${brl(i.vu)}`:""}`:""}`;
 function itensRender(list){
-  $("#fn-itens").innerHTML=(list||[]).map(i=>`<div class="item fn-item"><input class="i-desc" placeholder="Produto / item" value="${esc(i.desc||"")}" aria-label="Item"><input class="i-val" inputmode="decimal" placeholder="R$" value="${i.valor!=null?f2(Number(i.valor)):""}" aria-label="Valor"><button type="button" class="rm" aria-label="Remover item">×</button></div>`).join("");
-  $("#fn-itens").querySelectorAll(".rm").forEach(b=>b.onclick=()=>{b.parentElement.remove(); totalSt()});
-  $("#fn-itens").querySelectorAll(".i-val").forEach(i=>i.addEventListener("input",totalSt));
+  $("#fn-itens").innerHTML=(list||[]).map(i=>`<div class="fn-item2">
+    <div class="fi-l1"><input class="i-desc" placeholder="Produto / serviço" value="${esc(i.desc||"")}" aria-label="Produto ou serviço"><button type="button" class="rm" aria-label="Remover item">×</button></div>
+    <div class="fi-l2">
+      <label><span>Qtd</span><input class="i-q" inputmode="decimal" placeholder="0" value="${n2(i.qtd)}"></label>
+      <label><span>Unid.</span><input class="i-un" list="dl-fn-un" placeholder="un" value="${esc(i.un||"")}"></label>
+      <label><span>Valor unit. (R$)</span><input class="i-vu" inputmode="decimal" placeholder="0,00" value="${i.vu!=null?f2(Number(i.vu)):""}"></label>
+      <label><span>Total (R$)</span><input class="i-val" inputmode="decimal" placeholder="0,00" value="${i.valor!=null?f2(Number(i.valor)):""}"></label>
+    </div></div>`).join("")+`<datalist id="dl-fn-un">${FN_UN.map(u=>`<option value="${u}">`).join("")}</datalist>`;
+  $("#fn-itens").querySelectorAll(".fn-item2").forEach(r=>{
+    const q=r.querySelector(".i-q"), vu=r.querySelector(".i-vu"), t=r.querySelector(".i-val");
+    const calc=()=>{const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0){t.value=f2(a*b); totalSt(); autoParc()}};
+    q.addEventListener("input",calc); vu.addEventListener("input",calc);
+    t.addEventListener("input",()=>{const a=parseNum(q.value), v=parseNum(t.value); if(a>0&&v>=0) vu.value=f2(v/a); totalSt(); autoParc()});
+  });
+  $("#fn-itens").querySelectorAll(".rm").forEach(b=>b.onclick=()=>{b.closest(".fn-item2").remove(); totalSt(); autoParc()});
 }
-const itensLer=()=>[...document.querySelectorAll("#fn-itens .fn-item")].map(r=>{const v=parseNum(r.querySelector(".i-val").value);return {desc:r.querySelector(".i-desc").value.trim(),valor:Number.isFinite(v)?v:null}}).filter(i=>i.desc||i.valor!=null);
+// uma parcela só e sem valor digitado à mão: acompanha o total dos itens
+function autoParc(){
+  const rs=document.querySelectorAll("#fn-parcs .fn-parc-row"); if(rs.length!==1) return;
+  const v=rs[0].querySelector(".pc-v"); if(v.value&&!v.dataset.auto) return;
+  const t=itensLer().reduce((s,i)=>s+(i.valor>0?i.valor:0),0); v.value=t>0?f2(t):""; v.dataset.auto=t>0?"1":""; totalSt();
+}
+const itensLer=()=>[...document.querySelectorAll("#fn-itens .fn-item2")].map(r=>{
+  const v=parseNum(r.querySelector(".i-val").value), q=parseNum(r.querySelector(".i-q").value), vu=parseNum(r.querySelector(".i-vu").value), un=r.querySelector(".i-un").value.trim();
+  const it={desc:r.querySelector(".i-desc").value.trim(),valor:Number.isFinite(v)?+v.toFixed(2):null};
+  if(q>0){it.qtd=q; if(un) it.un=un; if(vu>=0&&r.querySelector(".i-vu").value.trim()) it.vu=+vu.toFixed(4)}
+  return it}).filter(i=>i.desc||i.valor!=null);
 function parcsRender(list){
   const n=list.length;
   $("#fn-parcs").innerHTML=list.map((p,i)=>`<div class="fn-parc-row"><span class="note">${n>1?`${i+1}/${n}`:"Data"}</span><input type="date" class="pc-d" value="${p.venc||""}" aria-label="Vencimento"><input class="pc-v" inputmode="decimal" placeholder="Valor R$" value="${p.valor!=null?f2(Number(p.valor)):""}" aria-label="Valor"></div>`).join("");
-  $("#fn-parcs").querySelectorAll(".pc-v").forEach(i=>i.addEventListener("input",totalSt));
+  $("#fn-parcs").querySelectorAll(".pc-v").forEach(i=>i.addEventListener("input",()=>{delete i.dataset.auto; totalSt()}));
   $("#fn-np").value=n; totalSt();
 }
 const parcsLer=()=>[...document.querySelectorAll("#fn-parcs .fn-parc-row")].map(r=>({venc:r.querySelector(".pc-d").value,valor:parseNum(r.querySelector(".pc-v").value)}));
@@ -494,7 +522,7 @@ function dividir(){
   parcsRender(Array.from({length:n},(_,i)=>({venc:addMes(v0,i),valor:total>0?(i===n-1?+(total-cada*(n-1)).toFixed(2):cada):null})));
 }
 function fnReset(){
-  fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
+  fnAnx.limpar(); fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
   ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em","#fn-juros","#fn-contrato"].forEach(s=>$(s).value="");
   $("#fn-rec").checked=false; destinoRender(); delete $("#fn-conta").dataset.ok;
   $("#fn-data").value=hoje(); $("#fn-tdata").value=hoje(); $("#fn-forma").value="prazo";
@@ -506,7 +534,7 @@ function fnReset(){
 function origemTxt(t){$("#fn-origem").hidden=!t; $("#fn-origem").innerHTML=t||""}
 function formDePendencia(p){
   fnReset(); fnSetNat(p.natureza);
-  fnOrigem=p.k; fnChave=p.chave||null;
+  fnOrigem=p.k; fnChave=p.chave||null; fnAnx.set(p.anexos||[]);
   $("#fn-desc").value=p.descricao; $("#fn-pessoa").value=p.pessoa||""; $("#fn-cat").value=p.categoria; $("#fn-data").value=p.data; $("#fn-nf").value=p.nf||""; if(p.contrato) $("#fn-contrato").value=p.contrato;
   $("#fn-forma").value=p.natureza==="receber"?"avista":"prazo";
   itensRender(p.itens.length>1||p.natureza!=="receber"?p.itens:[]);
@@ -525,7 +553,7 @@ function formEditar(l){
     $("#fn-desc").value=l.descricao||""; $("#fn-pessoa").value=l.pessoa||""; $("#fn-cat").value=l.categoria||""; $("#fn-data").value=l.competencia||l.vencimento;
     $("#fn-forma").value=l.forma||"prazo"; $("#fn-nf").value=l.nf||""; $("#fn-tit").value=l.titular||""; $("#fn-juros").value=l.juros!=null?f2(Number(l.juros)):""; jurosVis();
     $("#fn-contrato").value=l.contrato||""; destinoRender(l);
-    itensRender(l.itens||[]); parcsRender([{venc:l.vencimento,valor:l.valor}]);
+    itensRender(l.itens||[]); parcsRender([{venc:l.vencimento,valor:l.valor}]); fnAnx.set(l.anexos||[]);
     if(l.status==="pago"){$("#fn-pago-em").value=l.pagoEm||""; opcoesConta("#fn-conta",l.contaId||"","Sem conta (só histórico)")}
     fnSetSit(fnSit);
   }
@@ -552,11 +580,12 @@ async function salvarLanc(ev){
   }
   const descricao=$("#fn-desc").value.trim(), parcs=parcsLer();
   if(!descricao){flash("#fn-toast","Escreva a descrição.");$("#fn-desc").focus();return}
+  if(fnAnx.ocupado()){flash("#fn-toast","Aguarde o anexo terminar de enviar.");return}
   for(const p of parcs){ if(!p.venc){flash("#fn-toast","Informe a data de todas as parcelas.");return} if(!(p.valor>0)){flash("#fn-toast","Informe o valor de todas as parcelas.");return} }
   if(fnSit==="pago"&&!$("#fn-conta").value&&!fnEdit&&fnContas.length&&!$("#fn-conta").dataset.ok){$("#fn-conta").dataset.ok="1";flash("#fn-toast","Sem conta, não mexe no saldo. Toque em salvar de novo para confirmar, ou escolha a conta.");return}
   const comp=$("#fn-data").value||parcs[0].venc;
   const base={natureza:fnNat,descricao,pessoa:$("#fn-pessoa").value.trim(),categoria:$("#fn-cat").value,forma:$("#fn-forma").value,competencia:comp,
-    nf:$("#fn-nf").value.trim(),titular:$("#fn-tit").value.trim(),itens:itensLer(),obs,contrato:$("#fn-contrato").value.trim().replace(/^contrato\s*/i,""),...destinoLer()};
+    nf:$("#fn-nf").value.trim(),titular:$("#fn-tit").value.trim(),itens:itensLer(),anexos:fnAnx.get(),obs,contrato:$("#fn-contrato").value.trim().replace(/^contrato\s*/i,""),...destinoLer()};
   if(fnOrigem) base.origem=fnOrigem; if(fnChave) base.chave=fnChave;
   if(base.categoria==="financ"){const j=parseNum($("#fn-juros").value); base.juros=j>=0?+j.toFixed(2):null} else base.juros=null;
   const pago=fnSit==="pago"?{status:"pago",pagoEm:$("#fn-pago-em").value||parcs[0].venc,contaId:$("#fn-conta").value||null}:{status:"aberto"};
@@ -640,7 +669,7 @@ window.finNfOpcao=function(fin){
 function parcelasDaNota(fin,data){
   return fin.dups.length?fin.dups.map(d=>({venc:d.venc,valor:d.valor})):[{venc:data||fin.data,valor:fin.total}];
 }
-window.finDaNota=async function(fin,{data,nf,origem,itens}){
+window.finDaNota=async function(fin,{data,nf,origem,itens,anexos}){
   if(!db||!fin) return "";
   if(jaLancada(fin.chave,nf||fin.numero,origem||fin.emit)) return "";
   const cat=itens?.length?catDosItens(itens.map(i=>({classe:i.classe,desc:i.nome,valor:i.v}))):fin.categoria;
@@ -649,6 +678,7 @@ window.finDaNota=async function(fin,{data,nf,origem,itens}){
     const b={natureza:"pagar",descricao:`Compra de ${catNome(cat).toLowerCase()} — NF ${nf||fin.numero}`,pessoa:origem||fin.emit,categoria:cat,forma:formaNota(fin),
       competencia:data||fin.data,vencimento:parcs[i].venc,valor:parcs[i].valor,status:"aberto",nf:nf||fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",contrato:fin.contrato||"",criadoEm:agora};
     if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
+    if(anexos?.length) b.anexos=anexos;
     await db.collection("fin_lanc").add(b);
   }
   return ` ${parcs.length>1?parcs.length+" parcelas lançadas":"Conta a pagar lançada"} no Financeiro.`;
@@ -906,7 +936,8 @@ function renderContas(){
       <div class="rec-top"><span class="rec-tipo">${esc(l.descricao)}${l.parcela?` <small class="note">parcela ${esc(l.parcela)}</small>`:""}</span><span class="mov-q ${r?"in":"out"}">${tr?"":r?"+":"−"}${brl(vp(l))}</span></div>
       <div class="rec-top">${tr?`<span>${esc(nomeConta(l.contaId))} → ${esc(nomeConta(l.contaDestino))} · ${brDate(l.pagoEm)}</span>`:situacao(l)}<span class="note">${tr?"Transferência":esc(catNome(l.categoria))}</span></div>
       ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${(()=>{const p=pctLanc(l); if(!p||tr) return ""; return l.status==="pago"?`<span>Nota <b>${brl(l.valor)}</b></span>${l.valorPago!=null&&Number(l.valorPago)<Number(l.valor)?`<span>Desconto <b>${brl(Number(l.valor)-Number(l.valorPago))}</b></span>`:""}`:`<span>Nota <b>${brl(l.valor)}</b></span><span>Desconto do contrato <b>−${num(p*100)}% (${brl(Number(l.valor)-liqPrev(l))})</b></span>`})()}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.contrato?`<span><b>${esc(ctrTxt(l.contrato))}</b></span>`:""}${destTxt(l)?`<span>Destino <b>${esc(destTxt(l))}</b></span>`:""}${l.status==="pago"&&!l.contaId&&!l.quitGraos?`<span class="note">sem conta (histórico)</span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
-      ${(l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(i.desc)}</span><span class="mono">${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:""}
+      ${(l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(itTxt(i))}</span><span class="mono">${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:""}
+      ${(l.anexos||[]).length?`<div class="anx-links">${anxLinks(l.anexos)}</div>`:""}
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
       ${assinatura(l)}
       <div class="fn-baixa" id="bx-${l.id}" hidden></div>
@@ -1037,7 +1068,7 @@ function renderCaixa(){
   const linhas=dentro.map(m=>{const l=m.l; if(acc!=null) acc+=m.v;
     const hist=l.natureza==="transf"?`${esc(l.descricao||"Transferência")} <small class="note">${esc(nomeConta(l.contaId))} → ${esc(nomeConta(l.contaDestino))}</small>`:
       `${esc(l.descricao)}${l.parcela?` <small class="note">(${esc(l.parcela)})</small>`:""}<small class="note fn-lc-sub">${[l.pessoa,catNome(l.categoria),nomeConta(l.contaId),l.nf?"NF "+l.nf:"",l.titular].filter(Boolean).map(esc).join(" · ")}</small>`+
-      ((l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(i.desc)}</span><span>${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:"");
+      ((l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(itTxt(i))}</span><span>${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:"");
     return `<tr><td class="fn-lc-d">${brDate(m.d).slice(0,5)}<small class="note">${m.d.slice(0,4)}</small></td><td class="fn-lc-h">${hist}</td><td class="fn-lc-v"><span class="${m.v>0?"fn-pos":"fn-neg"}">${m.v>0?"+":"−"}${brl(Math.abs(m.v))}</span>${acc!=null?`<small class="${acc<0?"fn-neg":""}">saldo ${brl(acc)}</small>`:""}</td></tr>`});
   $("#lc-tbl").innerHTML=dentro.length?`<thead><tr><th>Data</th><th style="text-align:left">Histórico</th><th>Valor${saldo!=null?" / saldo":""}</th></tr></thead><tbody>
     ${saldo!=null?`<tr class="fn-lc-ini"><td></td><td class="fn-lc-h">Saldo anterior</td><td class="fn-lc-v"><small>${brl(saldo)}</small></td></tr>`:""}${linhas.join("")}</tbody>`:
@@ -1051,7 +1082,7 @@ async function lcPlanilha(){
     const base={"Data":brDate(m.d),"Histórico":l.descricao||"","Parcela":l.parcela||"","Fornecedor / comprador":l.pessoa||"","Categoria":l.natureza==="transf"?"Transferência":catNome(l.categoria),
       "Conta":l.natureza==="transf"?`${nomeConta(l.contaId)} → ${nomeConta(l.contaDestino)}`:nomeConta(l.contaId),"NF":l.nf||"","Em nome de":l.titular||"",
       "Entrada (R$)":m.v>0?+m.v.toFixed(2):"","Saída (R$)":m.v<0?+(-m.v).toFixed(2):"","Saldo (R$)":acc!=null?+acc.toFixed(2):"","Produto / item":"","Valor do item (R$)":""};
-    return [base,...(l.itens||[]).map(i=>({...Object.fromEntries(Object.keys(base).map(k=>[k,""])),"Data":brDate(m.d),"Histórico":l.descricao||"","NF":l.nf||"","Produto / item":i.desc,"Valor do item (R$)":i.valor??""}))]});
+    return [base,...(l.itens||[]).map(i=>({...Object.fromEntries(Object.keys(base).map(k=>[k,""])),"Data":brDate(m.d),"Histórico":l.descricao||"","NF":l.nf||"","Produto / item":itTxt(i),"Valor do item (R$)":i.valor??""}))]});
   const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"Sem lançamentos":""}]);
   ws["!cols"]=Object.keys(rows[0]||{a:1}).map(k=>({wch:Math.min(50,Math.max(12,k.length+2,...rows.slice(0,200).map(r=>String(r[k]??"").length)))}));
   XLSX.utils.book_append_sheet(wb,ws,"Livro caixa");
@@ -1208,7 +1239,7 @@ window.finPlanilha=function(add,dt){
     "Valor (R$)":Number(l.valor)||0,"Situação":l.status==="pago"?(l.quitGraos?"Quitada em grãos":l.natureza==="receber"?"Recebido":"Pago"):(l.vencimento<hoje()?"Vencida":"Em aberto"),
     "Pago/recebido em":dt(l.pagoEm),"Valor pago (R$)":l.status==="pago"?vp(l):"","Conta":l.natureza==="transf"?`${nomeConta(l.contaId)} → ${nomeConta(l.contaDestino)}`:nomeConta(l.contaId),
     "Grãos (sc)":l.quitGraos?`${l.quitGraos.sacas} sc ${l.quitGraos.cultura}`:"","NF":l.nf||"","Em nome de":l.titular||"","Contrato / pedido":ctrTxt(l.contrato),"Safra":l.natureza==="transf"?"":safraLab(safraLanc(l)),"Cultura":l.cultura||"","Talhões":(l.talhoes||[]).join(", "),"Agrupadores (Aegro)":l.tags||"",
-    "Juros (R$)":l.categoria==="financ"?jurosDe(l):"","Itens":(l.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Observação":l.obs||"","Lançado por":quem(l.criadoPor)})));
+    "Juros (R$)":l.categoria==="financ"?jurosDe(l):"","Itens":(l.itens||[]).map(i=>`${itTxt(i)}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Observação":l.obs||"","Lançado por":quem(l.criadoPor)})));
   const s=saldos();
   add("Contas bancárias",fnContas.map(c=>({"Conta":c.nome,"Tipo":FN_TIPOS[c.tipo]||c.tipo,"Saldo inicial (R$)":Number(c.saldoInicial)||0,"Data do saldo inicial":dt(c.dataInicial),"Saldo atual (R$)":+(s[c.id]||0).toFixed(2)})));
 };

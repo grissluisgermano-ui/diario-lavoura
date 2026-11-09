@@ -22,3 +22,13 @@
 .ax-dn span{text-decoration:underline;text-underline-offset:2px}
 .ax-dn small{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
 .ax-st:empty{display:none}
+
+/* Foto ou PDF da nota (anexo-nota.js): campo no formulário e links nos cartões */
+.anx{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.anx-it{display:flex;align-items:center;gap:10px;background:var(--sunk);border-radius:8px;padding:6px 6px 6px 10px;width:100%;box-sizing:border-box}
+.anx-nm{flex:1;min-width:0;text-align:left;border:0;background:none;padding:0;color:var(--ink);font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+.anx-add{cursor:pointer}
+.anx-st:empty{display:none}
+.anx-links{display:flex;flex-wrap:wrap;gap:4px 14px}
+.anx-link{font-size:.85rem}
+.ent .anx-link{font-size:.8rem}

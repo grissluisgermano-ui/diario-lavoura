@@ -102,3 +102,12 @@
 .fn-cd-p{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--muted);font-weight:600}
 .fn-cd-p .dv-pct input{text-align:right}
 .bx-desc{display:block;margin-top:3px;color:var(--accent);font-weight:600}
+
+/* Itens da nota: descrição, quantidade, unidade, valor unitário e total */
+.fn-item2{border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.fi-l1{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}
+.fi-l2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.fi-l2 label{display:flex;flex-direction:column;gap:2px;font-size:.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin:0}
+.fi-l2 input{min-width:0}
+@media (max-width:520px){.fi-l2{grid-template-columns:1fr 1fr}}
+.fn-item2 .rm,.anx-it .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:40px;width:40px;font-size:1.1rem;cursor:pointer}
