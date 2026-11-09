@@ -112,10 +112,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .link{background:none;border:0;color:var(--muted);font:500 .85rem var(--f-body);padding:4px 0;cursor:pointer;text-decoration:underline}
 .link.danger{color:var(--danger)}
 .prods{display:flex;flex-direction:column;gap:8px;counter-reset:p}
-.prod{display:grid;grid-template-columns:24px minmax(0,1fr) 92px 104px 40px;gap:8px;align-items:center}
+.prod{display:grid;grid-template-columns:24px minmax(0,1fr) 92px 104px 112px 40px;gap:8px;align-items:center}
+.prod>small{grid-column:2/-1}
+.prods-dica{margin:-2px 0 4px;font-size:.82rem}
 .prod::before{counter-increment:p;content:counter(p);font-family:var(--f-mono);font-size:.8rem;color:var(--muted);text-align:right}
 .prod .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:42px;font-size:1.1rem;cursor:pointer}
-@media (max-width:540px){.prod{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 40px}.prod .p-nome{grid-column:2/-1}.prod::before{grid-row:1}.prod .p-dose{grid-column:2}.prod .p-un{grid-column:3}.prod .rm{grid-column:4}}
+@media (max-width:540px){.prod{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px}.prod .p-nome{grid-column:2/-1}.prod::before{grid-row:1}.prod .p-dose{grid-column:2}.prod .p-un{grid-column:3}.prod .p-tot{grid-column:4}.prod .rm{grid-column:5}}
 .rec-prods{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:.92rem}
 .rec-prods li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dotted var(--line);padding:2px 0}
 .rec-prods li span:last-child{font-family:var(--f-mono);font-size:.85rem;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -647,6 +649,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </div>
     <div class="field" id="prods-box" hidden>
       <span class="lbl">Produtos e doses</span>
+      <p class="note prods-dica">Preencha a <b>dose por hectare</b> ou o <b>total usado</b> (último campo): o app calcula o outro pela área.</p>
       <div id="prods" class="prods"></div>
       <div><button type="button" class="btn ghost" id="add-prod">+ Adicionar produto</button></div>
       <div class="custo-box" id="prods-custo"></div>
@@ -1346,6 +1349,7 @@ function prodRow(p={}){
     <input class="p-nome" list="dl-prod" placeholder="Produto" value="${esc(p.nome||"")}" aria-label="Produto">
     <input class="p-dose" inputmode="decimal" placeholder="Dose" value="${esc(d)}" aria-label="Dose">
     <select class="p-un" aria-label="Unidade">${UNIDADES.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select>
+    <input class="p-tot" inputmode="decimal" placeholder="Total (${esc(u.replace("/ha",""))})" aria-label="Quantidade total usada">
     <button type="button" class="rm" aria-label="Remover produto">×</button>
     <small class="p-saldo"></small><small class="p-custo"></small></div>`;
 }
@@ -1354,7 +1358,7 @@ function renderProds(list){
   if(!TIPOS[tipo].prods){box.hidden=true;$("#prods").innerHTML="";return}
   box.hidden=false;
   $("#prods").innerHTML=((list&&list.length)?list:[{}]).map(prodRow).join("");
-  atualizaSaldos();
+  atualizaSaldos(); prodTotais();
 }
 const prodEstoque=nome=>{const n=String(nome||"").trim().toLowerCase();return n?estoque.find(e=>e.comercial.toLowerCase()===n):null};
 function readProds(){
@@ -1375,6 +1379,18 @@ function atualizaSaldos(){
   });
   atualizaCustos();
 }
+/* Total usado × dose: digitando o total (ex.: 1000 kg em 40 ha) o app calcula a dose (25 kg/ha);
+   digitando a dose, mostra o total. Mudando a área, mantém o que foi digitado por último e recalcula o outro. */
+const fmtN=(v,d)=>Number(v).toLocaleString("pt-BR",{maximumFractionDigits:d,useGrouping:false});
+function prodTotais(){
+  const area=typeof areaForm==="function"?areaForm():0;
+  document.querySelectorAll("#prods .prod").forEach(r=>{
+    const dose=r.querySelector(".p-dose"), tot=r.querySelector(".p-tot"), un=r.querySelector(".p-un").value.replace("/ha","");
+    if(!tot) return; tot.placeholder=`Total (${un})`;
+    if(r.dataset.src==="tot"){const t=parseNum(tot.value); if(t>0&&area>0) dose.value=fmtN(t/area,4)}
+    else{const d=parseNum(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?fmtN(d*area,2):""}
+  });
+}
 function addProd(){$("#prods").insertAdjacentHTML("beforeend",prodRow());$("#prods").lastElementChild.querySelector(".p-nome").focus()}
 $("#add-prod").onclick=addProd;
 $("#prods").addEventListener("click",e=>{
@@ -1389,10 +1405,15 @@ $("#prods").addEventListener("change",e=>{
   if(u&&UNIDADES.includes(u)) e.target.closest(".prod").querySelector(".p-un").value=u;
   atualizaSaldos();
 });
-$("#prods").addEventListener("input",e=>{if(e.target.classList.contains("p-nome")) atualizaSaldos(); else atualizaCustos()});
+$("#prods").addEventListener("input",e=>{
+  const r=e.target.closest(".prod");
+  if(e.target.classList.contains("p-tot")){r.dataset.src=e.target.value.trim()?"tot":""; prodTotais()}
+  else if(e.target.classList.contains("p-dose")){r.dataset.src="dose"; prodTotais()}
+  if(e.target.classList.contains("p-nome")) atualizaSaldos(); else atualizaCustos()});
 $("#prods").addEventListener("change",()=>atualizaCustos());
-$("#areas").addEventListener("input",()=>atualizaCustos());
-$("#talhoes").addEventListener("click",()=>setTimeout(atualizaCustos));
+$("#areas").addEventListener("input",()=>{prodTotais(); atualizaCustos()});
+$("#talhoes").addEventListener("click",()=>setTimeout(()=>{prodTotais(); atualizaCustos()}));
+$("#prods").addEventListener("change",e=>{if(e.target.classList.contains("p-un")) prodTotais()});
 $("#prods").addEventListener("keydown",e=>{
   if(e.key!=="Enter"||e.target.tagName!=="INPUT") return;
   e.preventDefault();
@@ -1880,14 +1901,14 @@ function renderAreas(){
   for(const n of Object.keys(areasSel)) if(!talhoesSel.has(n)) delete areasSel[n];
   for(const n of sel) if(areasSel[n]==null) areasSel[n]=haDe(n);
   const box=$("#areas"); box.hidden=!sel.length;
-  if(!sel.length){box.innerHTML="";return}
+  if(!sel.length){box.innerHTML="";prodTotais();return}
   box.innerHTML=`<div class="areas-head">Área trabalhada em cada talhão. Ajuste se a operação foi parcial.</div>`+
     sel.map((n,i)=>`<div class="area-row" data-n="${esc(n)}"><span class="nome">${esc(n)}<span class="tag" hidden>parcial</span></span>
       <input id="area-${i}" inputmode="decimal" aria-label="Área trabalhada no ${esc(n)} em hectares" value="${String(areasSel[n]).replace(".",",")}">
       <span class="de">de ${num(haDe(n))} ha</span></div>`).join("")+
     `<div class="areas-total"><span>Total</span><span id="areas-sum"></span></div>`;
   box.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{areasSel[inp.closest(".area-row").dataset.n]=parseNum(inp.value);atualizaAreas()}));
-  atualizaAreas();
+  atualizaAreas(); prodTotais();
 }
 function atualizaAreas(){
   let tot=0;
