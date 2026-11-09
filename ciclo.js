@@ -189,7 +189,7 @@ function telaTalhao(){
     lista+=recCard(r);
   }
   if(dia) lista+="</div>";
-  el.innerHTML=`<div class="ct-bar"><button type="button" class="btn ghost" id="ct-volta">‹ Voltar</button><span class="ct-bar-t">${esc(t)}</span></div>
+  el.innerHTML=`<div class="ct-bar"><button type="button" class="btn ghost" id="ct-volta">‹ Voltar</button><span class="ct-bar-t">${esc(t)}</span><button type="button" class="btn ct-env" id="ct-env">📤 Enviar</button></div>
     <div class="ct-corpo">
       <div class="ct-cab">${mini?`<span class="ci-mini">${mini}</span>`:""}<div><h2>${esc(t)} <small>${num(ha)} ha</small></h2><p class="note">${esc(tit)}${c?` · plantio em ${brDate(c.p.data)}`:""}${c?.colheita?` · colhido em ${brDate(c.colheita.data)}`:""}</p></div></div>
       ${ls?chips(t,ls,sel):""}
@@ -207,7 +207,62 @@ function telaTalhao(){
   ligaCards(el); ligaChips(el,()=>{telaTalhao(); render()});
   el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",fecha));
   $("#ct-volta").onclick=fecha;
+  $("#ct-env").onclick=()=>enviar(t);
 }
+/* ---------- Resumo do manejo para mandar ao agrônomo (WhatsApp etc.) ----------
+   Usa o mesmo período e a mesma cultura/variedade escolhida na tela do talhão. Sem preços. */
+function textoTalhao(t,o={}){
+  const hoje=todayISO(), {c,ini,fim,tit,filtro}=periodo(t), ha=haDe(t);
+  const dt=d=>{const b=brDate(d); return b.slice(0,6)+b.slice(8)}; // dd/mm/aa
+  const rs=registros.filter(r=>r.tipo!=="chuva"&&tem(r,t)&&r.data>=ini&&(!fim||r.data<=fim)&&(!filtro||filtro(r)))
+    .sort((a,b)=>a.data.localeCompare(b.data)||String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  const ex=rs.filter(exec), pr=rs.filter(r=>!exec(r));
+  const rot=d=>!c?"":d>=c.p.data?`${dias(c.p.data,d)} DAP`:`${dias(d,c.p.data)} dias antes do plantio`;
+  const linha=r=>{
+    const k=r.campos||{}, a=Number(r.areas?.[t])||ha;
+    const ext=[r.tipo==="plantio"&&k.cultivar?k.cultivar:"",k.alvo?"alvo: "+k.alvo:"",r.tipo==="mecanizacao"&&k.implemento?k.implemento:"",r.tipo==="ocorrencia"&&k.categoria?k.categoria:"",
+      Number(k.carencia)>0?`carência ${k.carencia} dias, até ${dt(soma(r.data,Number(k.carencia)))}`:"",a<ha-0.05?`${num(a)} ha`:""].filter(Boolean);
+    const rt=rot(r.data);
+    let x=`• *${dt(r.data)}*${r.dataFim?" a "+dt(r.dataFim):""}${rt?` (${rt})`:""} — ${TIPOS[r.tipo]?.label||r.tipo}${r.nome?": "+r.nome:""}${ext.length?` (${ext.join("; ")})`:""}`;
+    const ps=(k.produtos||[]).map(prodTxt).filter(Boolean); if(ps.length) x+="\n   "+ps.join(" + ");
+    if(o.obs&&r.descricao) x+="\n   Obs.: "+r.descricao.replace(/\s+/g," ").slice(0,220);
+    return x;
+  };
+  const L=[];
+  L.push(`🌱 *${t}* — ${tit}`);
+  if(typeof propCfg!=="undefined"&&propCfg.nome) L.push(propCfg.nome);
+  if(c){
+    L.push(`Plantio em ${brDate(c.p.data)}${c.p.campos?.emergencia?` · emergência em ${brDate(c.p.campos.emergencia)}`:""}${c.colheita?` · colhido em ${brDate(c.colheita.data)}`:""}`);
+    if(!c.colheita){const a=ultimaAplic(t,hoje,c.p.data,filtro);
+      L.push(`Hoje (${brDate(hoje)}): *${c.dap} DAP*${c.dae!=null?` · ${c.dae} DAE`:""}${a?` · última aplicação há ${dias(a.data,hoje)} dias`:""}`)}
+  }else L.push(`Hoje: ${brDate(hoje)} · sem plantio lançado`);
+  L.push("");
+  L.push(`✅ *Feito* (${ex.length})`);
+  L.push(ex.length?ex.map(linha).join("\n"):"Nada lançado ainda.");
+  if(pr.length){L.push(""); L.push(`📅 *Programado* (${pr.length})`); L.push(pr.map(linha).join("\n"))}
+  if(o.chuva!==false){
+    const chIni=c?c.p.data:ini, chFim=fim||hoje;
+    const ch=registros.filter(r=>r.tipo==="chuva"&&r.data>=chIni&&r.data<=chFim&&(!(r.talhoes||[]).length||tem(r,t))).sort((a,b)=>a.data.localeCompare(b.data));
+    const mm=r=>Number(r.campos?.mm)||0, tot=ch.reduce((a,r)=>a+mm(r),0), d15=soma(chFim,-15), u15=ch.filter(r=>r.data>d15).reduce((a,r)=>a+mm(r),0), ult=ch[ch.length-1];
+    L.push(""); L.push(`🌧️ *Chuva ${c?"desde o plantio":"desde "+brDate(chIni)}:* ${num(tot)} mm em ${ch.length} dia${ch.length===1?"":"s"}`);
+    if(ch.length){L.push(`Últimos 15 dias: ${num(u15)} mm · última chuva ${dt(ult.data)} (${num(mm(ult))} mm${dias(ult.data,hoje)>0?`, há ${dias(ult.data,hoje)} dias`:""})`);
+      if(o.chuvaDia) L.push(ch.map(r=>`${dt(r.data).slice(0,5)} ${num(mm(r))}`).join(" · ")+" (mm)")}
+  }
+  if(o.local!==false&&window.mpLocal){const l=window.mpLocal(t); if(l){L.push(""); L.push(`📍 *Localização do talhão:* ${l.link}`)}
+    const ps=window.mpPontosDo?window.mpPontosDo(t):[]; if(ps.length&&o.pontos!==false){L.push("Pontos marcados:"); for(const p of ps) L.push(`${p.ic} ${p.nome}${p.obs?" — "+p.obs:""}: ${p.link}`)}}
+  L.push(""); L.push("_Enviado pelo Diário da Lavoura_");
+  return L.join("\n");
+}
+function enviar(t){
+  if(!window.compartilhar) return;
+  const temLocal=!!(window.mpLocal&&window.mpLocal(t)), temPts=!!(window.mpPontosDo&&window.mpPontosDo(t).length);
+  compartilhar({titulo:`Enviar ${t} ao agrônomo`,
+    opcoes:[{k:"chuva",l:"Chuva (total e últimos 15 dias)",on:true},{k:"chuvaDia",l:"Chuva dia a dia",on:false},{k:"obs",l:"Observações dos lançamentos",on:true},
+      ...(temLocal?[{k:"local",l:"Localização do talhão (Google Maps)",on:true}]:[]),...(temPts?[{k:"pontos",l:"Pontos marcados no talhão",on:false}]:[])],
+    gerar:o=>textoTalhao(t,o),
+    nota:temLocal?"":"Para mandar também a localização, desenhe o contorno do talhão em Painel → Mapa."});
+}
+window.ciTexto=textoTalhao;
 function abreTalhao(t){
   aberto=t;
   let el=$("#ct-tela"); if(!el){el=document.createElement("div"); el.id="ct-tela"; el.className="ct-tela"; el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true"); document.body.appendChild(el)}

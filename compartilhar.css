@@ -1,0 +1,13 @@
+/* Janela "Enviar" (compartilhar.js) — usa as mesmas peças da janela dos formulários (linhas.css) */
+#cp-modal{position:fixed;inset:0;z-index:9500;display:flex;align-items:stretch;justify-content:center}
+#cp-modal[hidden]{display:none}
+.cp-ops{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.cp-ops .chips{flex-wrap:wrap}
+.cp-txt{width:100%;box-sizing:border-box;font:inherit;font-size:.92rem;line-height:1.45;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);resize:vertical;margin-top:4px}
+.cp-bts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.cp-bts .btn{flex:1 1 auto}
+.cp-wa{background:#1f8f4e;border-color:#1f8f4e;color:#fff}
+.cp-st:empty{display:none}
+@media (min-width:760px){
+  #cp-modal{align-items:center;padding:24px}
+}

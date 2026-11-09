@@ -56,3 +56,4 @@ body.ct-aberto{overflow:hidden}
 .ci-vars .ci-chip{font-size:.8rem}
 .ci-lav{display:flex;flex-direction:column;gap:4px;padding:6px 0;border-top:1px dashed var(--line)}
 .ci-lav:first-of-type{border-top:0}
+.ct-env{margin-left:auto}

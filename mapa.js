@@ -101,14 +101,14 @@ function desenhaTudo(){
     const pg=L.polygon(g.coords.map(c=>[c.lat,c.lng]),{color:cor(t.id),weight:3,fillOpacity:.12}).addTo(camT);
     pg.bindTooltip(t.n,{permanent:true,direction:"center",className:"mp-rot"});
     pg.bindPopup(()=>{const d=document.createElement("div"); d.className="mp-pop";
-      d.innerHTML=`<b>${esc(t.n)}</b><br>${ha(t.ha)} ha cadastrado · ${ha(areaHa(g.coords))} ha no desenho<br><button type="button" class="link">Editar contorno</button>`;
-      d.querySelector("button").onclick=()=>{mapa.closePopup(); abreEditorTalhao(t.id)}; return d});
+      d.innerHTML=`<b>${esc(t.n)}</b><br>${ha(t.ha)} ha cadastrado · ${ha(areaHa(g.coords))} ha no desenho<br><button type="button" class="link">Editar contorno</button> · <button type="button" class="link" data-env>📤 Enviar localização</button>`;
+      d.querySelector("button").onclick=()=>{mapa.closePopup(); abreEditorTalhao(t.id)}; d.querySelector("[data-env]").onclick=()=>{mapa.closePopup(); window.mpEnviaTalhao(t.id)}; return d});
   }
   for(const p of pontos){ if(filtro&&p.tipo!==filtro) continue;
     const [,nm]=TIPOS_P[p.tipo]||TIPOS_P.outro;
     L.marker([p.lat,p.lng],{icon:pinIcon(p.tipo)}).addTo(camP).bindPopup(()=>{const d=document.createElement("div"); d.className="mp-pop";
-      d.innerHTML=`<b>${esc(nm)}</b>${p.obs?`<br>${esc(p.obs)}`:""}<br><small>${esc(talhaoDo(p)||"fora dos talhões")}${p.criadoEm?" · "+brDate(p.criadoEm.slice(0,10)):""}</small><br><button type="button" class="link">Editar</button>`;
-      d.querySelector("button").onclick=()=>{mapa.closePopup(); abreEditorPonto(p)}; return d});
+      d.innerHTML=`<b>${esc(nm)}</b>${p.obs?`<br>${esc(p.obs)}`:""}<br><small>${esc(talhaoDo(p)||"fora dos talhões")}${p.criadoEm?" · "+brDate(p.criadoEm.slice(0,10)):""}</small><br><button type="button" class="link">Editar</button> · <button type="button" class="link" data-env>📤 Enviar localização</button>`;
+      d.querySelector("button").onclick=()=>{mapa.closePopup(); abreEditorPonto(p)}; d.querySelector("[data-env]").onclick=()=>{mapa.closePopup(); window.mpEnviaPonto(p.id)}; return d});
   }
 }
 
@@ -265,17 +265,19 @@ function painelPonto(){
 function listas(){
   $("#mp-tal").innerHTML=talhoes().map(t=>{const g=geo[t.id], a=g?.coords?.length>2?areaHa(g.coords):0, dif=a&&t.ha?Math.abs(a-t.ha)/t.ha:0;
     return `<div class="mp-t" style="--c:${cor(t.id)}"><button type="button" class="mp-t-mini" data-mpdes="${t.id}" aria-label="${g?"Editar":"Desenhar"} ${esc(t.n)}">${g?mini(t.id,52):"<i>✏️</i>"}</button><div><b>${esc(t.n)}</b><small>${ha(t.ha)} ha cadastrado${a?` · ${ha(a)} ha no desenho${dif>.1?` <span class="mp-dif">(diferença de ${Math.round(dif*100)}%)</span>`:""}`:" · sem contorno"}</small></div>
-      <div class="mp-t-bt">${g?`<button type="button" class="link" data-mpver="${t.id}">Ver</button>`:""}<button type="button" class="link" data-mpdes="${t.id}">${g?"Editar":"Desenhar"}</button></div></div>`}).join("")||`<div class="empty">Cadastre os talhões em Configurações.</div>`;
+      <div class="mp-t-bt">${g?`<button type="button" class="link" data-mpver="${t.id}">Ver</button><button type="button" class="link" data-mpenv="${t.id}">Enviar</button>`:""}<button type="button" class="link" data-mpdes="${t.id}">${g?"Editar":"Desenhar"}</button></div></div>`}).join("")||`<div class="empty">Cadastre os talhões em Configurações.</div>`;
   const usados=[...new Set(pontos.map(p=>p.tipo))];
   if(filtro&&!usados.includes(filtro)) filtro="";
   $("#mp-filtro").innerHTML=usados.length>1?[["","Todos"],...usados.map(k=>[k,(TIPOS_P[k]||TIPOS_P.outro).join(" ")])].map(([k,l])=>`<button type="button" class="chip" aria-pressed="${k===filtro}" data-f="${k}">${esc(l)}</button>`).join(""):"";
   $("#mp-np").textContent=pontos.length?`${pontos.length}`:"";
   const vis=pontos.filter(p=>!filtro||p.tipo===filtro).sort((a,b)=>(talhaoDo(a)||"~").localeCompare(talhaoDo(b)||"~","pt-BR")||String(b.criadoEm).localeCompare(String(a.criadoEm)));
   $("#mp-pontos").innerHTML=vis.length?vis.map(p=>{const [ic,nm]=TIPOS_P[p.tipo]||TIPOS_P.outro; return `<div class="mp-p"><span class="mp-ic">${ic}</span><div><b>${esc(nm)}</b>${p.obs?` · ${esc(p.obs)}`:""}<small>${esc(talhaoDo(p)||"Fora dos talhões")}${p.criadoEm?" · "+brDate(p.criadoEm.slice(0,10)):""}</small></div>
-      <div class="mp-t-bt"><button type="button" class="link" data-mppver="${p.id}">Ver</button><button type="button" class="link" data-mpped="${p.id}">Editar</button></div></div>`}).join("")
+      <div class="mp-t-bt"><button type="button" class="link" data-mppver="${p.id}">Ver</button><button type="button" class="link" data-mppenv="${p.id}">Enviar</button><button type="button" class="link" data-mpped="${p.id}">Editar</button></div></div>`}).join("")
     :`<div class="empty">Nenhum ponto marcado.<br>Use “+ Marcar ponto” para guardar onde tem pedra, buraco, toco, água…</div>`;
   $("#mp-tal").querySelectorAll("[data-mpdes]").forEach(b=>b.onclick=()=>abreEditorTalhao(b.dataset.mpdes));
   $("#mp-tal").querySelectorAll("[data-mpver]").forEach(b=>b.onclick=()=>{const g=geo[b.dataset.mpver]; if(mapa&&g) {mapa.fitBounds(g.coords.map(c=>[c.lat,c.lng]),{padding:[30,30]}); $("#mp-mapa").scrollIntoView({block:"center",behavior:"smooth"})}});
+  $("#mp-tal").querySelectorAll("[data-mpenv]").forEach(b=>b.onclick=()=>window.mpEnviaTalhao(b.dataset.mpenv));
+  $("#mp-pontos").querySelectorAll("[data-mppenv]").forEach(b=>b.onclick=()=>window.mpEnviaPonto(b.dataset.mppenv));
   $("#mp-filtro").querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filtro=b.dataset.f; listas(); desenhaTudo()});
   $("#mp-pontos").querySelectorAll("[data-mppver]").forEach(b=>b.onclick=()=>{const p=pontos.find(x=>x.id===b.dataset.mppver); if(mapa&&p){mapa.setView([p.lat,p.lng],18); $("#mp-mapa").scrollIntoView({block:"center",behavior:"smooth"})}});
   $("#mp-pontos").querySelectorAll("[data-mpped]").forEach(b=>b.onclick=()=>abreEditorPonto(pontos.find(x=>x.id===b.dataset.mpped)));
@@ -301,6 +303,28 @@ $("#mp-desenhar").onclick=()=>abreEditorTalhao(null);
 $("#mp-gps").onclick=async e=>{const b=e.currentTarget; b.disabled=true; aviso("Pegando a localização…"); try{const p=await gps(); if(mapa){mapa.setView([p.lat,p.lng],17); ajustou=true;
   const c=L.circleMarker([p.lat,p.lng],{radius:8,color:"#fff",weight:3,fillColor:"#2d9cdb",fillOpacity:1}).addTo(camX); setTimeout(()=>c.remove(),15000)} aviso(`Você está aqui (precisão de ${Math.round(p.prec)} m).`)}catch(er){aviso(er.message,true)} finally{b.disabled=false}};
 window.mpDesenhar=id=>abreEditorTalhao(id);
+
+/* ---------- compartilhar localização (compartilhar.js) ---------- */
+const linkMaps=(lat,lng)=>`https://maps.google.com/?q=${(+lat).toFixed(6)},${(+lng).toFixed(6)}`;
+function centro(cs){ // centro do contorno (centroide do polígono); se cair fora (talhão em "L"), usa o canto mais perto
+  let a=0,x=0,y=0; for(let i=0,j=cs.length-1;i<cs.length;j=i++){const f=cs[j].lng*cs[i].lat-cs[i].lng*cs[j].lat; a+=f; x+=(cs[j].lng+cs[i].lng)*f; y+=(cs[j].lat+cs[i].lat)*f}
+  let c=a?{lat:y/(3*a),lng:x/(3*a)}:{lat:cs.reduce((s,p)=>s+p.lat,0)/cs.length,lng:cs.reduce((s,p)=>s+p.lng,0)/cs.length};
+  if(!dentro(c,cs)){const m={lat:cs.reduce((s,p)=>s+p.lat,0)/cs.length,lng:cs.reduce((s,p)=>s+p.lng,0)/cs.length}; c=dentro(m,cs)?m:cs[0]}
+  return c;
+}
+const idDoNome=n=>talhoes().find(t=>t.n===n)?.id;
+window.mpLocal=nome=>{const g=geo[idDoNome(nome)]; if(!(g?.coords?.length>2)) return null; const c=centro(g.coords); return {...c,link:linkMaps(c.lat,c.lng)}};
+window.mpPontosDo=nome=>pontos.filter(p=>talhaoDo(p)===nome).map(p=>({nome:(TIPOS_P[p.tipo]||TIPOS_P.outro)[1],ic:(TIPOS_P[p.tipo]||TIPOS_P.outro)[0],obs:p.obs||"",link:linkMaps(p.lat,p.lng)}));
+function textoLocalTalhao(t){
+  const l=window.mpLocal(t.n); if(!l) return "";
+  const ps=window.mpPontosDo(t.n);
+  return `📍 *${t.n}* (${ha(t.ha)} ha)${typeof propCfg!=="undefined"&&propCfg.nome?" — "+propCfg.nome:""}\n${l.link}`+
+    (ps.length?`\n\nPontos marcados no talhão:\n`+ps.map(p=>`${p.ic} ${p.nome}${p.obs?" — "+p.obs:""}\n${p.link}`).join("\n"):"");
+}
+function textoPonto(p){const [ic,nm]=TIPOS_P[p.tipo]||TIPOS_P.outro;
+  return `${ic} *${nm}*${p.obs?" — "+p.obs:""}\n${talhaoDo(p)||"Fora dos talhões"}${typeof propCfg!=="undefined"&&propCfg.nome?" · "+propCfg.nome:""}\n${linkMaps(p.lat,p.lng)}`}
+window.mpEnviaTalhao=id=>{const t=talhaoInfo(id); if(t&&window.compartilhar) compartilhar({titulo:`Localização — ${t.n}`,texto:textoLocalTalhao(t)})};
+window.mpEnviaPonto=id=>{const p=pontos.find(x=>x.id===id); if(p&&window.compartilhar) compartilhar({titulo:"Localização do ponto",texto:textoPonto(p)})};
 listas();
 if(typeof col!=="undefined"&&col) window.mpInicia();
 })();
