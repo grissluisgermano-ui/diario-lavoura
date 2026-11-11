@@ -294,6 +294,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nf-parc .note{min-width:46px}
 #nf-add{align-self:flex-start}
 .es-um{margin:14px 0 4px;font-size:.95rem;color:var(--muted);font-weight:600}
+.nf-cont{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.nf-cont select{width:auto}
+.es-embl{color:var(--ink)!important;opacity:.8;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+.es-embt{font-size:.92rem;line-height:1.3;white-space:nowrap}
+.emb-tab{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.emb-l{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:8px 10px;align-items:baseline;font-size:.92rem}
+.emb-l>span:first-child{grid-column:1/-1}
+.emb-l:nth-child(odd){background:var(--sunk)}
+.emb-l span:nth-child(2){font-family:var(--f-mono,monospace);font-size:.85rem;color:var(--muted)}
+.emb-l span:nth-child(3){font-family:var(--f-mono,monospace);font-size:.85rem;text-align:right}
+.emb-tot{font-weight:600;border-top:1px solid var(--line)}
 .pn-filtros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .pn-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 @media (min-width:640px){.pn-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -1600,6 +1611,9 @@ function converteEmb(desc,uCom,q){
 function xmlSemClaude(x){
   return {data:x.data,numero:x.numero,origem:x.origem,fin:x.fin,itens:x.itens.map(it=>{
     const est=estoque.find(e=>it.descricao.toLowerCase().includes(e.comercial.toLowerCase()));
+    const em=(!est||ehEmb(est)||est.classe==="Semente")&&embDaDesc(it.descricao,it.unidade);
+    if(em) return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:"Semente",unidade:"kg",emb:em,
+      quantidade:it.quantidade,valorTotal:it.valorTotal,duvida:em.tipo!=="kg"&&!(em.cont>0)?`Na nota: ${num(it.quantidade)} ${it.unidade}. Informe quantas sementes (ou kg) vêm em cada embalagem.`:""};
     const c=converteEmb(it.descricao,it.unidade,it.quantidade);
     const ok=!est||est.unidade===c.un;
     return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:est?.classe||"",
@@ -1643,7 +1657,7 @@ function nfLer(){ // guarda o que está digitado antes de redesenhar
   const g=id=>document.getElementById(id);
   if(g("nf-data")) r.data=g("nf-data").value; if(g("nf-num")) r.numero=g("nf-num").value; if(g("nf-orig")) r.origem=g("nf-orig").value; if(g("nf-tit")) r.titular=g("nf-tit").value;
   r.itens=[...$("#nf-rev").querySelectorAll(".nf-it")].map((b,i)=>({...r.itens[i],nomeComercial:b.querySelector(".nf-nome").value,generico:b.querySelector(".nf-gen").value,classe:b.querySelector(".nf-cla").value,
-    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
+    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
     .map(it=>({...it,quantidade:Number.isFinite(it.quantidade)?it.quantidade:null,vu:Number.isFinite(it.vu)?it.vu:null,valorTotal:Number.isFinite(it.valorTotal)?it.valorTotal:null}));
   if(r.manual){r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
 }
@@ -1681,7 +1695,9 @@ function renderNfRev(){
         <div class="field"><label>Nome comercial</label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial??it.descricao??"")}" placeholder="Ex.: Fox Xpro, Semente soja P95R51"></div>
         <div class="field"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
         <div class="field"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
-        <div class="field"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div class="field nf-unf"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
+        ${(()=>{const m=it.emb||(ehEmb(ex)?ultimaEmb(ex):null)||{tipo:"saco",cont:null,med:"sem"};return `<div class="field nf-sf"><label>Embalagem da semente</label><select class="nf-et"><option value="kg" ${m.tipo==="kg"?"selected":""}>Kg (a granel)</option><option value="saco" ${m.tipo==="saco"?"selected":""}>Saco</option><option value="bag" ${m.tipo==="bag"?"selected":""}>Bag (bigbag)</option></select></div>
+        <div class="field nf-sf nf-scf"><label>Conteúdo de cada embalagem</label><div class="nf-cont"><input class="nf-ec" inputmode="numeric" placeholder="${m.med==="kg"?"Ex.: 40":"Ex.: 200.000"}" value="${m.tipo!=="kg"&&m.cont>0?num(m.cont):""}"><select class="nf-em"><option value="sem" ${m.med!=="kg"?"selected":""}>sementes</option><option value="kg" ${m.med==="kg"?"selected":""}>kg</option></select></div></div>`})()}
         <div class="field"><label class="nf-q-l">Quantidade (${u})</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
         <div class="field"><label class="nf-vu-l">Valor unitário (R$/${u})</label><input class="nf-vu" inputmode="decimal" placeholder="0,00" value="${it.vu!=null?nfF2(it.vu):it.quantidade>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.quantidade):""}"></div>
         <div class="field" style="grid-column:1/-1"><label>Valor total (R$)</label><input class="nf-v" inputmode="decimal" placeholder="0,00" value="${nfF2(it.valorTotal)}"></div>
@@ -1700,7 +1716,14 @@ function renderNfRev(){
     <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
   const box$=$("#nf-rev");
-  const unSync=box=>{const u=box.querySelector(".nf-un").value; box.querySelector(".nf-q-l").textContent=`Quantidade (${u})`; box.querySelector(".nf-vu-l").textContent=`Valor unitário (R$/${u})`};
+  const unSync=box=>{
+    const sem=box.querySelector(".nf-cla").value==="Semente", t=box.querySelector(".nf-et").value, u=box.querySelector(".nf-un").value;
+    box.querySelectorAll(".nf-sf").forEach(f=>f.hidden=!sem); box.querySelector(".nf-scf").hidden=!sem||t==="kg"; box.querySelector(".nf-unf").hidden=sem;
+    const nm=t==="bag"?"bags":"sacos";
+    box.querySelector(".nf-q-l").textContent=sem?(t==="kg"?"Quantidade (kg)":`Quantidade de ${nm}`):`Quantidade (${u})`;
+    box.querySelector(".nf-vu-l").textContent=sem?(t==="kg"?"Valor por kg (R$)":`Valor de cada ${t==="bag"?"bag":"saco"} (R$)`):`Valor unitário (R$/${u})`;
+    const ec=box.querySelector(".nf-ec"); ec.placeholder=box.querySelector(".nf-em").value==="kg"?"Ex.: 40":"Ex.: 200.000";
+  };
   box$.querySelectorAll(".nf-it").forEach(box=>{
     const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v");
     q.addEventListener("input",()=>{const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
@@ -1708,6 +1731,9 @@ function renderNfRev(){
     t.addEventListener("input",()=>{box.dataset.ult="t"; const a=parseNum(q.value), c=parseNum(t.value); if(a>0&&c>=0) vu.value=nfF2(c/a); nfDivide()});
     box.querySelector(".nf-ok").addEventListener("change",nfDivide);
     box.querySelector(".nf-un").addEventListener("change",()=>unSync(box));
+    ["nf-cla","nf-et","nf-em"].forEach(c=>box.querySelector("."+c).addEventListener("change",()=>unSync(box)));
+    box.querySelector(".nf-ec").addEventListener("change",e=>{const v=qMil(e.target.value); if(v>0) e.target.value=num(v)});
+    unSync(box);
     box.querySelector(".nf-gen").addEventListener("input",e=>e.target.dataset.touched="1");
   });
   box$.querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>{
@@ -1737,15 +1763,34 @@ function renderNfRev(){
   $("#nf-lancar").onclick=nfLancar;
   $("#nf-rev").scrollIntoView({block:"start"});
 }
-window.nfManual=function(){ // Estoque → "Nota fiscal à mão (vários produtos)"
+function embDe(b){const t=b.querySelector(".nf-et").value; return t==="kg"?{...EMB_KG}:{tipo:t,cont:qMil(b.querySelector(".nf-ec").value)||0,med:b.querySelector(".nf-em").value}}
+const ultimaEmb=e=>{const l=(e?.entradas||[]).filter(x=>x.emb).pop(); return l?{...l.emb}:null};
+const embAntiga=u=>u==="kg"?{...EMB_KG}:{tipo:"saco",cont:0,med:"sem"}; // entradas antigas, de antes da contagem por embalagem
+/* descrição da nota → embalagem da semente: "BIG BAG 5.000.000 SEM", "SC 200 MIL SEMENTES", "SACO 40 KG" */
+function embDaDesc(desc,uCom){
+  const d=String(desc||"").toUpperCase(), u=String(uCom||"").toUpperCase();
+  if(!/SEMENTE|\bSTE\b|\bSEM\b|BIG ?BAG|\bBAG\b/.test(d)) return null;
+  const tipo=/BIG ?BAG|\bBAG\b|\bBB\b/.test(d+" "+u)?"bag":/^(KG|QUILO)/.test(u)&&!/\bSC\b|SACO/.test(d)?"kg":"saco";
+  if(tipo==="kg") return {...EMB_KG};
+  let m=d.match(/(\d+(?:[.,]\d+)?)\s*(?:MI|MILH(?:AO|ÃO|OES|ÕES))\b/), cont=0, med="sem";
+  if(m) cont=Math.round(parseFloat(m[1].replace(",","."))*1e6);
+  else if((m=d.match(/(\d+(?:[.,]\d+)?)\s*MIL\b/))) cont=Math.round(parseFloat(m[1].replace(",","."))*1e3);
+  else if((m=d.match(/(\d{1,3}(?:\.\d{3}){1,3}|\d{5,9})\s*(?:SEM\b|SEMENTES|SEMS|S\b)?/))&&+m[1].replace(/\./g,"")>=10000) cont=+m[1].replace(/\./g,"");
+  else if((m=d.match(/(\d+(?:[.,]\d+)?)\s*KG\b/))){cont=parseFloat(m[1].replace(",",".")); med="kg"}
+  return {tipo,cont,med};
+}
+window.nfManual=function(pre){ // Estoque → "Nota fiscal à mão (vários produtos)"; pre.semente = produto de semente para nova entrada
   esAba("entrada"); nfCtl?.abort(); nfXmlTxt=null;
-  nfDados={manual:true,data:todayISO(),numero:"",origem:"",itens:[{}],fin:null};
+  const sm=pre?.semente, it0=sm?{nomeComercial:sm.comercial,classe:"Semente",generico:sm.generico||"",emb:ultimaEmb(sm)||(sm.unidade==="kg"?{...EMB_KG}:null)}:{};
+  nfDados={manual:true,data:todayISO(),numero:"",origem:"",itens:[it0],fin:null};
   renderNfRev(); nfSt(""); $("#nf-num").focus();
 };
 window.nfDoFinanceiro=function(d){ // Financeiro → conta salva com "Lançar também no estoque"
   show("estoque"); esAba("entrada"); nfCtl?.abort(); nfXmlTxt=null;
   nfDados={finRef:d.ref||true,chave:d.chave||null,data:d.data,numero:d.nf||"",origem:d.origem||"",fin:null,anexos:d.anexos||[],
-    itens:(d.itens||[]).map(i=>{const ex=prodEstoque(i.desc); const ag=!ex&&window.agrofitBusca?.(i.desc); return {nomeComercial:ex?.comercial||ag?.marca||i.desc,descricao:ex?"":i.desc,quantidade:i.qtd??null,unidade:ex?.unidade||nfUn(i.un)||ag?.unidade||"un",vu:i.vu??null,valorTotal:i.valor??null,generico:ag?.generico||"",classe:ag?.classe||""}})};
+    itens:(d.itens||[]).map(i=>{const ex=prodEstoque(i.desc); const ag=!ex&&window.agrofitBusca?.(i.desc);
+      const em=(!ex||ehEmb(ex)||ex.classe==="Semente")&&embDaDesc(i.desc,i.un); if(em) return {nomeComercial:ex?.comercial||i.desc,descricao:ex?"":i.desc,classe:"Semente",generico:ex?.generico||"",emb:em,quantidade:i.qtd??null,vu:i.vu??null,valorTotal:i.valor??null,unidade:"kg"};
+      return {nomeComercial:ex?.comercial||ag?.marca||i.desc,descricao:ex?"":i.desc,quantidade:i.qtd??null,unidade:ex?.unidade||nfUn(i.un)||ag?.unidade||"un",vu:i.vu??null,valorTotal:i.valor??null,generico:ag?.generico||"",classe:ag?.classe||""}})};
   if(!nfDados.itens.length) nfDados.itens=[{}];
   renderNfRev(); nfSt("Conta lançada no Financeiro. Agora confira os produtos e toque em Lançar.");
 };
@@ -1754,8 +1799,11 @@ async function nfLancar(){
   const data=$("#nf-data").value||todayISO(), nf=$("#nf-num").value.trim(), origem=$("#nf-orig").value.trim(), man=!!nfDados?.manual;
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
-    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value)}));
-  for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return} }
+    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value),
+    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null}));
+  for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return}
+    if(it.emb&&it.emb.tipo!=="kg"&&!(it.emb.cont>0)){nfSt(`Informe quantas sementes (ou kg) vêm em cada ${it.emb.tipo==="bag"?"bag":"saco"} de ${it.nome}.`);return}
+    if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
   if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
   let parcs=null;
@@ -1770,26 +1818,33 @@ async function nfLancar(){
   try{
     // agrupa itens repetidos do mesmo produto
     const grupos=new Map();
-    for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
+    for(const it of itens){const k=it.nome.toLowerCase()+(it.emb?"#"+embChave(it.emb):""); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
+    const porProd=new Map(); // várias entradas do mesmo produto (embalagens diferentes) numa gravação só
     for(const it of grupos.values()){
       const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
-      if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave} // já está no Financeiro: não vira pendência
+      if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave}
+      if(it.emb) entrada.emb=it.emb;
+      const k=it.nome.toLowerCase(), pp=porProd.get(k)||{it,ents:[]}; pp.ents.push(entrada); if(it.emb) pp.emb=true; porProd.set(k,pp);
+    }
+    for(const {it,ents,emb} of porProd.values()){
       const e=prodEstoque(it.nome);
-      if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
-      else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});
-      ok++;
+      if(e){const {id,...doc}=e; let antes=e.entradas||[];
+        if(emb&&!ehEmb(e)){antes=antes.map(x=>({...x,emb:x.emb||embAntiga(e.unidade)})); doc.unidade="emb"; doc.classe="Semente"} // passa a contar por embalagem
+        doc.entradas=[...antes,...ents]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
+      else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:emb?"emb":it.un,entradas:ents,criadoEm:new Date().toISOString()});
+      ok+=ents.length;
     }
     let fin="";
     if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
     else if(parcs){
       const tot=itens.reduce((t,i)=>t+(i.v>0?i.v:0),0), unica=parcs.length===1&&parcs[0].venc===data;
       const f={chave:null,numero:nf,emit:origem,dest:($("#nf-tit")?.value||"").trim(),total:tot,data,dups:unica?[]:parcs,contrato:"",
-        itens:itens.map(i=>({desc:i.nome,qtd:i.q,un:i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null}))};
+        itens:itens.map(i=>({desc:i.emb&&i.emb.tipo!=="kg"?`${i.nome} — ${embRot(i.emb,2)}`:i.nome,qtd:i.q,un:i.emb?(i.emb.tipo==="kg"?"kg":i.emb.tipo==="bag"?"bag":"sc"):i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null}))};
       if(unica) f.total=parcs[0].valor;
       try{fin=await window.finDaNota(f,{data,nf,origem,itens,anexos:anx})||" Esta nota já estava no Financeiro."}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
     }
     if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
-    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
+    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok} ite${ok>1?"ns":"m"} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
   finally{const b=$("#nf-lancar"); if(b) b.disabled=false}
 }
@@ -1799,7 +1854,42 @@ let estoque=[];
 const brlC=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:Math.abs(v)>=1000?0:2});
 const brl=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const FATOR={L:{"L/ha":1,"mL/ha":.001},kg:{"kg/ha":1,"g/ha":.001,"t/ha":1000},sc:{"sc/ha":1},un:{"un/ha":1}};
+/* ---------- Sementes por embalagem ----------
+   Produto de semente fica com unidade "emb": cada entrada guarda emb:{tipo:"kg"|"saco"|"bag", cont (sementes ou kg em cada embalagem), med:"sem"|"kg"}
+   e quantidade = nº de embalagens (ou kg, no tipo "kg"). O saldo é mostrado por embalagem: "4 sacos de 200 mil sementes + 2 bags de 5 milhões de sementes". */
+const ehEmb=e=>e?.unidade==="emb";
+const EMB_KG={tipo:"kg",cont:1,med:"kg"};
+const qMil=v=>parseNum(String(v??"").replace(/\./g,"")); // números grandes digitados com ponto de milhar (200.000)
+const semTxt=n=>fmtSem(n)+(n>=1e6?" de sementes":" sementes");
+const fmtSem=n=>n>=1e6?`${num(n/1e6)} ${n/1e6===1?"milhão":"milhões"}`:n>=1000?`${num(n/1000)} mil`:num(n);
+const embChave=m=>{m=m||EMB_KG; return m.tipo==="kg"?"kg":`${m.tipo}|${m.cont||0}|${m.med||"sem"}`};
+function embRot(m,n){ // "sacos de 200 mil sementes", "bag de 1.000 kg", "kg"
+  m=m||EMB_KG; if(m.tipo==="kg") return "kg";
+  const nome=m.tipo==="bag"?(n===1?"bag":"bags"):(n===1?"saco":"sacos");
+  if(!(m.cont>0)) return `${nome} (conteúdo não informado)`;
+  return `${nome} de ${m.med==="kg"?num(m.cont)+" kg":semTxt(m.cont)}`;
+}
+function gruposEmb(e){
+  const g=new Map();
+  for(const x of e.entradas||[]){const m=x.emb||EMB_KG, k=embChave(m), o=g.get(k)||{k,m,entrou:0,valor:0,qv:0};
+    o.entrou+=Number(x.quantidade)||0; if(Number(x.valorTotal)>0){o.valor+=Number(x.valorTotal); o.qv+=Number(x.quantidade)||0} g.set(k,o)}
+  const ord={bag:0,saco:1,kg:2};
+  return [...g.values()].map(o=>({...o,saldo:o.entrou,custo:o.qv>0?o.valor/o.qv:null})).sort((a,b)=>(ord[a.m.tipo]-ord[b.m.tipo])||((b.m.cont||0)-(a.m.cont||0)));
+}
+function embTotais(gs){ // total em sementes e em kg
+  let sem=0,kg=0; for(const g of gs){ if(g.m.tipo==="kg") kg+=g.saldo; else if(g.m.cont>0){ if(g.m.med==="kg") kg+=g.saldo*g.m.cont; else sem+=g.saldo*g.m.cont } }
+  return {sem,kg};
+}
+const embTotTxt=gs=>{const t=embTotais(gs); return [t.sem?semTxt(t.sem):"",t.kg?num(t.kg)+" kg":""].filter(Boolean).join(" + ")};
+const semCurto=n=>n>=1e6?`${num(n/1e6)} mi`:n>=1000?`${num(n/1000)} mil`:num(n);
+const embCurto=(m,n)=>{m=m||EMB_KG; if(m.tipo==="kg") return `${num(n)} kg`; const nm=m.tipo==="bag"?(n===1?"bag":"bags"):(n===1?"saco":"sacos"); return `${num(n)} ${nm}${m.cont>0?" "+(m.med==="kg"?num(m.cont)+" kg":semCurto(m.cont)):""}`};
+const embTotCurto=gs=>{const t=embTotais(gs); return [t.sem?semCurto(t.sem)+" sem.":"",t.kg?num(t.kg)+" kg":""].filter(Boolean).join(" + ")||"–"};
+const embSaldoTxt=e=>gruposEmb(e).filter(g=>g.saldo>0).map(g=>`${num(g.saldo)} ${embRot(g.m,g.saldo)}`).join(" + ")||"sem saldo";
 function resumoProd(prod){
+  if(ehEmb(prod)){ // semente por embalagem (a baixa pelo plantio vem depois)
+    const gs=gruposEmb(prod), saldo=gs.reduce((t,g)=>t+g.saldo,0), usos=registros.filter(r=>(r.campos?.produtos||[]).some(p=>p.produtoId===prod.id||String(p.nome).toLowerCase()===prod.comercial.toLowerCase())).length;
+    return {emb:true,grupos:gs,entrou:saldo,usado:0,saldo,programado:0,disponivel:saldo,custo:null,custoLiq:null,usos,semConv:0,valorSaldo:gs.reduce((t,g)=>t+(g.custo!=null?g.saldo*g.custo:0),0)};
+  }
   const ent=prod.entradas||[];
   const entrou=ent.reduce((s,x)=>s+(Number(x.quantidade)||0),0);
   const comValor=ent.filter(x=>Number(x.valorTotal)>0);
@@ -1828,7 +1918,7 @@ function peForm(e){
       <div class="field"><label>Nome comercial</label><input class="pe-nome" value="${esc(e.comercial)}"></div>
       <div class="field"><label>Princípio ativo</label><input class="pe-gen" value="${esc(e.generico||"")}"></div>
       <div class="field"><label>Classe</label><select class="pe-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===e.classe?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>Unidade do estoque</label><select class="pe-un">${["L","kg","sc","un"].map(u=>`<option ${u===e.unidade?"selected":""}>${u}</option>`).join("")}</select></div>
+      <div class="field"><label>Unidade do estoque</label><select class="pe-un" ${ehEmb(e)?"disabled":""}>${ehEmb(e)?`<option value="emb" selected>por embalagem</option>`:["L","kg","sc","un"].map(u=>`<option ${u===e.unidade?"selected":""}>${u}</option>`).join("")+`<option value="emb">semente por embalagem (kg, saco, bag)</option>`}</select></div>
     </div>
     <div class="pe-conv" hidden>
       <div class="field"><label class="pe-conv-l">Converter as entradas</label><input class="pe-fator" inputmode="decimal" value="1"></div>
@@ -1842,6 +1932,8 @@ function peLiga(box){
   const un=box.querySelector(".pe-un"), fat=box.querySelector(".pe-fator"), conv=box.querySelector(".pe-conv");
   const ent=(e.entradas||[]).reduce((t,x)=>t+(Number(x.quantidade)||0),0);
   const mostra=()=>{const mudou=un.value!==e.unidade; conv.hidden=!mudou||!(e.entradas||[]).length;
+    if(un.value==="emb"&&!ehEmb(e)){fat.closest(".field").hidden=true; box.querySelector(".pe-conv-n").textContent="Passa a contar por embalagem. Depois toque em Editar em cada entrada e informe a embalagem (kg, saco ou bag) e o conteúdo de cada uma (sementes ou kg)."; return}
+    fat.closest(".field").hidden=false;
     box.querySelector(".pe-conv-l").textContent=`Quantos ${un.value} tem cada 1 ${e.unidade}? (ex.: galão de 5 L → 5)`;
     const f=parseNum(fat.value)||1; box.querySelector(".pe-conv-n").textContent=`As entradas passam de ${num(ent)} ${e.unidade} para ${num(ent*f)} ${un.value}. O valor pago não muda. Deixe 1 se as quantidades já estão certas.`};
   un.onchange=mostra; fat.oninput=mostra; mostra();
@@ -1850,12 +1942,14 @@ function peLiga(box){
     const st=t=>box.querySelector(".pe-st").textContent=t;
     const nome=box.querySelector(".pe-nome").value.trim(); if(!nome){st("Informe o nome.");return}
     const outro=prodEstoque(nome); if(outro&&outro.id!==e.id){st("Já existe outro produto com esse nome.");return}
-    const f=un.value!==e.unidade?(parseNum(fat.value)||1):1; if(!(f>0)){st("Confira a conversão.");return}
+    const vEmb=un.value==="emb"&&!ehEmb(e);
+    const f=un.value!==e.unidade&&!vEmb?(parseNum(fat.value)||1):1; if(!(f>0)){st("Confira a conversão.");return}
     ev.target.disabled=true;
     try{
       const {id,...doc}=e, antigo=e.comercial;
       doc.comercial=nome; doc.generico=box.querySelector(".pe-gen").value.trim(); doc.classe=box.querySelector(".pe-cla").value; doc.unidade=un.value;
       if(f!==1) doc.entradas=(e.entradas||[]).map(x=>({...x,quantidade:+((Number(x.quantidade)||0)*f).toFixed(3)}));
+      if(vEmb){doc.entradas=(e.entradas||[]).map(x=>({...x,emb:x.emb||embAntiga(e.unidade)})); doc.classe="Semente"}
       await db.collection("estoque").doc(id).set(doc);
       // atividades que usam o produto passam a mostrar o nome novo
       if(antigo!==nome){const a=antigo.toLowerCase();
@@ -1871,7 +1965,9 @@ function entEditar(b,id,i){
   const f=document.createElement("div"); f.className="ent-ed";
   f.innerHTML=`<div class="grid2">
     <div class="field"><label>Data</label><input type="date" class="ee-d" value="${esc(x.data||"")}"></div>
-    <div class="field"><label>Quantidade (${e.unidade})</label><input class="ee-q" inputmode="decimal" value="${String(x.quantidade??"").replace(".",",")}"></div>
+    ${ehEmb(e)?(()=>{const m=x.emb||EMB_KG; return `<div class="field"><label>Embalagem</label><select class="ee-et"><option value="kg" ${m.tipo==="kg"?"selected":""}>Kg (a granel)</option><option value="saco" ${m.tipo==="saco"?"selected":""}>Saco</option><option value="bag" ${m.tipo==="bag"?"selected":""}>Bag (bigbag)</option></select></div>
+    <div class="field ee-scf" ${m.tipo==="kg"?"hidden":""}><label>Conteúdo de cada</label><div class="nf-cont"><input class="ee-ec" inputmode="numeric" value="${m.tipo!=="kg"&&m.cont>0?num(m.cont):""}" placeholder="Ex.: 200.000"><select class="ee-em"><option value="sem" ${m.med!=="kg"?"selected":""}>sementes</option><option value="kg" ${m.med==="kg"?"selected":""}>kg</option></select></div></div>`})():""}
+    <div class="field"><label class="ee-q-l">${ehEmb(e)?((x.emb||EMB_KG).tipo==="kg"?"Quantidade (kg)":`Quantidade de ${(x.emb.tipo==="bag"?"bags":"sacos")}`):`Quantidade (${e.unidade})`}</label><input class="ee-q" inputmode="decimal" value="${String(x.quantidade??"").replace(".",",")}"></div>
     <div class="field"><label>Valor total (R$)</label><input class="ee-v" inputmode="decimal" value="${x.valorTotal!=null?Number(x.valorTotal).toFixed(2).replace(".",","):""}"></div>
     <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div>
     <div class="field" style="grid-column:1/-1"><span class="lbl">Foto ou PDF da nota</span><div class="ee-anx"></div></div></div>
@@ -1879,12 +1975,14 @@ function entEditar(b,id,i){
   row.after(f);
   const w=anxCampo(f.querySelector(".ee-anx")); w.set(x.anexos);
   f.querySelector(".ee-x").onclick=()=>f.remove();
+  const et=f.querySelector(".ee-et"); if(et) et.onchange=()=>{f.querySelector(".ee-scf").hidden=et.value==="kg"; f.querySelector(".ee-q-l").textContent=et.value==="kg"?"Quantidade (kg)":`Quantidade de ${et.value==="bag"?"bags":"sacos"}`};
   f.querySelector(".ee-ok").onclick=async ev=>{
     const q=parseNum(f.querySelector(".ee-q").value), v=parseNum(f.querySelector(".ee-v").value);
     if(!(q>0)){f.querySelector(".ee-q").focus();return}
     if(w.ocupado()) return;
     ev.target.disabled=true;
-    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim(),anexos:w.get()});
+    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim(),anexos:w.get(),
+      ...(et?{emb:et.value==="kg"?{...EMB_KG}:{tipo:et.value,cont:qMil(f.querySelector(".ee-ec").value)||0,med:f.querySelector(".ee-em").value}}:{})});
     try{await db.collection("estoque").doc(id).set(doc)}catch{ev.target.disabled=false}
   };
 }
@@ -1903,23 +2001,25 @@ function renderEstoque(){
   // lista enxuta: uma linha por produto (nome, princípio ativo, saldo); tocar abre o quadro completo
   $("#es-lista").innerHTML=vis.map(({e,s})=>{const ab=esAbertos.has(e.id)||esEdit===e.id; return `<article class="pc es-item ${ab?"open":""} ${s.saldo<=0?"zero":""}">
     <button type="button" class="es-lin" data-esab="${e.id}" aria-expanded="${ab}">
-      <span class="es-l-nome"><b>${esc(e.comercial)}</b>${e.generico?`<small>${esc(e.generico)}</small>`:""}</span>
-      <span class="es-l-saldo"><b>${num(s.saldo)} ${e.unidade}</b>${s.saldo<=0?`<small>sem saldo</small>`:s.programado>0?`<small class="res">${num(s.programado)} reservado</small>`:""}</span>
+      <span class="es-l-nome"><b>${esc(e.comercial)}</b>${s.emb?`<small class="es-embl">${esc(s.grupos.filter(g=>g.saldo>0).map(g=>embCurto(g.m,g.saldo)).join(" · ")||"sem saldo")}</small>`:e.generico?`<small>${esc(e.generico)}</small>`:""}</span>
+      <span class="es-l-saldo">${s.emb?`<b class="es-embt">${esc(embTotCurto(s.grupos)).replace(" + ","<br>")}</b>`:`<b>${num(s.saldo)} ${e.unidade}</b>${s.saldo<=0?`<small>sem saldo</small>`:s.programado>0?`<small class="res">${num(s.programado)} reservado</small>`:""}`}</span>
       <span class="es-l-seta" aria-hidden="true">›</span>
-      ${ab?"":`<span class="es-prev" aria-hidden="true">${e.classe?`<span>${esc(e.classe)}</span>`:""}<span>Entradas <b>${num(s.entrou)} ${e.unidade}</b></span><span>Usado <b>${num(s.usado)} ${e.unidade}</b></span>${s.programado>0?`<span>Reservado <b>${num(s.programado)} ${e.unidade}</b></span>`:""}<span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b></span><span>Valor do saldo <b>${s.custo!=null?brl(s.valorSaldo):"–"}</b></span><em>Clique para ver tudo</em></span>`}
+      ${ab||s.emb?"":`<span class="es-prev" aria-hidden="true">${e.classe?`<span>${esc(e.classe)}</span>`:""}<span>Entradas <b>${num(s.entrou)} ${e.unidade}</b></span><span>Usado <b>${num(s.usado)} ${e.unidade}</b></span>${s.programado>0?`<span>Reservado <b>${num(s.programado)} ${e.unidade}</b></span>`:""}<span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b></span><span>Valor do saldo <b>${s.custo!=null?brl(s.valorSaldo):"–"}</b></span><em>Clique para ver tudo</em></span>`}
     </button>
     ${!ab?"":`<div class="es-det">
     ${e.classe?`<div class="pc-gen">${esc(e.classe)}</div>`:""}
     ${reservaBox(e,s)}
-    <div class="pc-nums">
+    ${s.emb?`<div class="emb-tab">${s.grupos.map(g=>`<div class="emb-l"><span><b>${num(g.saldo)}</b> ${esc(embRot(g.m,g.saldo))}</span><span>${g.custo!=null?brl(g.custo)+(g.m.tipo==="kg"?"/kg":" cada"):"–"}</span><span>${g.custo!=null?brl(g.saldo*g.custo):""}</span></div>`).join("")}
+      <div class="emb-l emb-tot"><span>Total ${esc(embTotTxt(s.grupos)||"–")}</span><span></span><span>${brl(s.valorSaldo)}</span></div></div>
+      <p class="note">Saldo por embalagem, como entrou. A baixa pelo plantio ainda não desconta deste estoque.</p>`:`<div class="pc-nums">
       <span>Entradas <b>${num(s.entrou)} ${e.unidade}</b></span>
       <span>Usado <b>${num(s.usado)} ${e.unidade}</b></span>
       <span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b>${s.custoLiq!=null?`<small class="liq">com desconto ${brl(s.custoLiq)}/${e.unidade}</small>`:""}</span>
       <span>Valor do saldo <b>${s.custo!=null?brl(s.valorSaldo):"–"}</b></span>
-    </div>
-    ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
+    </div>`}
+    ${s.usos&&!s.emb?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,x.quantidade))}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
@@ -1931,7 +2031,7 @@ function renderEstoque(){
     if(peRasc&&box.dataset.pe===peAtual.dataset.pe){const els=[...box.querySelectorAll("input,select")]; els.forEach((el,k)=>{if(peRasc[k]!=null) el.value=peRasc[k]}); if(peFoco>=0) els[peFoco]?.focus()}
     peLiga(box)});
   $("#es-lista").querySelectorAll("[data-edent]").forEach(b=>b.onclick=()=>{const [id,i]=b.dataset.edent.split(":"); entEditar(b,id,+i)});
-  $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada);esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
+  $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada); if(ehEmb(e)||e?.classe==="Semente"){window.nfManual({semente:e});return} esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
   $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
   $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
     const [id,i]=b.dataset.rment.split(":"); const e=estoque.find(x=>x.id===id); if(!e) return;
@@ -1975,6 +2075,7 @@ $("#es-form").addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(!db){esFlash("Sem conexão com o banco de dados.");return}
   const comercial=$("#es-com").value.trim(); if(!comercial){esFlash("Informe o nome comercial.");$("#es-com").focus();return}
+  {const ex=prodEstoque(comercial); if($("#es-classe").value==="Semente"||ehEmb(ex)){window.nfManual({semente:ex||{comercial,generico:$("#es-gen").value.trim(),classe:"Semente",entradas:[]}}); esReset(); nfSt("Semente entra por embalagem (kg, saco ou bag): confira abaixo e lance.");return}}
   const qtd=parseNum($("#es-qtd").value); if(!(qtd>0)){esFlash("Informe a quantidade.");$("#es-qtd").focus();return}
   const vt=parseNum($("#es-vt").value);
   if(esAnx.ocupado()){esFlash("Aguarde o anexo terminar de enviar.");return}
@@ -1992,7 +2093,8 @@ $("#es-form").addEventListener("submit",async ev=>{
 function estoqueTexto(){
   if(!estoque.length) return "";
   return "\n\nEstoque de produtos (nome comercial | genérico | entradas | usado calculado pelas doses × área | saldo | custo médio):\n"+
-    estoque.map(e=>{const s=resumoProd(e);return `${e.comercial} | ${[e.classe,e.generico].filter(Boolean).join(", ")||"-"} | ${num(s.entrou)} ${e.unidade} | ${num(s.usado)} ${e.unidade} | ${num(s.saldo)} ${e.unidade}${s.programado>0?` (reservado ${num(s.programado)} ${e.unidade}, livre ${num(s.saldo-s.programado)} ${e.unidade})`:""} | ${s.custo!=null?brl(s.custo)+"/"+e.unidade:"sem valor"}`}).join("\n")+
+    estoque.map(e=>{const s=resumoProd(e); if(s.emb) return `${e.comercial} | ${[e.classe,e.generico].filter(Boolean).join(", ")||"-"} | saldo por embalagem: ${embSaldoTxt(e)} (total ${embTotTxt(s.grupos)||"-"}) | valor ${brl(s.valorSaldo)}`;
+      return `${e.comercial} | ${[e.classe,e.generico].filter(Boolean).join(", ")||"-"} | ${num(s.entrou)} ${e.unidade} | ${num(s.usado)} ${e.unidade} | ${num(s.saldo)} ${e.unidade}${s.programado>0?` (reservado ${num(s.programado)} ${e.unidade}, livre ${num(s.saldo-s.programado)} ${e.unidade})`:""} | ${s.custo!=null?brl(s.custo)+"/"+e.unidade:"sem valor"}`}).join("\n")+
     "\nCompras (produto | data | quantidade | valor | origem):\n"+estoque.flatMap(e=>(e.entradas||[]).map(x=>`${e.comercial} | ${x.data?brDate(x.data):"-"} | ${num(x.quantidade)} ${e.unidade} | ${Number(x.valorTotal)>0?brl(x.valorTotal):"-"} | ${x.origem||"-"}${x.nf?" | NF "+x.nf:""}`)).join("\n")+
     "\nReservado = soma do que as atividades PROGRAMADAS vão usar (ainda não descontado do saldo).\nPara custo de um produto num registro: dose × área trabalhada × custo médio (converta mL→L e g→kg).";
 }
@@ -3376,7 +3478,8 @@ function planilhaBackup(){
     "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc`).join("; "),
     "Sacas entregues":(r.romaneios||[]).reduce((s,x)=>s+(Number(x.sacas)||0),0)||"","Descrição":r.descricao||"","Fotos":(r.fotos||[]).length||"","Lançado por":quem(r.criadoPor),"Editado por":quem(r.editadoPor)})));
   add("Chuvas",regs.filter(r=>r.tipo==="chuva").map(r=>({"Data":dt(r.data),"Safra":safraLab(safraDe(r.data)),"Chuva (mm)":Number(r.campos?.mm)||0,"Eventos":(r.campos?.eventos||[]).join(", "),"Descrição":r.descricao||""})));
-  add("Estoque",estoque.map(e=>{const s=resumoProd(e);return {"Nome comercial":e.comercial,"Nome genérico":e.generico||"","Classe":e.classe||"","Unidade":e.unidade,"Entradas":s.entrou,"Usado":+s.usado.toFixed(3),"Saldo":+s.saldo.toFixed(3),"Custo médio (R$)":s.custo!=null?+s.custo.toFixed(2):"","Valor do saldo (R$)":+s.valorSaldo.toFixed(2)}}));
+  add("Estoque",estoque.map(e=>{const s=resumoProd(e); if(s.emb) return {"Nome comercial":e.comercial,"Nome genérico":e.generico||"","Classe":e.classe||"","Unidade":"por embalagem","Entradas":embSaldoTxt(e),"Usado":"","Saldo":embTotTxt(s.grupos),"Custo médio (R$)":"","Valor do saldo (R$)":+s.valorSaldo.toFixed(2)};
+    return {"Nome comercial":e.comercial,"Nome genérico":e.generico||"","Classe":e.classe||"","Unidade":e.unidade,"Entradas":s.entrou,"Usado":+s.usado.toFixed(3),"Saldo":+s.saldo.toFixed(3),"Custo médio (R$)":s.custo!=null?+s.custo.toFixed(2):"","Valor do saldo (R$)":+s.valorSaldo.toFixed(2)}}));
   add("Estoque entradas",estoque.flatMap(e=>(e.entradas||[]).map(x=>({"Produto":e.comercial,"Data":dt(x.data),"Quantidade":x.quantidade,"Unidade":e.unidade,"Valor total (R$)":x.valorTotal??"","Origem":x.origem||"","NF":x.nf||""}))));
   const sal=grSaldos();
   const stt=grSaldosTit();
