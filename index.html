@@ -793,7 +793,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <div class="field"><label for="es-gen">Nome genérico / princípio ativo</label><input id="es-gen" placeholder="Preenchido sozinho ao digitar o nome comercial">
           <div class="row"><button type="button" class="link" id="es-ia">Buscar princípio ativo</button><span class="note" id="es-ia-st" role="status"></span></div></div>
         <div class="field"><label for="es-classe">Classe</label><select id="es-classe"></select></div>
-        <div class="field"><label for="es-un">Unidade</label><select id="es-un"><option value="L">Litro (L)</option><option value="kg">Quilo (kg)</option><option value="sc">Saco (sc)</option><option value="un">Unidade (un)</option></select></div>
+        <div class="field"><label for="es-un">Unidade</label><select id="es-un"><option value="L">Litro (L)</option><option value="kg">Quilo (kg)</option><option value="sc">Saco (sc)</option><option value="un">Unidade (un)</option><option value="sem">Sementes (sem)</option></select></div>
         <div class="field"><label for="es-data">Data da entrada</label><input type="date" id="es-data"></div>
         <div class="field"><label for="es-qtd" id="es-qtd-l">Quantidade (L)</label><input id="es-qtd" inputmode="decimal" placeholder="0"></div>
         <div class="field"><label for="es-vu" id="es-vu-l">Valor unitário (R$/L)</label><input id="es-vu" inputmode="decimal" placeholder="0,00"></div>
@@ -1293,7 +1293,7 @@ const CAMPOS={
   produtividade:{label:"Produtividade (sc/ha)",type:"number",step:"0.1"},
   categoria:{label:"Categoria",type:"select",opts:["Praga","Doença","Clima (granizo, geada, vento)","Máquina","Outro"]}
 };
-const UNIDADES=["L/ha","mL/ha","kg/ha","g/ha","t/ha","% v/v","sem/m","sc/ha","un/ha"];
+const UNIDADES=["L/ha","mL/ha","kg/ha","g/ha","t/ha","% v/v","sem/ha","mil sem/ha","sem/m","sc/ha","un/ha"];
 const numDose=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:3});
 const temDose=p=>p.dose!==undefined&&p.dose!==null&&p.dose!=="";
 const doseTxt=p=>temDose(p)?(typeof p.dose==="number"?numDose(p.dose):p.dose)+(p.unidade?" "+p.unidade:""):"–";
@@ -1381,10 +1381,12 @@ function renderProds(list){
   atualizaSaldos(); prodTotais();
 }
 const prodEstoque=nome=>{const n=String(nome||"").trim().toLowerCase();return n?estoque.find(e=>e.comercial.toLowerCase()===n):null};
+// dose em sementes/ha: ponto é separador de milhar ("280.000")
+const doseParse=(s,un)=>un==="sem/ha"?parseNum(String(s).replace(/\./g,"")):parseNum(s);
 function readProds(){
   return [...document.querySelectorAll("#prods .prod")].map(r=>{
-    const s=r.querySelector(".p-dose").value.trim();
-    const n=Number(s.includes(",")?s.replace(/\./g,"").replace(",","."):s);
+    const s=r.querySelector(".p-dose").value.trim(), uD=r.querySelector(".p-un").value;
+    const n=uD==="sem/ha"?doseParse(s,uD):Number(s.includes(",")?s.replace(/\./g,"").replace(",","."):s);
     const nome=r.querySelector(".p-nome").value.trim(), e=prodEstoque(nome);
     const p={nome:e?e.comercial:nome,dose:s===""?null:(Number.isFinite(n)?n:s),unidade:r.querySelector(".p-un").value};
     if(e) p.produtoId=e.id;
@@ -1408,7 +1410,7 @@ function prodTotais(){
     const dose=r.querySelector(".p-dose"), tot=r.querySelector(".p-tot"), un=r.querySelector(".p-un").value.replace("/ha","");
     if(!tot) return; tot.placeholder=`Total (${un})`;
     if(r.dataset.src==="tot"){const t=parseNum(tot.value); if(t>0&&area>0) dose.value=fmtN(t/area,4)}
-    else{const d=parseNum(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?fmtN(d*area,2):""}
+    else{const d=doseParse(dose.value,r.querySelector(".p-un").value); if(document.activeElement!==tot) tot.value=d>0&&area>0?fmtN(d*area,2):""}
   });
 }
 function addProd(){$("#prods").insertAdjacentHTML("beforeend",prodRow());$("#prods").lastElementChild.querySelector(".p-nome").focus()}
@@ -1485,7 +1487,7 @@ Use apenas o que você conhece com segurança sobre produtos registrados no Bras
     if(!r||r.encontrado!==true||!String(r.generico||"").trim()){$("#es-ia-st").textContent=`Não encontrei ${nome} com segurança. Preencha o princípio ativo pelo rótulo.`;return}
     if(!$("#es-gen").dataset.touched||!$("#es-gen").value.trim()){$("#es-gen").value=String(r.generico).trim(); $("#es-gen").dataset.ia="1"}
     if(CLASSES.includes(r.classe)&&!$("#es-classe").dataset.touched) $("#es-classe").value=r.classe;
-    if(["L","kg","sc","un"].includes(r.unidade)&&!$("#es-un").dataset.touched){$("#es-un").value=r.unidade; esSync()}
+    if(["L","kg","sc","un","sem"].includes(r.unidade)&&!$("#es-un").dataset.touched){$("#es-un").value=r.unidade; esSync()}
     $("#es-ia-st").textContent=`Preenchido pelo Claude${r.fabricante?` (${r.fabricante})`:""}. Confira no rótulo antes de salvar.`;
   }catch(e){
     if(e?.code==="cancelled") return;
@@ -1584,8 +1586,16 @@ ${texto?"Texto da nota:\n"+texto.slice(0,40000):""}
 ${NF_FORMATO}`,{modelTier:"default",signal:nfCtl.signal,images:max&&imgs.length?imgs.slice(0,max):undefined});
 }
 /* Converte a embalagem da nota para a unidade do estoque (sem o Claude): TN → kg, "BAG 1000 KG", "GL 5L", "BD 20L", "PCTE 5/KG", "FR/0,35KG" */
+function sementesPorEmb(desc){ // "BIGBAG 5.000.000 SEM", "200 MIL SEMENTES", "5 MI SEM"
+  const d=String(desc||"").toUpperCase(); if(!/SEMENTE|\bSTE\b|\bSEM\b|BIG ?BAG/.test(d)) return 0;
+  let m=d.match(/(\d+(?:[.,]\d+)?)\s*(?:MI|MILH(?:AO|ÃO|OES|ÕES))\b/); if(m) return Math.round(parseFloat(m[1].replace(",","."))*1e6);
+  m=d.match(/(\d+(?:[.,]\d+)?)\s*MIL\s*(?:SEM|SEMENTES|S)\b/); if(m) return Math.round(parseFloat(m[1].replace(",","."))*1e3);
+  m=d.match(/(\d{1,3}(?:\.\d{3}){1,3}|\d{5,9})\s*(?:SEM\b|SEMENTES|SEMS|S\b)/); if(m) return +m[1].replace(/\./g,"");
+  return 0;
+}
 function converteEmb(desc,uCom,q){
   const u=String(uCom||"").toUpperCase().trim(), d=String(desc||"").toUpperCase();
+  const ps=sementesPorEmb(d); if(ps>=10000) return {un:"sem",q:q*ps,emb:q,por:ps,obs:`${num(q)} ${uCom} × ${num(ps)} sementes = ${num(q*ps)} sementes`};
   if(/^(L|LT|LTS|LITRO)/.test(u)) return {un:"L",q};
   if(/^(KG|QUILO)/.test(u)) return {un:"kg",q};
   if(/^(TN|TON|T)$/.test(u)) return {un:"kg",q:q*1000,obs:`${num(q)} t = ${num(q*1000)} kg`};
@@ -1603,7 +1613,7 @@ function xmlSemClaude(x){
     const c=converteEmb(it.descricao,it.unidade,it.quantidade);
     const ok=!est||est.unidade===c.un;
     return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:est?.classe||"",
-      unidade:est?.unidade||c.un,quantidade:ok?c.q:it.quantidade,valorTotal:it.valorTotal,
+      unidade:est?.unidade||c.un,quantidade:ok?c.q:it.quantidade,valorTotal:it.valorTotal,...(c.por&&ok?{emb:c.emb,por:c.por}:{}),
       duvida:!ok?`Na nota: ${num(it.quantidade)} ${it.unidade}; no estoque o produto é em ${est.unidade}. Confira a quantidade.`:
         c.un==="un"?`Unidade da nota: ${it.unidade}. Confira a conversão da embalagem.`:c.obs?`Convertido: ${c.obs}. Confira.`:""}})};
 }
@@ -1634,16 +1644,16 @@ async function nfProcessar(file){
    - XML da NF-e (nfDados.fin vem do XML);
    - "Nota fiscal à mão" (nfDados.manual: o Luis digita cabeçalho, vários produtos e as parcelas para o Financeiro);
    - conta lançada no Financeiro com "Lançar também no estoque" (nfDados.finRef: já está no Financeiro, só falta o estoque). */
-const NF_UN=["L","kg","sc","un"];
+const NF_UN=["L","kg","sc","un","sem"];
 let nfNpOcupado=false;
-const nfUn=u=>{const x=String(u||"").trim().toLowerCase(); return /^(l|lt|lts|litros?)$/.test(x)?"L":/^(kg|kgs|quilos?)$/.test(x)?"kg":/^(sc|sacos?|sacas?)$/.test(x)?"sc":x?"un":""};
+const nfUn=u=>{const x=String(u||"").trim().toLowerCase(); return /^(l|lt|lts|litros?)$/.test(x)?"L":/^(kg|kgs|quilos?)$/.test(x)?"kg":/^(sc|sacos?|sacas?)$/.test(x)?"sc":/^(sem|sementes?)$/.test(x)?"sem":x?"un":""};
 const nfF2=v=>v!=null&&v!==""&&Number.isFinite(+v)?Number(v).toFixed(2).replace(".",","):"";
 function nfLer(){ // guarda o que está digitado antes de redesenhar
   const r=nfDados; if(!r||$("#nf-rev").hidden) return;
   const g=id=>document.getElementById(id);
   if(g("nf-data")) r.data=g("nf-data").value; if(g("nf-num")) r.numero=g("nf-num").value; if(g("nf-orig")) r.origem=g("nf-orig").value; if(g("nf-tit")) r.titular=g("nf-tit").value;
   r.itens=[...$("#nf-rev").querySelectorAll(".nf-it")].map((b,i)=>({...r.itens[i],nomeComercial:b.querySelector(".nf-nome").value,generico:b.querySelector(".nf-gen").value,classe:b.querySelector(".nf-cla").value,
-    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
+    unidade:b.querySelector(".nf-un").value,emb:parseNum(b.querySelector(".nf-emb").value)||null,por:parseNum(String(b.querySelector(".nf-por").value).replace(/\./g,""))||null,quantidade:parseNum(b.querySelector(".nf-un").value==="sem"?String(b.querySelector(".nf-q").value).replace(/\./g,""):b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
     .map(it=>({...it,quantidade:Number.isFinite(it.quantidade)?it.quantidade:null,vu:Number.isFinite(it.vu)?it.vu:null,valorTotal:Number.isFinite(it.valorTotal)?it.valorTotal:null}));
   if(r.manual){r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
 }
@@ -1682,8 +1692,10 @@ function renderNfRev(){
         <div class="field"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
         <div class="field"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
         <div class="field"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label class="nf-q-l">Quantidade (${u})</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
-        <div class="field"><label class="nf-vu-l">Valor unitário (R$/${u})</label><input class="nf-vu" inputmode="decimal" placeholder="0,00" value="${it.vu!=null?nfF2(it.vu):it.quantidade>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.quantidade):""}"></div>
+        <div class="field nf-semf"${u==="sem"?"":" hidden"}><label>Embalagens (sacos / bigbags)</label><input class="nf-emb" inputmode="decimal" placeholder="Ex.: 4" value="${it.emb!=null?String(it.emb).replace(".",","):""}"></div>
+        <div class="field nf-semf"${u==="sem"?"":" hidden"}><label>Sementes em cada embalagem</label><input class="nf-por" inputmode="numeric" placeholder="Ex.: 5.000.000" value="${it.por?num(it.por):""}"></div>
+        <div class="field"><label class="nf-q-l">${u==="sem"?"Total de sementes":`Quantidade (${u})`}</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?(u==="sem"?num(it.quantidade):String(it.quantidade).replace(".",",")):""}"></div>
+        <div class="field"><label class="nf-vu-l">${u==="sem"?"Valor de cada embalagem (R$)":`Valor unitário (R$/${u})`}</label><input class="nf-vu" inputmode="decimal" placeholder="0,00" value="${it.vu!=null?nfF2(it.vu):u==="sem"?(it.emb>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.emb):""):it.quantidade>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.quantidade):""}"></div>
         <div class="field" style="grid-column:1/-1"><label>Valor total (R$)</label><input class="nf-v" inputmode="decimal" placeholder="0,00" value="${nfF2(it.valorTotal)}"></div>
       </div>
       ${it.duvida?`<div class="falta">Confira: ${esc(it.duvida)}</div>`:""}
@@ -1700,12 +1712,19 @@ function renderNfRev(){
     <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
   const box$=$("#nf-rev");
-  const unSync=box=>{const u=box.querySelector(".nf-un").value; box.querySelector(".nf-q-l").textContent=`Quantidade (${u})`; box.querySelector(".nf-vu-l").textContent=`Valor unitário (R$/${u})`};
+  const ehSem=box=>box.querySelector(".nf-un").value==="sem";
+  const unSync=box=>{const u=box.querySelector(".nf-un").value, sem=u==="sem";
+    box.querySelectorAll(".nf-semf").forEach(f=>f.hidden=!sem);
+    box.querySelector(".nf-q-l").textContent=sem?"Total de sementes":`Quantidade (${u})`; box.querySelector(".nf-vu-l").textContent=sem?"Valor de cada embalagem (R$)":`Valor unitário (R$/${u})`};
   box$.querySelectorAll(".nf-it").forEach(box=>{
-    const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v");
-    q.addEventListener("input",()=>{const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
-    vu.addEventListener("input",()=>{box.dataset.ult="vu"; const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0) t.value=nfF2(a*b); nfDivide()});
-    t.addEventListener("input",()=>{box.dataset.ult="t"; const a=parseNum(q.value), c=parseNum(t.value); if(a>0&&c>=0) vu.value=nfF2(c/a); nfDivide()});
+    const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v"), emb=box.querySelector(".nf-emb"), por=box.querySelector(".nf-por");
+    const base=()=>ehSem(box)?parseNum(emb.value):parseNum(q.value); // semente: o valor unitário é por embalagem
+    const semQ=()=>{const a=parseNum(emb.value), b=parseNum(String(por.value).replace(/\./g,"")); if(a>0&&b>0) q.value=num(a*b)};
+    emb.addEventListener("input",()=>{semQ(); const a=parseNum(emb.value), b=parseNum(vu.value); if(a>0&&b>=0&&vu.value.trim()) t.value=nfF2(a*b); else if(a>0&&t.value.trim()) vu.value=nfF2(parseNum(t.value)/a); nfDivide()});
+    por.addEventListener("input",semQ);
+    q.addEventListener("input",()=>{if(ehSem(box)) return; const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
+    vu.addEventListener("input",()=>{box.dataset.ult="vu"; const a=base(), b=parseNum(vu.value); if(a>0&&b>=0) t.value=nfF2(a*b); nfDivide()});
+    t.addEventListener("input",()=>{box.dataset.ult="t"; const a=base(), c=parseNum(t.value); if(a>0&&c>=0) vu.value=nfF2(c/a); nfDivide()});
     box.querySelector(".nf-ok").addEventListener("change",nfDivide);
     box.querySelector(".nf-un").addEventListener("change",()=>unSync(box));
     box.querySelector(".nf-gen").addEventListener("input",e=>e.target.dataset.touched="1");
@@ -1754,7 +1773,8 @@ async function nfLancar(){
   const data=$("#nf-data").value||todayISO(), nf=$("#nf-num").value.trim(), origem=$("#nf-orig").value.trim(), man=!!nfDados?.manual;
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
-    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value)}));
+    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-un").value==="sem"?String(b.querySelector(".nf-q").value).replace(/\./g,""):b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value),
+    emb:parseNum(b.querySelector(".nf-emb").value),por:parseNum(String(b.querySelector(".nf-por").value).replace(/\./g,""))}));
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return} }
   if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
@@ -1770,9 +1790,10 @@ async function nfLancar(){
   try{
     // agrupa itens repetidos do mesmo produto
     const grupos=new Map();
-    for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
+    for(const it of itens){const k=it.nome.toLowerCase(), em=it.un==="sem"&&it.emb>0&&it.por>0?[{n:it.emb,por:it.por}]:[]; const g=grupos.get(k);
+      if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0); g.embs.push(...em)} else grupos.set(k,{...it,embs:em})}
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(it.embs?.length) entrada.emb=it.embs; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
       if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave} // já está no Financeiro: não vira pendência
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
@@ -1798,7 +1819,13 @@ async function nfLancar(){
 let estoque=[];
 const brlC=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:Math.abs(v)>=1000?0:2});
 const brl=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-const FATOR={L:{"L/ha":1,"mL/ha":.001},kg:{"kg/ha":1,"g/ha":.001,"t/ha":1000},sc:{"sc/ha":1},un:{"un/ha":1}};
+const FATOR={L:{"L/ha":1,"mL/ha":.001},kg:{"kg/ha":1,"g/ha":.001,"t/ha":1000},sc:{"sc/ha":1},un:{"un/ha":1},sem:{"sem/ha":1,"mil sem/ha":1000}};
+/* semente contada em sementes: custo por mil sementes (por semente dá centavos de centavo) */
+const custoUnTxt=(c,u)=>u==="sem"?brl(c*1000)+"/mil sem":brl(c)+"/"+u;
+/* "4 x 200.000 + 2 x 5.000.000" → [{n:4,por:200000},{n:2,por:5000000}] */
+const parseEmb=t=>String(t||"").split("+").map(p=>p.trim().match(/^(\d+(?:[.,]\d+)?)\s*[x×*]\s*([\d.]+)$/i)).filter(Boolean).map(m=>({n:parseFloat(m[1].replace(",",".")),por:+m[2].replace(/\./g,"")})).filter(m=>m.n>0&&m.por>0);
+const qSem=v=>parseNum(String(v||"").replace(/\./g,"")); // quantidade de sementes: ponto é milhar
+const embTxt=x=>(x.emb||[]).length?" ("+x.emb.map(m=>`${num(m.n)} × ${num(m.por)}`).join(" + ")+")":"";
 function resumoProd(prod){
   const ent=prod.entradas||[];
   const entrou=ent.reduce((s,x)=>s+(Number(x.quantidade)||0),0);
@@ -1828,7 +1855,7 @@ function peForm(e){
       <div class="field"><label>Nome comercial</label><input class="pe-nome" value="${esc(e.comercial)}"></div>
       <div class="field"><label>Princípio ativo</label><input class="pe-gen" value="${esc(e.generico||"")}"></div>
       <div class="field"><label>Classe</label><select class="pe-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===e.classe?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>Unidade do estoque</label><select class="pe-un">${["L","kg","sc","un"].map(u=>`<option ${u===e.unidade?"selected":""}>${u}</option>`).join("")}</select></div>
+      <div class="field"><label>Unidade do estoque</label><select class="pe-un">${["L","kg","sc","un","sem"].map(u=>`<option ${u===e.unidade?"selected":""}>${u}</option>`).join("")}</select></div>
     </div>
     <div class="pe-conv" hidden>
       <div class="field"><label class="pe-conv-l">Converter as entradas</label><input class="pe-fator" inputmode="decimal" value="1"></div>
@@ -1843,14 +1870,15 @@ function peLiga(box){
   const ent=(e.entradas||[]).reduce((t,x)=>t+(Number(x.quantidade)||0),0);
   const mostra=()=>{const mudou=un.value!==e.unidade; conv.hidden=!mudou||!(e.entradas||[]).length;
     box.querySelector(".pe-conv-l").textContent=`Quantos ${un.value} tem cada 1 ${e.unidade}? (ex.: galão de 5 L → 5)`;
-    const f=parseNum(fat.value)||1; box.querySelector(".pe-conv-n").textContent=`As entradas passam de ${num(ent)} ${e.unidade} para ${num(ent*f)} ${un.value}. O valor pago não muda. Deixe 1 se as quantidades já estão certas.`};
+    const f=(un.value==="sem"?qSem(fat.value):parseNum(fat.value))||1; box.querySelector(".pe-conv-n").textContent=`As entradas passam de ${num(ent)} ${e.unidade} para ${num(ent*f)} ${un.value}. O valor pago não muda. Deixe 1 se as quantidades já estão certas.`+
+      (un.value==="sem"?" Sementes: se as embalagens têm tamanhos diferentes (ex.: sacos de 200 mil e bigbags de 5 milhões), deixe 1 e depois corrija cada entrada em Editar → Embalagens.":"")};
   un.onchange=mostra; fat.oninput=mostra; mostra();
   box.querySelector(".pe-x").onclick=()=>{esEdit=null; renderEstoque()};
   box.querySelector(".pe-ok").onclick=async ev=>{
     const st=t=>box.querySelector(".pe-st").textContent=t;
     const nome=box.querySelector(".pe-nome").value.trim(); if(!nome){st("Informe o nome.");return}
     const outro=prodEstoque(nome); if(outro&&outro.id!==e.id){st("Já existe outro produto com esse nome.");return}
-    const f=un.value!==e.unidade?(parseNum(fat.value)||1):1; if(!(f>0)){st("Confira a conversão.");return}
+    const f=un.value!==e.unidade?((un.value==="sem"?qSem(fat.value):parseNum(fat.value))||1):1; if(!(f>0)){st("Confira a conversão.");return}
     ev.target.disabled=true;
     try{
       const {id,...doc}=e, antigo=e.comercial;
@@ -1871,7 +1899,8 @@ function entEditar(b,id,i){
   const f=document.createElement("div"); f.className="ent-ed";
   f.innerHTML=`<div class="grid2">
     <div class="field"><label>Data</label><input type="date" class="ee-d" value="${esc(x.data||"")}"></div>
-    <div class="field"><label>Quantidade (${e.unidade})</label><input class="ee-q" inputmode="decimal" value="${String(x.quantidade??"").replace(".",",")}"></div>
+    ${e.unidade==="sem"?`<div class="field" style="grid-column:1/-1"><label>Embalagens <small class="note">(ex.: 4 x 200.000 + 2 x 5.000.000)</small></label><input class="ee-emb" value="${esc((x.emb||[]).map(m=>`${num(m.n)} x ${num(m.por)}`).join(" + "))}" placeholder="quantidade x sementes por embalagem"></div>`:""}
+    <div class="field"><label>${e.unidade==="sem"?"Total de sementes":`Quantidade (${e.unidade})`}</label><input class="ee-q" inputmode="decimal" value="${e.unidade==="sem"?num(x.quantidade??0):String(x.quantidade??"").replace(".",",")}"></div>
     <div class="field"><label>Valor total (R$)</label><input class="ee-v" inputmode="decimal" value="${x.valorTotal!=null?Number(x.valorTotal).toFixed(2).replace(".",","):""}"></div>
     <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div>
     <div class="field" style="grid-column:1/-1"><span class="lbl">Foto ou PDF da nota</span><div class="ee-anx"></div></div></div>
@@ -1879,12 +1908,13 @@ function entEditar(b,id,i){
   row.after(f);
   const w=anxCampo(f.querySelector(".ee-anx")); w.set(x.anexos);
   f.querySelector(".ee-x").onclick=()=>f.remove();
+  const ee=f.querySelector(".ee-emb"); if(ee) ee.oninput=()=>{const l=parseEmb(ee.value); if(l.length) f.querySelector(".ee-q").value=num(l.reduce((t,m)=>t+m.n*m.por,0))};
   f.querySelector(".ee-ok").onclick=async ev=>{
-    const q=parseNum(f.querySelector(".ee-q").value), v=parseNum(f.querySelector(".ee-v").value);
+    const sem=e.unidade==="sem", q=sem?qSem(f.querySelector(".ee-q").value):parseNum(f.querySelector(".ee-q").value), v=parseNum(f.querySelector(".ee-v").value), emb=sem?parseEmb(ee?.value):null;
     if(!(q>0)){f.querySelector(".ee-q").focus();return}
     if(w.ocupado()) return;
     ev.target.disabled=true;
-    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim(),anexos:w.get()});
+    const {id:_,...doc}=e; doc.entradas=e.entradas.map((y,k)=>k!==i?y:{...y,data:f.querySelector(".ee-d").value||y.data,quantidade:q,valorTotal:v>0?v:null,origem:f.querySelector(".ee-o").value.trim(),anexos:w.get(),...(sem?{emb}:{})});
     try{await db.collection("estoque").doc(id).set(doc)}catch{ev.target.disabled=false}
   };
 }
@@ -1914,12 +1944,12 @@ function renderEstoque(){
     <div class="pc-nums">
       <span>Entradas <b>${num(s.entrou)} ${e.unidade}</b></span>
       <span>Usado <b>${num(s.usado)} ${e.unidade}</b></span>
-      <span>Custo médio <b>${s.custo!=null?brl(s.custo)+"/"+e.unidade:"–"}</b>${s.custoLiq!=null?`<small class="liq">com desconto ${brl(s.custoLiq)}/${e.unidade}</small>`:""}</span>
+      <span>Custo médio <b>${s.custo!=null?custoUnTxt(s.custo,e.unidade):"–"}</b>${s.custoLiq!=null?`<small class="liq">com desconto ${custoUnTxt(s.custoLiq,e.unidade)}</small>`:""}</span>
       <span>Valor do saldo <b>${s.custo!=null?brl(s.valorSaldo):"–"}</b></span>
     </div>
     ${s.usos?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${num(x.quantidade)} ${e.unidade}${embTxt(x)}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
@@ -1975,7 +2005,8 @@ $("#es-form").addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(!db){esFlash("Sem conexão com o banco de dados.");return}
   const comercial=$("#es-com").value.trim(); if(!comercial){esFlash("Informe o nome comercial.");$("#es-com").focus();return}
-  const qtd=parseNum($("#es-qtd").value); if(!(qtd>0)){esFlash("Informe a quantidade.");$("#es-qtd").focus();return}
+  const unSel=(prodEstoque($("#es-com").value.trim())?.unidade)||$("#es-un").value;
+  const qtd=unSel==="sem"?qSem($("#es-qtd").value):parseNum($("#es-qtd").value); if(!(qtd>0)){esFlash("Informe a quantidade.");$("#es-qtd").focus();return}
   const vt=parseNum($("#es-vt").value);
   if(esAnx.ocupado()){esFlash("Aguarde o anexo terminar de enviar.");return}
   const entrada={data:$("#es-data").value||todayISO(),quantidade:qtd,valorTotal:vt>0?vt:null}; const orig=$("#es-orig").value.trim(); if(orig) entrada.origem=orig;
@@ -3712,9 +3743,9 @@ function atualizaCustos(){
     const el=r.querySelector(".p-custo");
     const nome=r.querySelector(".p-nome").value.trim(); if(!nome){el.textContent="";return}
     n++;
-    const s=r.querySelector(".p-dose").value.trim(), dn=parseNum(s);
+    const s=r.querySelector(".p-dose").value.trim(), dn=doseParse(s,r.querySelector(".p-un").value);
     const c=custoProd({nome,dose:Number.isFinite(dn)?dn:s,unidade:r.querySelector(".p-un").value});
-    if(c){ha+=c.custoHa; hl+=c.custoHaLiq; if(c.custoUnitLiq!=null) liq=true; el.textContent=`${brl(c.custoUnit)}/${c.unidadeEst} → ${brl(c.custoHa)}/ha${c.custoUnitLiq!=null?` · com desconto ${brl(c.custoHaLiq)}/ha`:""}`}
+    if(c){ha+=c.custoHa; hl+=c.custoHaLiq; if(c.custoUnitLiq!=null) liq=true; el.textContent=`${custoUnTxt(c.custoUnit,c.unidadeEst)} → ${brl(c.custoHa)}/ha${c.custoUnitLiq!=null?` · com desconto ${brl(c.custoHaLiq)}/ha`:""}`}
     else{sem++; el.textContent=!prodEstoque(nome)&&!custoAnterior[String(nome).toLowerCase()]?"Sem preço: cadastre no Estoque com o valor":(!(dn>0)?"Informe a dose para calcular o custo":"Sem custo: confira a unidade ou o valor no Estoque")}
   });
   const area=areaForm();

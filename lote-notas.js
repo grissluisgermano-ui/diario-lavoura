@@ -104,7 +104,7 @@ function render(){
       <label class="nl-est"><input type="checkbox" class="nl-pe" ${p.est?"checked":""}> Estoque</label>
       <div class="nl-pc"><small class="note">Na nota: ${e(p.desc)} · ${e(p.uCom)}${p.n>1?` · em ${p.n} notas`:""}</small>
         <div class="nl-pg"><input class="nl-pn" list="dl-estoque" value="${e(p.nome)}" aria-label="Nome no estoque">
-          <select class="nl-pu" aria-label="Unidade" ${prodEstoque(p.nome)?"disabled":""}>${["L","kg","sc","un"].map(u=>`<option ${u===(prodEstoque(p.nome)?.unidade||p.un)?"selected":""}>${u}</option>`).join("")}</select>
+          <select class="nl-pu" aria-label="Unidade" ${prodEstoque(p.nome)?"disabled":""}>${["L","kg","sc","un","sem"].map(u=>`<option ${u===(prodEstoque(p.nome)?.unidade||p.un)?"selected":""}>${u}</option>`).join("")}</select>
           <span class="nl-pq mono">${num(p.q)} ${e(prodEstoque(p.nome)?.unidade||p.un)}</span><span class="nl-pv mono">${br(p.v)}</span></div>
         <small><span class="pill ${novo(p)?"prox":"ok"}">${novo(p)?"Produto novo":"Já no estoque"}</span>${p.gen?` <span class="note">${e(p.gen)}</span>`:""}${p.classe?` <span class="note">· ${e(p.classe)}</span>`:""}</small></div>
     </div>`).join("")}</div>

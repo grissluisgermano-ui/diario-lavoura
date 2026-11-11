@@ -10,7 +10,7 @@
 "use strict";
 let ignorados=new Set(), avisou="";
 const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\s+/g," ").trim();
-const unDe=u=>/^(L|mL)\//.test(u)?"L":/^(kg|g|t)\//.test(u)?"kg":u==="sc/ha"?"sc":u==="un/ha"?"un":"kg";
+const unDe=u=>/^(L|mL)\//.test(u)?"L":/^(kg|g|t)\//.test(u)?"kg":u==="sc/ha"?"sc":u==="un/ha"?"un":/sem\/ha$/.test(u)?"sem":"kg";
 const classeDe=t=>t==="plantio"?"Semente":t==="adubacao"?"Fertilizante":"";
 const doseN=p=>typeof p.dose==="number"?p.dose:parseNum(p.dose);
 const ehDoEstoque=(p,e)=>p.produtoId===e.id||(!p.produtoId&&norm(p.nome)===norm(e.comercial));
@@ -53,7 +53,7 @@ atualizaSaldos=function(){
       return;
     }
     if(!exec) return;
-    const f=FATOR[e.unidade]?.[r.querySelector(".p-un").value], d=parseNum(r.querySelector(".p-dose").value);
+    const f=FATOR[e.unidade]?.[r.querySelector(".p-un").value], d=(typeof doseParse==="function"?doseParse:(v=>parseNum(v)))(r.querySelector(".p-dose").value,r.querySelector(".p-un").value);
     if(f==null||!(d>0)||!(area>0)) return;
     const precisa=d*f*area, tem=saldoNaData(e,data,editing);
     if(precisa>tem+0.0001){
