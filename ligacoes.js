@@ -302,6 +302,22 @@ function inicia(){
   setInterval(()=>{if(!document.hidden) render()},2500);
   render();
 }
+/* pendência do Resumo (compra do estoque / abastecimento / manutenção / serviço / venda que ainda não está no Financeiro):
+   "Excluir do estoque" / "Excluir do Diário" quando o lançamento não devia existir */
+window.ligExcluirPend=function(p,b){
+  if(!p) return;
+  if(p.fonte==="Estoque"||/^est\|/.test(p.k)){
+    const f=F(); const ents=[]; for(const e of EST()) (e.entradas||[]).forEach((x,i)=>{ if(x.doFinanceiro||!(Number(x.valorTotal)>0)) return;
+      if(`est|${f.norm(x.origem)}|${x.nf?nfL(x.nf):x.data}`===p.k) ents.push({e,i,x}) });
+    if(!ents.length) return;
+    janela({titulo:"Excluir do estoque",html:`<p><b>${e_(p.descricao)}</b> · ${R$(p.valor)}${p.pessoa?` · ${e_(p.pessoa)}`:""}</p><p>Estas entradas saem do estoque:</p>`+lista(ents.map(t=>e_(entTxt(t))))+avisoNeg(ents)+`<p class="note">Vão para a Lixeira (30 dias). Se a nota veio por e-mail, ela volta para Estoque → Notas, para lançar de novo se precisar.</p>`,
+      botoes:[{l:`Excluir ${ents.length>1?"as "+ents.length+" entradas":"a entrada"} do estoque`,cls:"danger",ok:"Excluído do estoque. Fica 30 dias na Lixeira.",fn:()=>emLote(()=>tirarEntradas(ents))}]});
+    return;
+  }
+  const m=/^(ds|mq|bf|gr)\|(.+)$/.exec(p.k||""); if(!m) return; const o=ORIG[m[1]], src=o.lista().find(x=>x.id===m[2]); if(!src) return;
+  janela({titulo:`Excluir ${o.nome}`,html:`<p><b>${e_(o.txt(src))}</b>${o.val(src)?" · "+R$(o.val(src)):""}</p><p class="note">Sai do Diário e vai para a Lixeira (30 dias).</p>`,
+    botoes:[{l:`Excluir ${o.a} ${o.nome}`,cls:"danger",ok:"Excluído. Fica 30 dias na Lixeira.",fn:()=>emLote(()=>db.collection(o.col).doc(src.id).delete())}]});
+};
 window.ligInfoEntrada=function(e,x){ // texto para o formulário de edição da entrada
   const cs=parcelasDe(CONTAS().filter(c=>ligaCE(c,x))); if(!cs.length) return "";
   return `<p class="note lg-nota">🔗 Esta entrada está no Financeiro: ${cs.map(c=>`${e_(nomeConta(c))} (${R$(valConta(c))})`).join(", ")}. Mudou o valor? <button type="button" class="link" data-lgfin="${cs[0].id}">Abrir a conta</button></p>`;

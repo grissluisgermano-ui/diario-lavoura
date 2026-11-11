@@ -214,7 +214,7 @@ function renderResumo(){
       <div class="rec-top"><span class="rec-tipo">${esc(p.descricao)}</span><span class="mov-q ${p.natureza==="receber"?"in":"out"}">${p.natureza==="receber"?"+":"−"}${brl(p.valor)}</span></div>
       <div class="rec-campos"><span>${brDate(p.data)}</span><span>De <b>${esc(p.fonte)}</b></span>${p.pessoa?`<span>${p.natureza==="receber"?"Comprador":"Fornecedor"} <b>${esc(p.pessoa)}</b></span>`:""}${p.itens.length>1?`<span>${p.itens.length} itens</span>`:""}</div>
       <div class="fn-baixa" id="pj-${i}" hidden></div>
-      <div class="rec-actions"><button type="button" class="btn fn-mini" data-pdl="${i}">Lançar</button><button type="button" class="btn ghost fn-mini" data-pdp="${i}">${p.natureza==="receber"?"Já recebido":"Já pago"}</button><button type="button" class="link" data-pdi="${i}">Ignorar</button></div>
+      <div class="rec-actions"><button type="button" class="btn fn-mini" data-pdl="${i}">Lançar</button><button type="button" class="btn ghost fn-mini" data-pdp="${i}">${p.natureza==="receber"?"Já recebido":"Já pago"}</button><button type="button" class="link" data-pdi="${i}">Ignorar</button>${window.ligExcluirPend?`<button type="button" class="link danger" data-pdx="${i}">${p.fonte==="Estoque"?"Excluir do estoque":"Excluir do Diário"}</button>`:""}</div>
     </article>`).join("")+(pend.length>max?`<p class="note">Mostrando ${max} de ${pend.length}. Lance ou ignore estes para ver os outros.</p>`:""):
     `<div class="empty">${retro?"Nenhum lançamento antigo do Diário esperando.":"Tudo em dia: nada do Diário esperando para entrar no Financeiro."}</div>`;
   $("#fn-pend").querySelectorAll("[data-pdl]").forEach(b=>b.onclick=()=>{const p=pend[+b.dataset.pdl]; show("fin_contas"); formDePendencia(p)});
@@ -229,6 +229,7 @@ function renderResumo(){
   };
   $("#fn-pend").querySelectorAll("[data-pdp]").forEach(b=>b.onclick=()=>{const i=+b.dataset.pdp; if(!$("#pj-"+i).hidden){$("#pj-"+i).hidden=true; fnPjAberto=null; return} abrePj(i)});
   {const i=pend.slice(0,max).findIndex(p=>p.k===fnPjAberto); if(i>=0) abrePj(i)}
+  $("#fn-pend").querySelectorAll("[data-pdx]").forEach(b=>b.onclick=()=>window.ligExcluirPend?.(pend[+b.dataset.pdx],b));
   $("#fn-pend").querySelectorAll("[data-pdi]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: não lançar",async()=>{
     const p=pend[+b.dataset.pdi]; await salvaCfg({ignorados:[...(fnCfg.ignorados||[]),p.k]})}));
 }
