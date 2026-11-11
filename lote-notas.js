@@ -49,15 +49,18 @@ window.nePintarAntigas=function(){
 };
 
 /* ---------- tela de conferência do mês ---------- */
-function prepara(am){
-  const docs=(window.nePendentesAntigas?.()||[]).filter(d=>anoMes(d)===am).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+const noEstoque=ch=>!!ch&&estoque.some(p=>(p.entradas||[]).some(x=>x.chave===ch));
+function prepara(am,lista,titulo){
+  const docs=(lista||(window.nePendentesAntigas?.()||[]).filter(d=>anoMes(d)===am)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   const notas=[], prods=new Map();
   for(const d of docs){
     let x=null, fin=null, tp="1";
     try{const doc=new DOMParser().parseFromString(d.xml,"application/xml"); x=lerXml(d.xml); fin=window.finDadosXml(doc); tp=doc.getElementsByTagNameNS("*","tpNF")[0]?.textContent?.trim()||"1"}catch{}
     if(!x||!fin){notas.push({d,erro:"não consegui ler o XML",ok:false});continue}
-    const aviso=d.cancelada?"nota cancelada":tp==="0"?"nota de entrada emitida pelo fornecedor (ex.: compra de grãos)":window.finLote?.jaLancada(fin)?"já está no Financeiro":"";
-    const n={d,x,fin,ok:!aviso,aviso,itens:[]};
+    const temSem=x.itens.some(it=>/SEMENTE|\bSTE\b/i.test(it.descricao)||classeDe(it.descricao)==="Semente");
+    const aviso=d.cancelada?"nota cancelada":tp==="0"?"nota de entrada emitida pelo fornecedor (ex.: compra de grãos)":noEstoque(fin.chave)?"já está no estoque":
+      temSem?"tem semente: lance esta nota sozinha (embalagens)":window.finLote?.jaLancada(fin)&&!lista?"já está no Financeiro":"";
+    const n={d,x,fin,ok:!aviso,aviso,itens:[],temSem,finJa:!!window.finLote?.jaLancada(fin)};
     for(const it of x.itens){
       const k=(it.descricao+"|"+it.unidade).toUpperCase();
       if(!prods.has(k)){
@@ -65,21 +68,22 @@ function prepara(am){
         const ag=window.agrofitBusca?.(it.descricao);
         const c=converteEmb(it.descricao,it.unidade,1);
         const cla=est?.classe||ag?.classe||classeDe(it.descricao);
-        prods.set(k,{k,desc:it.descricao,uCom:it.unidade,est:!!(est||ag||INSUMO.test(it.descricao)),
+        const peca=/^(PC|P[ÇC]A?S?|UN|UND|UNID|SV|SERV|JG|CJ|KIT|MT|M)$/i.test(String(it.unidade||"").trim())||/PARAFUSO|ROLAMENTO|FILTRO|CORREIA|RETENTOR|EMBOLO|ÊMBOLO|VEDA[CÇ]AO|MANGUEIRA|BICO|LAMPADA|PNEU|OLEO (LUBRIF|HIDRAUL|MOTOR)|GRAXA|DIESEL/i.test(it.descricao);
+        prods.set(k,{k,desc:it.descricao,uCom:it.unidade,est:!!(est||ag||INSUMO.test(it.descricao)||!peca),
           nome:est?.comercial||(ag?nomeLimpo(ag.marca):nomeLimpo(it.descricao)),gen:est?.generico||ag?.generico||"",classe:cla,un:est?.unidade||(c.un==="un"&&ag?ag.unidade:c.un),q:0,v:0,n:0});
       }
       const p=prods.get(k); n.itens.push({k,it});
     }
     notas.push(n);
   }
-  return {am,notas,prods};
+  return {am,notas,prods,titulo};
 }
 function somaProds(){
   for(const p of lote.prods.values()){p.q=0;p.v=0;p.n=0}
   for(const n of lote.notas) if(n.ok) for(const {k,it} of n.itens){const p=lote.prods.get(k), c=converteEmb(it.descricao,it.unidade,it.quantidade); p.q+=c.un===p.un?c.q:it.quantidade; p.v+=it.valorTotal; p.n++}
 }
-function abrirMes(am){
-  lote=prepara(am);
+function abrirMes(am,lista,titulo){
+  lote=prepara(am,lista,titulo);
   let el=$("#nl-tela"); if(!el){el=document.createElement("div"); el.id="nl-tela"; el.className="ct-tela nl-tela"; el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true"); document.body.appendChild(el)}
   el.hidden=false; document.body.classList.add("ct-aberto"); render(); el.scrollTop=0;
 }
@@ -87,17 +91,17 @@ function fechar(){const el=$("#nl-tela"); if(el) el.hidden=true; document.body.c
 function render(){
   const el=$("#nl-tela"); if(!el||!lote) return;
   somaProds();
-  const [y,m]=lote.am.split("-"), sel=lote.notas.filter(n=>n.ok), usados=[...lote.prods.values()].filter(p=>p.n>0);
+  const [y,m]=(lote.am||"0000-01").split("-"), tit=lote.titulo||`${MES[+m-1]} de ${y}`, sel=lote.notas.filter(n=>n.ok), usados=[...lote.prods.values()].filter(p=>p.n>0);
   const contas=window.finLote?.contas()||[], cp=window.finLote?.contaPadrao()||"";
   const novo=p=>!prodEstoque(p.nome);
-  el.innerHTML=`<div class="ct-bar"><button type="button" class="btn ghost" id="nl-volta">‹ Voltar</button><span class="ct-bar-t">${MES[+m-1]} de ${y}</span></div>
+  el.innerHTML=`<div class="ct-bar"><button type="button" class="btn ghost" id="nl-volta">‹ Voltar</button><span class="ct-bar-t">${e(tit)}</span></div>
   <div class="ct-corpo">
-    <h2 class="nl-h">Lançar notas de ${MES[+m-1]} de ${y}</h2>
+    <h2 class="nl-h">${lote.titulo?"Lançar "+e(tit.toLowerCase()):"Lançar notas de "+MES[+m-1]+" de "+y}</h2>
     <p class="note">Confira as notas e os produtos. Os que estiverem marcados em "Estoque" entram como compra na data da nota. Tudo vai também para o Financeiro.</p>
     <h3 class="sub-h">Notas (${sel.length} de ${lote.notas.length})</h3>
     <div class="nl-notas">${lote.notas.map((n,i)=>`<div class="nl-nota${n.ok?"":" off"}"><input type="checkbox" data-nln="${i}" id="nl-n${i}" ${n.ok?"checked":""} ${n.erro?"disabled":""} aria-label="Lançar a NF ${e(n.d.numero||"")}">
-      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)} · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:""}${n.fin?.retirada?` · <span class="ne-ret">retirada do contrato ${e(n.fin.contrato)} — só estoque</span>`:""}</small></span>
-      <button type="button" class="link" data-danfe="${e(n.d.id)}">DANFE</button></div>`).join("")}</div>
+      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)} · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:n.finJa?` · <span class="note">já no Financeiro: entra só no estoque</span>`:""}${n.fin?.retirada?` · <span class="ne-ret">retirada do contrato ${e(n.fin.contrato)} — só estoque</span>`:""}</small></span>
+      ${n.temSem&&!n.ok&&n.x?`<button type="button" class="link" data-nlsz="${i}">Lançar sozinha</button>`:""}${n.d.arquivo?`<button type="button" class="link" data-nldn="${i}">DANFE</button>`:`<button type="button" class="link" data-danfe="${e(n.d.id)}">DANFE</button>`}</div>`).join("")}</div>
     <h3 class="sub-h">Produtos (${usados.length})</h3>
     <p class="note">Desmarque "Estoque" no que não é insumo (peças, diesel, serviços…): esses vão só para o Financeiro. O nome é o que fica no estoque; produtos iguais com nomes diferentes podem ser juntados escrevendo o mesmo nome.</p>
     <div class="nl-prods">${usados.map(p=>`<div class="nl-prod${p.est?"":" off"}" data-nlp="${e(p.k)}">
@@ -118,6 +122,8 @@ function render(){
     <div class="row"><button type="button" class="btn" id="nl-ok" ${sel.length?"":"disabled"}>Lançar ${sel.length} nota${sel.length===1?"":"s"}</button><span class="note" id="nl-st" role="status"></span></div>
   </div>`;
   $("#nl-volta").onclick=fechar;
+  el.querySelectorAll("[data-nldn]").forEach(b=>b.onclick=()=>window.danfeAbrir?.(lote.notas[+b.dataset.nldn].d.xml));
+  el.querySelectorAll("[data-nlsz]").forEach(b=>b.onclick=()=>{const n=lote.notas[+b.dataset.nlsz]; fechar(); window.nfImportarArquivo?.(new File([n.d.xml],`NFe${n.d.id}.xml`,{type:"text/xml"}))});
   el.querySelectorAll("[data-nln]").forEach(c=>c.onchange=()=>{lote.notas[+c.dataset.nln].ok=c.checked; render()});
   el.querySelectorAll(".nl-nt").forEach(t=>t.onclick=()=>{const c=document.getElementById(t.dataset.for); if(c&&!c.disabled){c.checked=!c.checked; c.onchange()}});
   el.querySelectorAll(".nl-prod").forEach(box=>{const p=lote.prods.get(box.dataset.nlp);
@@ -157,6 +163,8 @@ async function lancar(){
       else await db.collection("estoque").add({comercial:p.nome,generico:p.gen||"",classe:p.classe||"",unidade:p.un,entradas:ents,criadoEm:new Date().toISOString()});
       st(`Estoque: ${++i} de ${porProd.size} produtos…`);
     }
+    // XML de notas vindas de arquivo fica guardado (DANFE e "Refazer pela nota")
+    for(const n of notas) if(n.d.arquivo&&n.fin.chave) try{await db.collection("nfe").doc(n.fin.chave).set({xml:n.d.xml,numero:n.fin.numero,emit:n.fin.emit,data:n.fin.data,criadoEm:new Date().toISOString()})}catch{}
     // 2) Financeiro: contas a pagar de cada nota
     let nf=0;
     if(fin){ for(const n of notas){ if(n.fin.retirada) continue; // retirada do contrato: já paga
@@ -164,7 +172,7 @@ async function lancar(){
       await window.finLote.lancarNota(n.fin,{pago,conta,itens}); st(`Financeiro: ${++nf} de ${notas.length} notas…`) }
       if(pago) window.finLote.lembraConta(conta) }
     const el=$("#nl-tela .ct-corpo");
-    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${porProd.size} produto${porProd.size===1?"":"s"} no estoque${fin?` e ${notas.length} no Financeiro`:""}.</p>
+    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${porProd.size} produto${porProd.size===1?"":"s"} no estoque${fin?` e ${nf} no Financeiro`:""}${notas.some(n=>n.fin.retirada)?` (${notas.filter(n=>n.fin.retirada).length} de retirada de contrato: só no estoque)`:""}.</p>
       <div class="row"><button type="button" class="btn" id="nl-fim">Voltar às notas</button></div>`;
     $("#nl-volta").disabled=false; $("#nl-fim").onclick=fechar;
   }catch(err){
@@ -173,4 +181,21 @@ async function lancar(){
   }
 }
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&lote) fechar()});
+/* vários XML escolhidos de uma vez (Estoque → Entrada → Escolher XML): mesma conferência, para notas de qualquer data */
+window.loteArquivos=async function(files){
+  const docs=[], canc=new Set(), vistas=new Set(); let ruins=0;
+  for(const f of files){
+    let t=""; try{t=await f.text()}catch{ruins++; continue}
+    if(/<procEventoNFe|<evento\b/i.test(t)&&/<tpEvento>110111</.test(t)){const m=t.match(/<chNFe>(\d{44})</); if(m) canc.add(m[1]); continue}
+    let fin=null; try{fin=window.finDadosXml(new DOMParser().parseFromString(t,"application/xml"))}catch{}
+    if(!fin||!fin.chave){ruins++; continue}
+    if(vistas.has(fin.chave)) continue; vistas.add(fin.chave);
+    docs.push({id:fin.chave,xml:t,numero:fin.numero,data:fin.data,emit:fin.emit,total:fin.total,arquivo:f.name});
+  }
+  for(const d of docs) if(canc.has(d.id)) d.cancelada=true;
+  if(!docs.length){window.ponte?.aviso?.("Nenhum XML de NF-e nos arquivos escolhidos."); return}
+  const ds=docs.map(d=>d.data).filter(Boolean).sort(), dt=x=>x?x.split("-").reverse().join("/"):"";
+  abrirMes(null,docs,`${docs.length} nota${docs.length>1?"s":""} escolhida${docs.length>1?"s":""}${ds.length?` (${dt(ds[0])}${ds.length>1&&ds[0]!==ds[ds.length-1]?" a "+dt(ds[ds.length-1]):""})`:""}`);
+  if(ruins) window.ponte?.aviso?.(`${ruins} arquivo${ruins>1?"s":""} não ${ruins>1?"eram":"era"} XML de NF-e e ficou de fora.`);
+};
 })();

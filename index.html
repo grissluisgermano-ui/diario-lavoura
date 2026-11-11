@@ -813,9 +813,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <form class="sub" id="es-form" autocomplete="off">
       <h3 class="sub-h">Lançar entrada no estoque</h3>
       <div class="nf-imp">
-        <div><b>Importar XML da nota</b><div class="note">O app lê os produtos do XML da NF-e e você confere antes de lançar.</div></div>
+        <div><b>Importar XML da nota</b><div class="note">O app lê os produtos do XML da NF-e e você confere antes de lançar. Pode escolher <b>vários XML de uma vez</b> (ex.: a pasta de um mês, notas antigas de qualquer data): entram no estoque e no Financeiro juntos.</div></div>
         <label class="btn ghost foto-btn" for="nf-in">Escolher XML</label>
-        <input id="nf-in" type="file" accept=".xml,text/xml,application/xml" hidden>
+        <input id="nf-in" type="file" accept=".xml,text/xml,application/xml" multiple hidden>
       </div>
       <div class="nf-imp">
         <div><b>Nota fiscal à mão</b><div class="note">Sem XML? Digite a nota com vários produtos de uma vez, e as parcelas para o Financeiro.</div></div>
@@ -1738,7 +1738,7 @@ function xmlSemClaude(x){
         c.un==="un"?`Unidade da nota: ${it.unidade}. Confira a conversão da embalagem.`:c.obs?`Convertido: ${c.obs}. Confira.`:""}})};
 }
 let nfCtl=null;
-$("#nf-in").addEventListener("change",e=>{const file=e.target.files[0]; e.target.value=""; if(file) nfProcessar(file)});
+$("#nf-in").addEventListener("change",e=>{const fs=[...e.target.files]; e.target.value=""; if(fs.length>1&&window.loteArquivos) window.loteArquivos(fs); else if(fs[0]) nfProcessar(fs[0])});
 window.nfImportarArquivo=f=>{esAba("entrada"); return nfProcessar(f)};
 function esAba(k){
   document.querySelectorAll("#es-abas [data-esaba]").forEach(b=>b.setAttribute("aria-selected",b.dataset.esaba===k));
