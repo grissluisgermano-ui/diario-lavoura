@@ -294,6 +294,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .fn-estopt{margin-top:10px}
 .nf-parc .note{min-width:46px}
 #nf-add{align-self:flex-start}
+.ent-lote{display:block;font-size:.78rem;color:var(--muted);font-family:var(--f-body,inherit)}
 .es-um{margin:14px 0 4px;font-size:.95rem;color:var(--muted);font-weight:600}
 .nf-cont{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .prod .p-embl{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
@@ -1594,7 +1595,7 @@ function lerXml(txt){
   if(!dets.length) throw new Error("semitens");
   return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:window.finNomeEmit?window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant")):(g(emit,"xFant")||g(emit,"xNome")),
     itens:dets.map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];
-      return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0)}}),
+      return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0),obs:g(d,"infAdProd")}}),
     fin:window.finDadosXml?.(doc)};
 }
 async function lerPdf(file){
@@ -1631,6 +1632,8 @@ Dados da nota: ${JSON.stringify(x)}
 ${NF_FORMATO}`,{modelTier:"default",effort:"low",signal:nfCtl.signal});
     r.data=x.data; r.numero=x.numero; r.origem=x.origem||r.origem; r.fin=x.fin;
     (r.itens||[]).forEach((it,i)=>{if(x.itens[i]) it.valorTotal=x.itens[i].valorTotal});
+    r.itens=(r.itens||[]).map((it,i)=>{const o=x.itens[i]; if(!o) return it; const em=embDaDesc(o.descricao,o.unidade,o.obs); if(!em) return it;
+      const nm=sementeNome(o.descricao), ex=prodEstoque(it.nomeComercial)||prodEstoque(nm); return (!ex||ehEmb(ex)||ex.classe==="Semente")?semItem(o,em,ex,nm):it});
     return r;
   }
   if(!sample) throw {code:"sem_claude"};
@@ -1659,12 +1662,25 @@ function converteEmb(desc,uCom,q){
   if(/^(SC|SACO)/.test(u)) return {un:"sc",q};
   return {un:"un",q};
 }
+/* semente já cadastrada com outro nome: todas as palavras "fortes" do nome dela aparecem na descrição da nota (ex.: "Soja Titanium" ↔ "… (BMX TITANIUM I2X) …") */
+function sementeDoEstoque(desc){
+  const d=" "+String(desc||"").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Z0-9]+/g," ")+" ";
+  const fracas=/^(SEMENTE|SEMENTES|STE|SOJA|MILHO|TRIGO|AVEIA|CEVADA|FEIJAO|DE|DA|DO|SEM|BAG|SACO|IPRO|I2X|RR|TSI|PRETA|BRANCA)$/;
+  const cands=estoque.filter(e=>e.classe==="Semente"||ehEmb(e)).map(e=>({e,ws:e.comercial.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(/[^A-Z0-9]+/).filter(w=>w.length>=3&&!fracas.test(w))}))
+    .filter(c=>c.ws.length&&c.ws.every(w=>d.includes(" "+w+" ")||(w.length>=6&&d.includes(w))));
+  return cands.sort((a,b)=>b.ws.length-a.ws.length)[0]?.e||null;
+}
+function semItem(it,em,ex,nm){
+  ex=ex||sementeDoEstoque(it.descricao);
+  const inf=sementeInfo(it.obs);
+  return {descricao:it.descricao,nomeComercial:ex?.comercial||nm||it.descricao,generico:ex?.generico||"",classe:"Semente",unidade:"kg",emb:em,info:inf,
+    quantidade:it.quantidade,valorTotal:it.valorTotal,duvida:em.tipo!=="kg"&&!(em.cont>0)?`Na nota: ${num(it.quantidade)} ${it.unidade}. Informe quantas sementes (ou kg) vêm em cada embalagem.`:""};
+}
 function xmlSemClaude(x){
   return {data:x.data,numero:x.numero,origem:x.origem,fin:x.fin,itens:x.itens.map(it=>{
     const est=estoque.find(e=>it.descricao.toLowerCase().includes(e.comercial.toLowerCase()));
-    const em=(!est||ehEmb(est)||est.classe==="Semente")&&embDaDesc(it.descricao,it.unidade);
-    if(em) return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:"Semente",unidade:"kg",emb:em,
-      quantidade:it.quantidade,valorTotal:it.valorTotal,duvida:em.tipo!=="kg"&&!(em.cont>0)?`Na nota: ${num(it.quantidade)} ${it.unidade}. Informe quantas sementes (ou kg) vêm em cada embalagem.`:""};
+    const em=(!est||ehEmb(est)||est.classe==="Semente")&&embDaDesc(it.descricao,it.unidade,it.obs);
+    if(em){const nm=sementeNome(it.descricao), ex=est||prodEstoque(nm); return {...semItem(it,em,ex,nm)}}
     const c=converteEmb(it.descricao,it.unidade,it.quantidade);
     const ok=!est||est.unidade===c.un;
     return {descricao:it.descricao,nomeComercial:est?.comercial||it.descricao,generico:est?.generico||"",classe:est?.classe||"",
@@ -1763,8 +1779,9 @@ function renderNfRev(){
         <div class="row" style="justify-content:space-between"><span class="lbl">Vencimentos</span><span class="row" style="gap:6px">Parcelas <input id="nf-np" inputmode="numeric" value="${(r.parcs||[]).length||1}" aria-label="Número de parcelas" style="width:56px"></span></div>
         <div id="nf-parcs">${nfParcsHtml()}</div>
         <p class="note" id="nf-tot"></p>
-      </div></div>`:r.finRef?"":r.fin?window.finNfOpcao?.(r.fin)||"":""}
-    <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
+      </div></div>`:r.finRef||r.refaz?"":r.fin?window.finNfOpcao?.(r.fin)||"":""}
+    ${r.refaz?`<p class="note">🔁 Refazendo as sementes da NF ${esc(r.numero||"")}: as entradas antigas dela saem do estoque e entram estas. O Financeiro não muda.</p>`:""}
+    <div class="row"><button type="button" class="btn" id="nf-lancar">${r.refaz?"Trocar as entradas desta nota":"Lançar produtos no estoque"}</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
   const box$=$("#nf-rev");
   const unSync=box=>{
@@ -1818,18 +1835,46 @@ function embDe(b){const t=b.querySelector(".nf-et").value; return t==="kg"?{...E
 const ultimaEmb=e=>{const l=(e?.entradas||[]).filter(x=>x.emb).pop(); return l?{...l.emb}:null};
 const embAntiga=u=>u==="kg"?{...EMB_KG}:{tipo:"saco",cont:0,med:"sem"}; // entradas antigas, de antes da contagem por embalagem
 /* descrição da nota → embalagem da semente: "BIG BAG 5.000.000 SEM", "SC 200 MIL SEMENTES", "SACO 40 KG" */
-function embDaDesc(desc,uCom){
-  const d=String(desc||"").toUpperCase(), u=String(uCom||"").toUpperCase();
+/* dados da semente na informação adicional do item (Coamo: "Lote:113800 … Ger:96,00% … Peso SC:913,800000kg") */
+function sementeInfo(obs){
+  const o=String(obs||""), n=v=>parseFloat(String(v).replace(/\./g,"").replace(",","."));
+  const lote=o.match(/Lote:\s*([\w.-]+)/i)?.[1]||"", germ=o.match(/Ger:\s*([\d.,]+)\s*%/i)?.[1], peso=o.match(/Peso\s*(?:SC|BAG|EMB)?:\s*([\d.,]+)\s*kg/i)?.[1];
+  const r={}; if(lote) r.lote=lote; if(germ) r.germ=n(germ); if(peso) r.pesoEmb=+n(peso).toFixed(2); return r;
+}
+/* nome da semente: "STE SOJA 56IX58RSF I2X (BMX TITANIUM I2X) (200K) TSI BASF7*" → "Semente Soja BMX Titanium I2X" */
+function sementeNome(desc){
+  const d=String(desc||"").trim(), m=d.match(/^(?:STE|SEM(?:ENTE)?)\.?\s+([A-ZÀ-Ú]+)\b(.*)$/i); if(!m) return "";
+  const cult=m[1][0].toUpperCase()+m[1].slice(1).toLowerCase(), resto=m[2];
+  const par=[...resto.matchAll(/\(([^)]+)\)/g)].map(x=>x[1].trim()).find(x=>!/^\d+(?:[.,]\d+)?\s*K$/i.test(x)&&!/^\d+\s*(KG|MIL)/i.test(x));
+  let cv=par||resto.replace(/\(.*$/,"").replace(/\b(TSI|TS|C1|C2|S1|S2|BASF\w*)\b.*$/i,"").trim();
+  cv=cv.split(/\s+/).filter(Boolean).map(w=>/\d/.test(w)||w.length<=3?w.toUpperCase():w[0].toUpperCase()+w.slice(1).toLowerCase()).join(" ");
+  return cv?`Semente ${cult} ${cv}`:"";
+}
+function embDaDesc(desc,uCom,obs){
+  const d=String(desc||"").toUpperCase(), u=String(uCom||"").toUpperCase(), inf=sementeInfo(obs);
   if(!/SEMENTE|\bSTE\b|\bSEM\b|BIG ?BAG|\bBAG\b/.test(d)) return null;
-  const tipo=/BIG ?BAG|\bBAG\b|\bBB\b/.test(d+" "+u)?"bag":/^(KG|QUILO)/.test(u)&&!/\bSC\b|SACO/.test(d)?"kg":"saco";
+  const k=d.match(/\((\d+(?:[.,]\d+)?)\s*K\)|\b(\d+(?:[.,]\d+)?)K\b/); // Coamo: (200K) = 200 mil sementes, (5000K) = 5 milhões
+  if(k){const cont=Math.round(parseFloat((k[1]||k[2]).replace(",","."))*1000);
+    return {tipo:cont>=1e6||inf.pesoEmb>=100||/BIG ?BAG|\bBAG\b/.test(d)?"bag":"saco",cont,med:"sem"}}
+  const tipo=/BIG ?BAG|\bBAG\b|\bBB\b/.test(d+" "+u)||inf.pesoEmb>=100?"bag":/^(KG|QUILO)/.test(u)&&!/\bSC\b|SACO/.test(d)?"kg":"saco";
   if(tipo==="kg") return {...EMB_KG};
   let m=d.match(/(\d+(?:[.,]\d+)?)\s*(?:MI|MILH(?:AO|ÃO|OES|ÕES))\b/), cont=0, med="sem";
   if(m) cont=Math.round(parseFloat(m[1].replace(",","."))*1e6);
   else if((m=d.match(/(\d+(?:[.,]\d+)?)\s*MIL\b/))) cont=Math.round(parseFloat(m[1].replace(",","."))*1e3);
   else if((m=d.match(/(\d{1,3}(?:\.\d{3}){1,3}|\d{5,9})\s*(?:SEM\b|SEMENTES|SEMS|S\b)?/))&&+m[1].replace(/\./g,"")>=10000) cont=+m[1].replace(/\./g,"");
   else if((m=d.match(/(\d+(?:[.,]\d+)?)\s*KG\b/))){cont=parseFloat(m[1].replace(",",".")); med="kg"}
+  else if(inf.pesoEmb>0){cont=inf.pesoEmb; med="kg"} // só o peso: conta em kg
   return {tipo,cont,med};
 }
+/* Refazer as sementes de uma nota já lançada, lendo de novo o XML guardado (embalagens, nomes, lote, germinação) */
+window.nfRefazer=function(chave){
+  const d=(window.danfeColecao?.()||[]).find(x=>x.id===chave); if(!d?.xml){nfSt("O XML desta nota não está guardado no app.");return}
+  let x; try{x=xmlSemClaude(lerXml(d.xml))}catch{nfSt("Não consegui ler o XML desta nota.");return}
+  x.itens=x.itens.filter(it=>it.classe==="Semente"&&it.emb);
+  if(!x.itens.length){nfSt("Não achei sementes nesta nota.");return}
+  esAba("entrada"); nfCtl?.abort(); nfXmlTxt=d.xml; x.refaz=chave; nfDados=x; renderNfRev();
+  nfSt(`Nota ${x.numero}: confira as sementes por embalagem e toque em Lançar. As entradas antigas de semente desta nota serão trocadas por estas (o Financeiro não muda).`);
+};
 window.nfManual=function(pre){ // Estoque → "Nota fiscal à mão (vários produtos)"; pre.semente = produto de semente para nova entrada
   esAba("entrada"); nfCtl?.abort(); nfXmlTxt=null;
   const sm=pre?.semente, it0=sm?{nomeComercial:sm.comercial,classe:"Semente",generico:sm.generico||"",emb:ultimaEmb(sm)||(sm.unidade==="kg"?{...EMB_KG}:null)}:{};
@@ -1851,7 +1896,7 @@ async function nfLancar(){
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
     un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value),
-    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null}));
+    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null}));
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return}
     if(it.emb&&it.emb.tipo!=="kg"&&!(it.emb.cont>0)){nfSt(`Informe quantas sementes (ou kg) vêm em cada ${it.emb.tipo==="bag"?"bag":"saco"} de ${it.nome}.`);return}
     if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
@@ -1869,13 +1914,22 @@ async function nfLancar(){
   try{
     // agrupa itens repetidos do mesmo produto
     const grupos=new Map();
-    for(const it of itens){const k=it.nome.toLowerCase()+(it.emb?"#"+embChave(it.emb):""); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
+    for(const it of itens){const k=it.nome.toLowerCase()+(it.emb?"#"+embChave(it.emb)+"#"+(it.info?.lote||""):""); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     const porProd=new Map(); // várias entradas do mesmo produto (embalagens diferentes) numa gravação só
     for(const it of grupos.values()){
       const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
       if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave}
-      if(it.emb) entrada.emb=it.emb;
+      if(it.emb) entrada.emb=it.emb; if(it.emb&&it.info) Object.assign(entrada,it.info); // lote, germinação, peso da embalagem
       const k=it.nome.toLowerCase(), pp=porProd.get(k)||{it,ents:[]}; pp.ents.push(entrada); if(it.emb) pp.emb=true; porProd.set(k,pp);
+    }
+    if(nfDados?.refaz){ // "Refazer pela nota": tira as entradas de semente desta nota antes de lançar de novo
+      const ch=nfDados.refaz;
+      for(const e of estoque.filter(x=>(x.classe==="Semente"||ehEmb(x))&&(x.entradas||[]).some(y=>y.chave===ch))){
+        const {id,...doc}=e; doc.entradas=(e.entradas||[]).filter(y=>y.chave!==ch); e.entradas=doc.entradas;
+        const usado=registros.some(r=>(r.campos?.produtos||[]).some(p=>p.produtoId===id||String(p.nome).toLowerCase()===e.comercial.toLowerCase()));
+        if(!doc.entradas.length&&!usado&&!porProd.has(e.comercial.toLowerCase())) await db.collection("estoque").doc(id).delete();
+        else await db.collection("estoque").doc(id).set(doc);
+      }
     }
     for(const {it,ents,emb} of porProd.values()){
       const e=prodEstoque(it.nome);
@@ -2098,7 +2152,7 @@ function renderEstoque(){
     </div>`}
     ${s.usos&&!s.emb?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,x.quantidade))}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,x.quantidade))}${x.lote||x.germ?`<small class="ent-lote">${[x.lote?"lote "+esc(x.lote):"",x.germ?"germ. "+num(x.germ)+"%":""].filter(Boolean).join(" · ")}</small>`:""}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.chave&&(e.classe==="Semente"||ehEmb(e))&&window.danfeTem?.(x.chave)?`<button type="button" class="link" data-refaz="${x.chave}">🔁 Refazer pela nota</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
@@ -2110,6 +2164,7 @@ function renderEstoque(){
     if(peRasc&&box.dataset.pe===peAtual.dataset.pe){const els=[...box.querySelectorAll("input,select")]; els.forEach((el,k)=>{if(peRasc[k]!=null) el.value=peRasc[k]}); if(peFoco>=0) els[peFoco]?.focus()}
     peLiga(box)});
   $("#es-lista").querySelectorAll("[data-edent]").forEach(b=>b.onclick=()=>{const [id,i]=b.dataset.edent.split(":"); entEditar(b,id,+i)});
+  $("#es-lista").querySelectorAll("[data-refaz]").forEach(b=>b.onclick=()=>window.nfRefazer(b.dataset.refaz));
   $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada); if(ehEmb(e)||e?.classe==="Semente"){window.nfManual({semente:e});return} esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
   $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
   $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
