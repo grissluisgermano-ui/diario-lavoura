@@ -22,7 +22,7 @@ Ao publicar mudança no app: **suba o número em `versao.js`** (`n` e `data`, mo
 
 ## Regras do negócio (não quebrar)
 - Safra vai de **julho a junho** (`safraDe(iso)`).
-- Talhões, depósitos, culturas e capacidade do tanque vêm de `config/propriedade` (`{nome, talhoes:[{id,n,ha}], depositos, culturas, tanque}`); renomear talhão propaga para registros/notas/benfeitorias.
+- Talhões, depósitos, culturas e capacidade do tanque vêm de `config/propriedade` (`{nome, talhoes:[{id,n,ha,antigos:[{n,ate}]}], depositos, culturas, tanque}`); renomear talhão propaga para registros/notas/benfeitorias e guarda o nome antigo em `antigos` (`ate` = dia da troca). `talhoesTxt(t, areas, data)` / `nomeEra(n, data)` mostram "Nome novo (nome antigo)" nos lançamentos de antes da troca (Histórico, grãos, planilha, Perguntar, anotações).
 - Estoque: baixa = dose × fator de conversão × área, **só de atividades executadas**; programadas apenas **reservam**. Cada produto do registro guarda o custo do momento (`custoUnit, unidadeEst, custoHa`); o registro guarda `custoHa, custoTotal, semCusto`.
 - Atividade **programada** (vermelho) × **executada** (verde).
 - Produtos e doses: cada linha tem também "Total usado" (`.p-tot`, unidade = a da dose sem "/ha"). `prodTotais()`: digitando o total, dose = total ÷ área do formulário (`areaForm`); digitando a dose, total = dose × área; mudando área/talhões, recalcula a partir do último digitado (`row.dataset.src`). Só a dose é gravada.

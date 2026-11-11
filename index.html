@@ -607,7 +607,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <span class="lbl">Talhões e áreas</span>
         <div id="cfg-tal" class="cfg-tal"></div>
         <div class="row" style="justify-content:space-between"><button type="button" class="btn ghost" id="cfg-add-tal">+ Adicionar talhão</button><b class="mono" id="cfg-tot"></b></div>
-        <p class="note">Ao renomear um talhão, os lançamentos antigos passam a usar o nome novo. Um talhão que já tem lançamentos não pode ser removido. Toque no quadradinho ao lado do nome para desenhar ou editar o contorno do talhão no mapa.</p>
+        <p class="note">Ao renomear um talhão, os lançamentos antigos passam a usar o nome novo, com o nome antigo entre parênteses — por exemplo, “Talhão da Sanga (Talhão 1)”. Um talhão que já tem lançamentos não pode ser removido. Toque no quadradinho ao lado do nome para desenhar ou editar o contorno do talhão no mapa.</p>
       </div>
       <div class="grid2">
         <div class="field"><label for="cfg-dep">Depósitos / cooperativas</label><input id="cfg-dep" placeholder="Separados por vírgula"></div>
@@ -1576,7 +1576,7 @@ function reservaBox(e,s){
   const rs=reservasProd(e), livre=s.saldo-s.programado;
   return `<div class="reserva ${livre<0?"neg":""}">
     <div><b>Observação:</b> ${num(s.programado)} ${e.unidade} do saldo estão reservados para ${rs.length} atividade${rs.length>1?"s":""} programada${rs.length>1?"s":""}. ${livre<0?`Faltam <b>${num(-livre)} ${e.unidade}</b> para cobrir a programação.`:`Livre para uso: <b>${num(livre)} ${e.unidade}</b>.`}</div>
-    <ul>${rs.map(({r,q})=>`<li><span>${brDate(r.data).slice(0,5)} · ${esc(r.nome||TIPOS[r.tipo]?.label||"")} · ${esc(talhoesTxt(r.talhoes,r.areas))}</span><b>${num(q)} ${e.unidade}</b></li>`).join("")}</ul>
+    <ul>${rs.map(({r,q})=>`<li><span>${brDate(r.data).slice(0,5)} · ${esc(r.nome||TIPOS[r.tipo]?.label||"")} · ${esc(talhoesTxt(r.talhoes,r.areas,r.data))}</span><b>${num(q)} ${e.unidade}</b></li>`).join("")}</ul>
   </div>`;
 }
 
@@ -2419,11 +2419,18 @@ function linhaCampos(r){
   else if(r.tipo==="colheita"&&Number(r.campos?.produtividade)>0) out.push({k:"Produção estimada",v:num(Number(r.campos.produtividade)*areaTotal(r))+" sc"});
   return out;
 }
-function talhoesTxt(t,areas){
+// nome que o talhão tinha na data do lançamento (config/propriedade talhoes[].antigos:[{n, ate}] — gravado ao renomear)
+function nomeAntigo(n,data){
+  const t=TALHOES.find(x=>x.n===n); if(!t||!t.antigos?.length||!data) return "";
+  const a=t.antigos.filter(x=>x.ate>String(data).slice(0,10)).sort((x,y)=>x.ate<y.ate?-1:1)[0];
+  return a&&a.n!==n?a.n:"";
+}
+const nomeEra=(n,data)=>{const a=nomeAntigo(n,data); return a?`${n} (${a})`:n};
+function talhoesTxt(t,areas,data){
   t=t||[];
   const parcial=n=>areas&&areas[n]!=null&&Number(areas[n])<haDe(n);
   if(t.length===TALHOES.length&&!t.some(parcial)) return "Toda a propriedade";
-  return t.map(n=>parcial(n)?`${n} (${num(areas[n])} de ${num(haDe(n))} ha)`:n).join(", ");
+  return t.map(n=>parcial(n)?`${nomeEra(n,data)} (${num(areas[n])} de ${num(haDe(n))} ha)`:nomeEra(n,data)).join(", ");
 }
 // Período: atividade de vários dias (data = início, dataFim = último dia)
 const diasEntre=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5);
@@ -2457,7 +2464,7 @@ function recCard(r,extra="",acoesExtra=""){
   return `<article class="rec ${temSit?(prog?"st-programada":"st-executada"):""}" style="--c:var(--t-${r.tipo})">
       <div class="rec-top"><span class="rec-tipo">${esc(TIPOS[r.tipo]?.label||r.tipo)}${r.nome?` · <span class="rec-nome">${esc(r.nome)}</span>`:""}</span>${temSit?`<span class="st-pill" style="--c2:var(${prog?"--danger":"--ok"})">${prog?"Programada":"Executada"}</span>`:""}</div>
       ${periodoTxt(r)?`<div class="rec-periodo">Período: <b>${periodoTxt(r)}</b></div>`:""}
-      <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
+      <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas,r.data))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
       ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc</span></li>`).join("")}</ul>`:""}
       ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
@@ -3510,7 +3517,7 @@ function renderGraos(){
   $("#gr-lista").innerHTML=vis.length?vis.map(m=>`<article class="rec" style="--c:var(${m.tipo==="romaneio"?"--t-colheita":m.tipo==="venda"?"--accent":"--muted"})">
       <div class="rec-top"><span class="rec-tipo">${m.tipo==="romaneio"?`Romaneio${m.numero?" nº "+esc(m.numero):""}`:GR_MODOS[m.tipo]}</span><span class="rec-talhoes mono">${brDate(m.data)}${m.hora?" · "+esc(m.hora):""}</span></div>
       <div class="rec-top"><span>${esc(m.cultura)} · ${esc(m.local||"Sem local")}${m.tipo==="transferencia"?` → ${esc(m.destino)}`:""}</span><span class="mov-q ${sinal(m)==="+"?"in":"out"}">${sinal(m)}${scFmt(m.sacas)}</span></div>
-      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas))}</b></span>`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
+      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas,m.data))}</b></span>`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
       ${m.obs?`<p class="rec-desc">${esc(m.obs)}</p>`:""}
       ${assinatura(m)}
       <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">Excluir</button>`}</div>
@@ -3579,7 +3586,7 @@ function graosTexto(){
     `\nDivisão dos depósitos: cada romaneio é dividido em Lavoura ${num(divisaoDe({}).lavoura)}%${FUNCS().map(f=>`, ${titNome(f.id)} ${num(f.pct)}%`).join("")} (comissões dos funcionários). Vendas, retiradas e transferências indicam de qual titular saem. Arrendamentos (lançamentos PAGAMENTO DO ARRENDAMENTO, sempre da parte da Lavoura, nunca das comissões): ${ARRS().map(a=>{const i=arrInfo(a.id); return `${titNome(a.id)} recebe ${num(a.sacas)} sc de ${a.cultura} por ano; na safra ${safraLab(i.sy)} já foram pagos ${num(i.pago)} sc, faltam ${num(i.falta)} sc`}).join("; ")||"nenhum"}.`;
   const anos=[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))];
   const prod=anos.map(y=>`Safra ${safraLab(y)}: `+grProducao(y).map(p=>`${p.talhao} ${p.cultura} ${num(p.sacas)} sc em ${num(p.area)} ha (${p.area>0?num(p.sacas/p.area):"-"} sc/ha)`).join("; ")).join("\n");
-  const ls=[...movs].reverse().map(m=>`${brDate(m.data)}${m.hora?" "+m.hora:""} | ${m.tipo==="romaneio"?"ROMANEIO nº "+(m.numero||"-"):GR_MODOS[m.tipo].toUpperCase()} | ${m.cultura} | ${m.local||"-"}${m.destino?" → "+m.destino:""} | ${num(m.sacas)} sc${m.valorTotal?` | ${brl(m.valorTotal)} (${brl(m.valorTotal/m.sacas)}/sc)`:""}${m.contrato?" | contrato "+m.contrato:""}${m.tipo==="romaneio"?" | "+talhoesTxt(m.talhoes,m.areas)+" | divisão "+Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join(", "):m.tipo==="arrendamento"?" | para "+titNome(m.para||"pai"):" | titular "+titNome(m.titular||"lavoura")}`).join("\n");
+  const ls=[...movs].reverse().map(m=>`${brDate(m.data)}${m.hora?" "+m.hora:""} | ${m.tipo==="romaneio"?"ROMANEIO nº "+(m.numero||"-"):GR_MODOS[m.tipo].toUpperCase()} | ${m.cultura} | ${m.local||"-"}${m.destino?" → "+m.destino:""} | ${num(m.sacas)} sc${m.valorTotal?` | ${brl(m.valorTotal)} (${brl(m.valorTotal/m.sacas)}/sc)`:""}${m.contrato?" | contrato "+m.contrato:""}${m.tipo==="romaneio"?" | "+talhoesTxt(m.talhoes,m.areas,m.data)+" | divisão "+Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join(", "):m.tipo==="arrendamento"?" | para "+titNome(m.para||"pai"):" | titular "+titNome(m.titular||"lavoura")}`).join("\n");
   return `\n\nGrãos em depósito (sacas de 60 kg). Saldos atuais por cultura e local:\n${sal}\n\nProdução por talhão (sacas entregues ÷ área colhida):\n${prod||"-"}\n\nExtrato de grãos (data | tipo | cultura | local | sacas | detalhes):\n${ls}`;
 }
 
@@ -3630,7 +3637,7 @@ function planilhaBackup(){
   const add=(nome,rows)=>{const r=rows.length?rows:[{"Sem dados":""}];const ws=XLSX.utils.json_to_sheet(r);
     ws["!cols"]=Object.keys(r[0]).map(k=>({wch:Math.min(60,Math.max(12,k.length+2,...r.slice(0,200).map(x=>String(x[k]??"").length)))}));XLSX.utils.book_append_sheet(wb,ws,nome)};
   const regs=[...registros].sort((a,b)=>a.data.localeCompare(b.data));
-  add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
+  add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas,r.data),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
     "Safra":r.tipo!=="chuva"?safraLab(safraReg(r)):"","Cultura":culturaReg(r),"Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
     "Produtos":(r.campos?.produtos||[]).map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; "),"Custo/ha (R$)":r.custoHa??"","Custo total (R$)":r.custoTotal??"",
     "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc`).join("; "),
@@ -3643,7 +3650,7 @@ function planilhaBackup(){
   const stt=grSaldosTit();
   add("Grãos saldos",Object.entries(stt).flatMap(([c,ts])=>Object.entries(ts).flatMap(([t,ls])=>Object.entries(ls).map(([l,v])=>({"Cultura":c,"Titular":titNome(t),"Local":l,"Sacas":+v.toFixed(2),"Toneladas":+(v*0.06).toFixed(3)})))));
   add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome(m.para||"pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
-    "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas):"","Observação":m.obs||""})));
+    "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas,m.data):"","Observação":m.obs||""})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
   add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Fabricante":m.fabricante||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
   add("Manutenções",[...manut].reverse().map(x=>({"Data":dt(x.data),"Máquina":nomeMaq(x.maquinaId),"Serviços":(x.servicos||[]).join(", "),"Horímetro":x.horimetro??"","Peças e serviços":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Oficina":x.oficina||"","Próxima":proxTxt(x),"Descrição":x.descricao||""})));
@@ -3700,7 +3707,7 @@ function renderNotas(){
   $("#nt-lista").innerHTML=vis.map(n=>{const c=CAT_NT[n.categoria]||CAT_NT.geral;return `<article class="rec" style="--c:var(${c.c})">
     <div class="rec-top"><span class="nt-cat">${c.l}</span><span class="rec-talhoes mono">${brDate(n.data)}${n.hora?" · "+esc(n.hora):""}</span></div>
     ${n.titulo?`<div class="nt-tit">${esc(n.titulo)}</div>`:""}
-    ${n.pessoas||n.local?`<div class="nt-meta">${[n.pessoas?"Com: "+esc(n.pessoas):"",n.local?esc(n.local):""].filter(Boolean).join(" · ")}</div>`:""}
+    ${n.pessoas||n.local?`<div class="nt-meta">${[n.pessoas?"Com: "+esc(n.pessoas):"",n.local?esc(nomeEra(n.local,n.data)):""].filter(Boolean).join(" · ")}</div>`:""}
     <p class="rec-desc">${esc(n.texto)}</p>
     ${(n.fotos||[]).length?`<div class="rec-fotos">${n.fotos.map((id,k)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${k+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${k+1}"></button>`).join("")}</div>`:""}
     ${n.prazo?`<div><span class="pill ${n.resolvida?"ok":n.prazo<hoje?"venc":"prox"}">${n.resolvida?"Resolvido":"Retornar até "+brDate(n.prazo)}</span></div>`:""}
@@ -4157,7 +4164,7 @@ const regCult=r=>{const c=culturaReg(r); return c?normCult(c):""};
 const RELS=[
  {id:"caderno",nome:"Caderno de campo (atividades)",desc:"Todas as operações da lavoura com talhões, produtos, doses e custos.",filtros:["periodo","talhao","cultura","tipo","situacao"],
   gerar(F){const rs=registros.filter(r=>r.tipo!=="chuva"&&F.dentroR(r)&&F.talhaoOk(r)&&F.cultOk(regCult(r))&&(!F.tipo||r.tipo===F.tipo)&&F.sitOk(r)).sort((a,b)=>a.data.localeCompare(b.data));
-   const linhas=rs.map(r=>[r.data,ehProg(r)?"Programada":"Executada",TIPOS[r.tipo]?.label||r.tipo,r.nome||"",talhoesTxt(F.talhao?[F.talhao]:r.talhoes,r.areas),F.area(r),regCult(r),
+   const linhas=rs.map(r=>[r.data,ehProg(r)?"Programada":"Executada",TIPOS[r.tipo]?.label||r.tipo,r.nome||"",talhoesTxt(F.talhao?[F.talhao]:r.talhoes,r.areas,r.data),F.area(r),regCult(r),
      [linhaCampos(r).filter(c=>!["Área","Cultura","Custo/ha","Custo total"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),prodsTxt(r)].filter(Boolean).join(" | "),r.custoHa??"",r.custoHa!=null?r.custoHa*F.area(r):"",r.descricao||"",quem(r.criadoPor)]);
    const porTipo={}; rs.forEach(r=>{const k=TIPOS[r.tipo]?.label||r.tipo; porTipo[k]=(porTipo[k]||0)+1});
    return {colunas:[["Data","data"],["Situação"],["Tipo"],["Atividade"],["Talhões"],["Área (ha)","num"],["Cultura"],["Detalhes e produtos"],["Custo/ha","brl"],["Custo total","brl"],["Descrição"],["Lançado por"]],linhas,
@@ -4168,7 +4175,7 @@ const RELS=[
     for(const p of r.campos?.produtos||[]){const e=p.produtoId?estoque.find(x=>x.id===p.produtoId):prodEstoque(p.nome);
      if(F.classe&&(e?.classe||"")!==F.classe) continue;
      const a=F.area(r), f=e?FATOR[e.unidade]?.[p.unidade]:null, d=typeof p.dose==="number"?p.dose:parseNum(p.dose), q=f!=null&&d>0?d*f*a:null, c=p.custoHa!=null?p.custoHa*a:null;
-     linhas.push([r.data,ehProg(r)?"Programada":"Executada",(TIPOS[r.tipo]?.label||"")+(r.nome?" · "+r.nome:""),talhoesTxt(F.talhao?[F.talhao]:r.talhoes,r.areas),a,regCult(r),p.nome,e?.generico||"",e?.classe||"",doseTxt(p),q,e?.unidade||"",p.custoHa??"",c??""]);
+     linhas.push([r.data,ehProg(r)?"Programada":"Executada",(TIPOS[r.tipo]?.label||"")+(r.nome?" · "+r.nome:""),talhoesTxt(F.talhao?[F.talhao]:r.talhoes,r.areas,r.data),a,regCult(r),p.nome,e?.generico||"",e?.classe||"",doseTxt(p),q,e?.unidade||"",p.custoHa??"",c??""]);
      if(c!=null){const k=p.nome;(tot[k]??={c:0,q:0,u:e?.unidade||""});tot[k].c+=c;tot[k].q+=q||0}}
    return {colunas:[["Data","data"],["Situação"],["Atividade"],["Talhões"],["Área (ha)","num"],["Cultura"],["Produto"],["Princípio ativo"],["Classe"],["Dose"],["Quantidade","num"],["Un."],["Custo/ha","brl"],["Custo total","brl"]],linhas,
     totais:{13:linhas.reduce((s,l)=>s+(+l[13]||0),0)},resumo:Object.entries(tot).sort((a,b)=>b[1].c-a[1].c).map(([k,x])=>[k,`${x.q>0?num(x.q)+" "+x.u+" · ":""}${brl(x.c)}`])}}},
@@ -4197,7 +4204,7 @@ const RELS=[
  {id:"romaneios",nome:"Romaneios de entrega",desc:"Cargas entregues, local e divisão Lavoura / comissões.",filtros:["periodo","talhao","cultura"],
   gerar(F){const ms=grMovs().filter(m=>m.tipo==="romaneio"&&F.dentro(m.data)&&F.cultOk(m.cultura)&&(!F.talhao||(m.talhoes||[]).includes(F.talhao))).reverse();
    const fs=[...new Set([...FUNCS().map(f=>f.id),...ms.flatMap(m=>Object.keys(divisaoDe(m)).filter(k=>k!=="lavoura"&&divisaoDe(m)[k]))])];
-   const linhas=ms.map(m=>{const d=divisaoDe(m);return [m.data,m.hora||"",m.numero||"",m.cultura,m.local||"",talhoesTxt(m.talhoes,m.areas),m.sacas,m.sacas*d.lavoura/100,...fs.map(f=>m.sacas*(d[f]||0)/100)]});
+   const linhas=ms.map(m=>{const d=divisaoDe(m);return [m.data,m.hora||"",m.numero||"",m.cultura,m.local||"",talhoesTxt(m.talhoes,m.areas,m.data),m.sacas,m.sacas*d.lavoura/100,...fs.map(f=>m.sacas*(d[f]||0)/100)]});
    const T=i=>linhas.reduce((s,l)=>s+(+l[i]||0),0), tot={}; for(let i=6;i<8+fs.length;i++) tot[i]=T(i);
    return {colunas:[["Data","data"],["Hora"],["Nº"],["Cultura"],["Local"],["Talhões"],["Sacas","sc"],["Lavoura","sc"],...fs.map(f=>[titNome(f),"sc"])],linhas,totais:tot,resumo:[["Romaneios",ms.length]]}}},
  {id:"graos",nome:"Extrato de grãos",desc:"Romaneios, vendas, retiradas, transferências e arrendamento, com saldos por titular.",filtros:["periodo","cultura","titular"],
@@ -4482,12 +4489,12 @@ let propCfg={nome:"",talhoes:TALHOES.map((t,i)=>({id:"t"+(i+1),n:t.n,ha:t.ha})),
 let cfgEdit=[];
 const somaHa=()=>TALHOES.reduce((s,t)=>s+t.ha,0);
 function aplicaPropriedade(d){
-  if(Array.isArray(d.talhoes)&&d.talhoes.length) propCfg.talhoes=d.talhoes.filter(t=>t&&t.n).map((t,i)=>({id:t.id||"t"+(i+1),n:String(t.n),ha:+t.ha||0}));
+  if(Array.isArray(d.talhoes)&&d.talhoes.length) propCfg.talhoes=d.talhoes.filter(t=>t&&t.n).map((t,i)=>({id:t.id||"t"+(i+1),n:String(t.n),ha:+t.ha||0,...(Array.isArray(t.antigos)&&t.antigos.length?{antigos:t.antigos}:{})}));
   if(typeof d.nome==="string") propCfg.nome=d.nome;
   if(Array.isArray(d.depositos)) propCfg.depositos=d.depositos.filter(Boolean);
   if(Array.isArray(d.culturas)&&d.culturas.length) propCfg.culturas=d.culturas.filter(Boolean);
   if(+d.tanque>0) propCfg.tanque=+d.tanque;
-  TALHOES.splice(0,TALHOES.length,...propCfg.talhoes.map(t=>({n:t.n,ha:t.ha})));
+  TALHOES.splice(0,TALHOES.length,...propCfg.talhoes.map(t=>({n:t.n,ha:t.ha,...(t.antigos?{antigos:t.antigos}:{})})));
   LOCAIS.splice(0,LOCAIS.length,"Sede",...TALHOES.map(t=>t.n),"Toda a propriedade");
   DEPOSITOS.splice(0,DEPOSITOS.length,...propCfg.depositos);
   CAMPOS.cultura.opts.splice(0,CAMPOS.cultura.opts.length,...propCfg.culturas);
@@ -4529,7 +4536,9 @@ $("#cfg-prop").addEventListener("submit",async ev=>{
   if(cfgEdit.some(t=>["sede","toda a propriedade"].includes(t.n.toLowerCase()))){toast("Esse nome é reservado. Escolha outro.");return}
   const tq=horNum($("#cfg-tq").value); if(!(tq>0)){toast("Informe a capacidade do tanque.");return}
   const renomes={}; for(const t of cfgEdit) if(t.orig&&t.orig!==t.n) renomes[t.orig]=t.n;
-  const doc={nome:$("#cfg-nome").value.trim(),talhoes:cfgEdit.map(t=>({id:t.id,n:t.n,ha:t.ha})),depositos:lista($("#cfg-dep").value),culturas:lista($("#cfg-cul").value),tanque:tq};
+  const hojeR=new Date().toLocaleDateString("sv-SE"); // guarda o nome antigo e até quando ele valeu
+  const comAnt=t=>{let a=[...(t.antigos||[])]; if(t.orig&&t.orig!==t.n){a=a.filter(x=>x.n!==t.n); if(!a.some(x=>x.n===t.orig&&x.ate===hojeR)) a.push({n:t.orig,ate:hojeR})} return a.length?{antigos:a}:{}};
+  const doc={nome:$("#cfg-nome").value.trim(),talhoes:cfgEdit.map(t=>({id:t.id,n:t.n,ha:t.ha,...comAnt(t)})),depositos:lista($("#cfg-dep").value),culturas:lista($("#cfg-cul").value),tanque:tq};
   if(!doc.culturas.length) doc.culturas=["Soja","Milho","Trigo"];
   $("#cfg-salvar").disabled=true;
   try{
@@ -4571,7 +4580,7 @@ function regTexto(){
   return [...registros].sort((a,b)=>a.data.localeCompare(b.data)).map(r=>{
     const ps=r.campos?.produtos||[];
     const cs=[...linhaCampos(r).map(c=>`${c.k}: ${c.v}`),...(ps.length?[`Produtos (${ps.length}): ${ps.map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; ")}`]:[]),...(r.custoHa!=null?[`Custo da aplicação: ${brl(r.custoHa)}/ha, total ${brl(r.custoTotal)}${r.semCusto?` (${r.semCusto} produto(s) sem preço, não somados)`:""}`]:[]),...((r.romaneios||[]).length?[`Romaneios: ${r.romaneios.map(x=>`nº ${x.numero||"-"} ${x.data?brDate(x.data):""} ${x.hora||""} ${x.local||"-"} ${num(x.sacas)} sc`).join("; ")} (total ${num(r.romaneios.reduce((s,x)=>s+(Number(x.sacas)||0),0))} sc)`]:[]),...((r.fotos||[]).length?[`Fotos anexadas: ${r.fotos.length} [id ${r.id}]`]:[])].join("; ");
-    return `${brDate(r.data)}${r.dataFim?" a "+brDate(r.dataFim):""} | ${ehProg(r)?"PROGRAMADA (ainda não executada) ":""}${TIPOS[r.tipo]?.label||r.tipo}${r.nome?" ("+r.nome+")":""} | ${talhoesTxt(r.talhoes,r.areas)} | ${cs||"-"} | ${(r.descricao||"-").replace(/\n/g," ")}${r.criadoPor?" | lançado por "+quem(r.criadoPor):""}${r.editadoPor?", editado por "+quem(r.editadoPor):""}`;
+    return `${brDate(r.data)}${r.dataFim?" a "+brDate(r.dataFim):""} | ${ehProg(r)?"PROGRAMADA (ainda não executada) ":""}${TIPOS[r.tipo]?.label||r.tipo}${r.nome?" ("+r.nome+")":""} | ${talhoesTxt(r.talhoes,r.areas,r.data)} | ${cs||"-"} | ${(r.descricao||"-").replace(/\n/g," ")}${r.criadoPor?" | lançado por "+quem(r.criadoPor):""}${r.editadoPor?", editado por "+quem(r.editadoPor):""}`;
   }).join("\n");
 }
 function mdLite(t){
@@ -4597,7 +4606,7 @@ async function escolherFotos(q,signal){
   $("#answer").innerHTML="<p class='note'>Verificando se a pergunta precisa das fotos…</p>";
   let ids=[];
   try{
-    const lista=comFotos.map(r=>`${r.id} | ${brDate(r.data)} | ${TIPOS[r.tipo]?.label} | ${talhoesTxt(r.talhoes,r.areas)} | ${r.fotos.length} foto(s) | ${(r.descricao||"").slice(0,120).replace(/\n/g," ")}`).join("\n");
+    const lista=comFotos.map(r=>`${r.id} | ${brDate(r.data)} | ${TIPOS[r.tipo]?.label} | ${talhoesTxt(r.talhoes,r.areas,r.data)} | ${r.fotos.length} foto(s) | ${(r.descricao||"").slice(0,120).replace(/\n/g," ")}`).join("\n");
     const res=await sample.json(`Um produtor rural fez uma pergunta sobre o diário da lavoura. Abaixo estão os registros que têm fotos (id | data | tipo | talhões | nº de fotos | descrição). Hoje é ${brDate(todayISO())}.
 Decida se ver alguma dessas fotos ajuda a responder. Se a pergunta não depende de imagem (ex.: datas, quantidades de chuva, doses), responda [].
 Responda SOMENTE com um array JSON dos ids dos registros cujas fotos devem ser vistas, do mais relevante ao menos relevante, no máximo ${max}. Exemplo: ["abc123"]
@@ -4614,7 +4623,7 @@ Pergunta: ${q}`,{modelTier:"quick",signal});
     for(const fid of r.fotos){
       if(images.length>=max) break;
       try{const resp=await ponte.fotoFetch(fid); if(!resp.ok) continue; images.push(await resp.blob());
-        linhas.push(`Imagem ${images.length}: registro de ${brDate(r.data)}, ${TIPOS[r.tipo]?.label}, ${talhoesTxt(r.talhoes,r.areas)}`)}
+        linhas.push(`Imagem ${images.length}: registro de ${brDate(r.data)}, ${TIPOS[r.tipo]?.label}, ${talhoesTxt(r.talhoes,r.areas,r.data)}`)}
       catch(e){ if(signal.aborted) throw {code:"cancelled"} }
     }
   }
