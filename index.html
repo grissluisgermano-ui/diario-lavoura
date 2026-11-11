@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="vinculo.css">
 <link rel="stylesheet" href="mapa.css">
 <link rel="stylesheet" href="ciclo.css">
+<link rel="stylesheet" href="regulagens.css">
 <link rel="stylesheet" href="entrega.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -928,6 +929,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   </section>
 
   <!-- BENFEITORIAS -->
+  <section class="panel" id="view-regulagens" hidden>
+    <h2>Regulagens</h2>
+    <p class="note">Calculadoras da plantadeira e da semeadeira, regulagens salvas para usar no plantio e conferência do estande.</p>
+    <div id="rg-box" class="rg-box"></div>
+  </section>
   <section class="panel" id="view-benfeitorias" hidden>
     <h2>Benfeitorias</h2>
     <div class="stats">
@@ -1312,7 +1318,7 @@ const CAMPOS={
 const UNIDADES=["L/ha","mL/ha","kg/ha","g/ha","t/ha","% v/v","sem/m","sem/ha","mil sem/ha","sc/ha","un/ha"];
 /* Plantadeiras (config/propriedade.plantadeiras pode trocar). Verão: soja, milho, feijão em sementes por metro; inverno: kg/ha. */
 const PLANTADEIRAS_PAD=[{nome:"Plantadeira de verão",linhas:13,esp:0.45,culturas:["Soja","Milho","Feijão"],dose:"sem/m"},{nome:"Semeadeira de inverno",linhas:29,esp:0.17,culturas:["Trigo","Aveia","Cevada"],dose:"kg/ha"}];
-const plantadeiras=()=>(typeof propCfg!=="undefined"&&Array.isArray(propCfg.plantadeiras)&&propCfg.plantadeiras.length?propCfg.plantadeiras:PLANTADEIRAS_PAD);
+const plantadeiras=()=>window.rgPlantadeiras?.()||PLANTADEIRAS_PAD;
 const pltDaCultura=c=>{const n=String(c||"").trim().toLowerCase(); const ps=plantadeiras(); return ps.find(p=>(p.culturas||[]).some(x=>x.toLowerCase()===n))||(n?ps[ps.length-1]:null)};
 const pltTxt=p=>p?`${p.nome} (${p.linhas} linhas × ${String(p.esp).replace(".",",")} m)`:"";
 const espDe=r=>Number(r?.campos?.espacamento)||plantadeiras().find(p=>p.nome===r?.campos?.plantadeira)?.esp||null;
@@ -1342,8 +1348,8 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios","mapa"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
-const NOMES={painel:"Painel",relatorios:"Relatórios",mapa:"Mapa",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
+const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios","mapa"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias","regulagens"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const NOMES={painel:"Painel",relatorios:"Relatórios",mapa:"Mapa",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",regulagens:"Regulagens",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
@@ -3508,7 +3514,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[]});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[]),...(window.rgConfig?.()?[{id:"plantio",...window.rgConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -3577,7 +3583,7 @@ function planilhaBackup(){
   window.finPlanilha?.(add,dt);
   window.lmPlanilha?.(add,dt);
   window.mpPlanilha?.(add,dt);
-  window.cePlanilha?.(add,dt);
+  window.cePlanilha?.(add,dt); window.rgPlanilha?.(add);
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -4279,8 +4285,8 @@ async function rlSalvar(blob,ext,btn){
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
 const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[]});
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura",regulagens:"Regulagens"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -4553,7 +4559,7 @@ $("#ask").onclick=async()=>{
 Talhões e áreas: ${TALHOES.map(t=>`${t.n} (${num(t.ha)} ha)`).join(", ")}. Total ${num(TALHOES.reduce((s,t)=>s+t.ha,0))} ha.
 
 Registros (data | tipo | talhões | detalhes | descrição):
-${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}${window.ceTexto?.()||""}
+${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}${window.ceTexto?.()||""}${window.rgTexto?.()||""}
 
 Pergunta: ${q}`;
   ctl=new AbortController();
@@ -4594,7 +4600,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
@@ -4630,6 +4636,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="linhas.js"></script>
 <script src="form-botao.js"></script>
 <script src="compartilhar.js"></script>
+<script src="regulagens.js"></script>
 <script>
 (function(){
   const v=window.APP_VERSAO||{n:"?",data:""}, $=s=>document.querySelector(s);

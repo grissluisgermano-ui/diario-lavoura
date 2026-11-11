@@ -1,0 +1,34 @@
+/* Regulagens (regulagens.js) — tudo em uma coluna, seções que abrem e fecham */
+.rg-box{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.rg-sec{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.rg-sec>summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:2px;padding:12px 14px}
+.rg-sec>summary::-webkit-details-marker{display:none}
+.rg-sec>summary b{font-size:1.02rem}
+.rg-sec>summary span{font-size:.82rem;color:var(--muted)}
+.rg-sec[open]>summary{border-bottom:1px solid var(--line)}
+.rg-corpo{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.rg-h4{margin:10px 0 0;font-size:.95rem}
+.rg-res:empty{display:none}
+.rg-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.rg-kpis>div{background:var(--sunk);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.rg-kpis span{font-size:.78rem;color:var(--muted)}
+.rg-kpis b{font-family:var(--f-mono,monospace);font-size:1.15rem}
+.rg-kpis small{font-size:.75rem;color:var(--muted)}
+.rg-kpis .ok b{color:var(--ok,#2e7d32)}
+.rg-kpis .atn b{color:#b26a00}
+.rg-kpis .ruim b{color:var(--danger,#b3261e)}
+.rg-tal{margin:6px 0 0;padding:8px 10px;border-radius:8px;font-size:.9rem}
+.rg-tal.ok{background:rgba(46,125,50,.1)}
+.rg-tal.falta{background:rgba(179,38,30,.09)}
+.rg-lista{display:flex;flex-direction:column;gap:6px}
+.rg-reg{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.rg-reg-t{display:flex;flex-direction:column;gap:2px}
+.rg-reg-t small{color:var(--muted);font-size:.82rem}
+.rg-reg-t .rg-obs{font-style:italic}
+.rg-fbox{border:1px dashed var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.re-pts{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.re-pts label{display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--muted);width:92px}
+.re-pts input{width:100%;box-sizing:border-box}
+.rg-plts{display:flex;flex-direction:column;gap:8px}
+.rg-plt{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+@media (min-width:760px){.rg-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
