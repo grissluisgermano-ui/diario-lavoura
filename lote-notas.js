@@ -96,7 +96,7 @@ function render(){
     <p class="note">Confira as notas e os produtos. Os que estiverem marcados em "Estoque" entram como compra na data da nota. Tudo vai também para o Financeiro.</p>
     <h3 class="sub-h">Notas (${sel.length} de ${lote.notas.length})</h3>
     <div class="nl-notas">${lote.notas.map((n,i)=>`<div class="nl-nota${n.ok?"":" off"}"><input type="checkbox" data-nln="${i}" id="nl-n${i}" ${n.ok?"checked":""} ${n.erro?"disabled":""} aria-label="Lançar a NF ${e(n.d.numero||"")}">
-      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)} · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:""}</small></span>
+      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)} · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:""}${n.fin?.retirada?` · <span class="ne-ret">retirada do contrato ${e(n.fin.contrato)} — só estoque</span>`:""}</small></span>
       <button type="button" class="link" data-danfe="${e(n.d.id)}">DANFE</button></div>`).join("")}</div>
     <h3 class="sub-h">Produtos (${usados.length})</h3>
     <p class="note">Desmarque "Estoque" no que não é insumo (peças, diesel, serviços…): esses vão só para o Financeiro. O nome é o que fica no estoque; produtos iguais com nomes diferentes podem ser juntados escrevendo o mesmo nome.</p>
@@ -146,7 +146,7 @@ async function lancar(){
         const key=p.nome.toLowerCase(), un=prodEstoque(p.nome)?.unidade||p.un, c=converteEmb(it.descricao,it.unidade,it.quantidade), q=c.un===un?c.q:it.quantidade;
         const g=daNota.get(key)||{p,q:0,v:0}; g.q+=q; g.v+=it.valorTotal; daNota.set(key,g)}
       for(const [key,g] of daNota){
-        const ent={data:n.d.data,quantidade:+g.q.toFixed(3),valorTotal:g.v>0?+g.v.toFixed(2):null,origem:n.fin.emit,nf:n.fin.numero,chave:n.fin.chave}; if(n.fin.contrato) ent.contrato=n.fin.contrato;
+        const ent={data:n.d.data,quantidade:+g.q.toFixed(3),valorTotal:g.v>0?+g.v.toFixed(2):null,origem:n.fin.emit,nf:n.fin.numero,chave:n.fin.chave}; if(n.fin.contrato) ent.contrato=n.fin.contrato; if(n.fin.retirada) ent.retirada=true;
         const P=porProd.get(key)||{p:g.p,ents:[]}; P.ents.push(ent); porProd.set(key,P)}
     }
     let i=0;
@@ -159,7 +159,7 @@ async function lancar(){
     }
     // 2) Financeiro: contas a pagar de cada nota
     let nf=0;
-    if(fin){ for(const n of notas){
+    if(fin){ for(const n of notas){ if(n.fin.retirada) continue; // retirada do contrato: já paga
       const itens=n.itens.map(({k,it})=>{const p=lote.prods.get(k); return {nome:p.est?p.nome:it.descricao,classe:p.est?p.classe:classeDe(it.descricao),v:it.valorTotal}});
       await window.finLote.lancarNota(n.fin,{pago,conta,itens}); st(`Financeiro: ${++nf} de ${notas.length} notas…`) }
       if(pago) window.finLote.lembraConta(conta) }

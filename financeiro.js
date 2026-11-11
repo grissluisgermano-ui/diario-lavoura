@@ -136,6 +136,7 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     if(!(Number(x.valorTotal)>0)||!x.data) continue;
     if(x.chave&&chaves.has(x.chave)) continue;
     if(x.doFinanceiro) continue; // lançada a partir de uma conta do Financeiro
+    if(x.retirada) continue; // retirada de produto já pago no contrato
     if(x.nf&&nfs.has(nfKey(x.nf,x.origem))) continue;
     const k=`est|${norm(x.origem)}|${x.nf?String(x.nf).replace(/^0+/,""):x.data}`;
     const p=g.get(k)||{k,natureza:"pagar",data:x.data,nf:x.nf||"",pessoa:x.origem||"",categoria:"insumos",fonte:"Estoque",itens:[],valor:0,chave:x.chave||""};
@@ -680,7 +681,9 @@ window.finDadosXml=function(doc){
       return {desc:`${g(p,"xProd")} — ${num(q)} ${g(p,"uCom")}`,valor:+(((+g(p,"vProd")||0)-(+g(p,"vDesc")||0)).toFixed(2))}});
     return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant"),g(emit,"xMun")),emitRazao:g(emit,"xNome"),
       dest:titulo(g(dest,"xNome")),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens,
-      contrato:contratoDoTexto(g(doc,"infCpl")),categoria:catDosItens(itens)};
+      contrato:contratoDoTexto(g(doc,"infCpl")),categoria:catDosItens(itens),
+      // nota de retirada: sem duplicata e com contrato ("vencimento conforme os termos do contrato…") = produto já pago no contrato, que estava no depósito
+      retirada:!dups.length&&!!contratoDoTexto(g(doc,"infCpl"))&&/CONTRATO|ENTREGA\s+FUTURA|RETIRAD/i.test(g(doc,"infCpl"))&&!/CONDI[CÇ][AÃ]O DE PAGAMENTO:\s*A VISTA/i.test(g(doc,"infCpl"))};
   }catch{return null}
 };
 const formaNota=fin=>!fin.dups.length?"avista":fin.dups.some(d=>prazoLongo(fin.data,d.venc))?"safra":"prazo";
@@ -692,6 +695,8 @@ window.finNfOpcao=function(fin){
   const ja=jaLancada(fin.chave,fin.numero,fin.emit);
   if(ja) return `<p class="note">Esta nota já está no Financeiro (${esc(ja.descricao)}).</p>`;
   const p=fin.dups.length?fin.dups.map(d=>`${brDate(d.venc)} ${brl(d.valor)}`).join(" · "):"sem parcelas na nota (vence na data da nota)";
+  if(fin.retirada) return `<div class="nf-ret"><b>📦 Retirada do contrato ${esc(fin.contrato)}</b><span>Nota sem duplicata: o produto já foi pago no contrato e estava no depósito${fin.emit?" da "+esc(fin.emit):""}. Entra só no estoque, sem conta nova no Financeiro.</span></div>
+    <label class="nf-chk fn-nfopt"><input type="checkbox" id="nf-fin"> Lançar mesmo assim no Financeiro (conta a pagar de ${brl(fin.total)})</label>`;
   return `<label class="nf-chk fn-nfopt"><input type="checkbox" id="nf-fin" checked> Lançar também no Financeiro (contas a pagar)</label>
     <p class="note">Total da nota ${brl(fin.total)}${fin.dest?` · em nome de ${esc(fin.dest)}`:""} · ${p}</p>`;
 };
@@ -731,6 +736,7 @@ async function importarXml(file){
     const noEst=(typeof estoque!=="undefined"?estoque:[]).some(e=>(e.entradas||[]).some(x=>x.chave&&x.chave===fin.chave));
     origemTxt(ja?`<span class="falta">Atenção: esta nota já foi lançada (${esc(ja.descricao)}).</span>`:
       `Nota ${esc(fin.numero)} lida: ${fin.itens.length} ite${fin.itens.length===1?"m":"ns"}, ${fin.dups.length||1} parcela(s). Confira a categoria e salve.`+
+      (fin.retirada?` <span class="falta">Atenção: é uma nota de <b>retirada do contrato ${esc(fin.contrato)}</b> (sem duplicata) — o produto já foi pago no contrato. Salvar aqui cria uma conta a pagar nova; se o contrato já está no Financeiro, não salve.</span>`:"")+
       (noEst?"":` <span class="note">Se forem insumos para o estoque, importe pela aba <b>Estoque</b>: lá entra no estoque e no Financeiro de uma vez.</span>`)+
       ` <button type="button" class="link" id="fn-danfe">Ver DANFE</button>`);
     $("#fn-danfe").onclick=()=>window.danfeAbrir?.(fnXmlTxt);

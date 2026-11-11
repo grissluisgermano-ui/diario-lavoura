@@ -318,6 +318,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rec-prods li span .p-embs{display:block;font-size:.8rem;color:var(--muted);font-family:var(--f-body,inherit);white-space:normal}
 .prod.emb .p-tot{font-size:.88rem;padding-left:6px;padding-right:6px}
 .nf-cont select{width:auto}
+.nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
+.nf-ret span{font-size:.88rem}
+.ne-ret{display:inline-block;background:rgba(46,125,50,.12);color:#1b5e20;border-radius:999px;padding:1px 8px;font-size:.8rem;font-weight:600}
 .es-embl{color:var(--ink)!important;opacity:.8;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 .es-embt{font-size:.92rem;line-height:1.3;white-space:nowrap}
 .emb-tab{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -1962,7 +1965,7 @@ async function nfLancar(){
     for(const it of itens){const k=it.nome.toLowerCase()+(it.emb?"#"+embChave(it.emb)+"#"+(it.info?.lote||""):""); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     const porProd=new Map(); // várias entradas do mesmo produto (embalagens diferentes) numa gravação só
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(nfDados?.fin?.retirada&&!$("#nf-fin")?.checked) entrada.retirada=true; if(anx.length) entrada.anexos=anx;
       if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave}
       if(it.emb) entrada.emb=it.emb; if(it.emb&&it.info) Object.assign(entrada,it.info); // lote, germinação, peso da embalagem
       const k=it.nome.toLowerCase(), pp=porProd.get(k)||{it,ents:[]}; pp.ents.push(entrada); if(it.emb) pp.emb=true; porProd.set(k,pp);
