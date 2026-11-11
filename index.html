@@ -321,6 +321,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
 .nf-ret span{font-size:.88rem}
 .ctr-it{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:4px}.ctr-it:first-of-type{border-top:0}.ctr-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ctr-nums div{background:var(--sunk);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;min-width:0}.ctr-nums span{font-size:.75rem;color:var(--muted)}.ctr-nums b{font-family:var(--f-mono);font-size:.9rem}.ctr-st{font-size:.88rem}.ctr-st.ok{color:var(--ok,#2e7d32)}.ctr-st.atn{color:#b26a00}.ctr-st.ruim{color:var(--danger)}
+.es-zbt{justify-content:center;margin:10px 0}
 .ne-ret{display:inline-block;background:rgba(46,125,50,.12);color:#1b5e20;border-radius:999px;padding:1px 8px;font-size:.8rem;font-weight:600}
 .es-embl{color:var(--ink)!important;opacity:.8;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 .es-embt{font-size:.92rem;line-height:1.3;white-space:nowrap}
@@ -2176,6 +2177,7 @@ function entEditar(b,id,i){
   };
 }
 const esAbertos=new Set();
+let esZeros=false;
 function renderEstoque(){
   // o app redesenha a lista quando chega qualquer novidade da nuvem: guarda o que está sendo digitado na edição
   const peAtual=document.querySelector(".pe-form"), peRasc=peAtual?[...peAtual.querySelectorAll("input,select")].map(i=>i.value):null, peFoco=peAtual?[...peAtual.querySelectorAll("input,select")].indexOf(document.activeElement):-1;
@@ -2184,9 +2186,13 @@ function renderEstoque(){
   $("#es-n").textContent=estoque.length;
   $("#es-valor").textContent=brlC(rs.reduce((t,x)=>t+x.s.valorSaldo,0));
   $("#es-zero").textContent=rs.filter(x=>x.s.saldo<=0).length;
-  const vis=rs.filter(({e})=>!q||(e.comercial+" "+(e.generico||"")).toLowerCase().includes(q));
+  // produto zerado (saldo 0, nada reservado) some da lista — volta pela busca ou por "Mostrar os zerados"
+  const zerado=({e,s})=>Math.abs(Number(s.saldo)||0)<1e-6&&!(Number(s.programado)>0)&&!((s.reserva?.sem||0)+(s.reserva?.kg||0)>0)&&!esAbertos.has(e.id)&&esEdit!==e.id;
+  const achou=rs.filter(({e})=>!q||(e.comercial+" "+(e.generico||"")).toLowerCase().includes(q));
+  const nZero=q?0:achou.filter(zerado).length, vis=q||esZeros?achou:achou.filter(x=>!zerado(x));
+  const zBt=!q&&achou.some(zerado)?`<div class="row es-zbt"><button type="button" class="link" id="es-zeros">${esZeros?"Esconder os produtos zerados":`Mostrar os ${achou.filter(zerado).length} produtos zerados`}</button></div>`:"";
   if(!estoque.length){$("#es-lista").innerHTML=`<div class="empty">Nenhum produto no estoque ainda.<br>Lance a primeira compra no formulário acima.</div>`;return}
-  if(!vis.length){$("#es-lista").innerHTML=`<div class="empty">Nenhum produto com esse nome.</div>`;return}
+  if(!vis.length){$("#es-lista").innerHTML=(q?`<div class="empty">Nenhum produto com esse nome.</div>`:`<div class="empty">Todos os produtos estão zerados.</div>`)+zBt; $("#es-zeros")?.addEventListener("click",()=>{esZeros=!esZeros; renderEstoque()}); return}
   // lista enxuta: uma linha por produto (nome, princípio ativo, saldo); tocar abre o quadro completo
   $("#es-lista").innerHTML=vis.map(({e,s})=>{const ab=esAbertos.has(e.id)||esEdit===e.id; return `<article class="pc es-item ${ab?"open":""} ${s.saldo<=0?"zero":""}">
     <button type="button" class="es-lin" data-esab="${e.id}" aria-expanded="${ab}">
@@ -2218,7 +2224,8 @@ function renderEstoque(){
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
     </div>`}
-  </article>`}).join("");
+  </article>`}).join("")+zBt;
+  $("#es-zeros")?.addEventListener("click",()=>{esZeros=!esZeros; renderEstoque()});
   $("#es-lista").querySelectorAll("[data-esab]").forEach(b=>b.onclick=()=>{const id=b.dataset.esab; if(esAbertos.has(id)||esEdit===id){esAbertos.delete(id); if(esEdit===id) esEdit=null} else esAbertos.add(id); renderEstoque()});
   $("#es-lista").querySelectorAll("[data-edprod]").forEach(b=>b.onclick=()=>{esEdit=esEdit===b.dataset.edprod?null:b.dataset.edprod; renderEstoque(); if(esEdit) document.querySelector(`.pe-form[data-pe="${esEdit}"] input`)?.focus()});
   $("#es-lista").querySelectorAll(".pe-form").forEach(box=>{
