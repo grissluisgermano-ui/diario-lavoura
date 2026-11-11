@@ -323,8 +323,52 @@ function textoLocalTalhao(t){
 }
 function textoPonto(p){const [ic,nm]=TIPOS_P[p.tipo]||TIPOS_P.outro;
   return `${ic} *${nm}*${p.obs?" — "+p.obs:""}\n${talhaoDo(p)||"Fora dos talhões"}${typeof propCfg!=="undefined"&&propCfg.nome?" · "+propCfg.nome:""}\n${linkMaps(p.lat,p.lng)}`}
-window.mpEnviaTalhao=id=>{const t=talhaoInfo(id); if(t&&window.compartilhar) compartilhar({titulo:`Localização — ${t.n}`,texto:textoLocalTalhao(t)})};
-window.mpEnviaPonto=id=>{const p=pontos.find(x=>x.id===id); if(p&&window.compartilhar) compartilhar({titulo:"Localização do ponto",texto:textoPonto(p)})};
+/* Desenho simples (vetorial) da propriedade: todos os talhões vazados e o talhão da conversa hachurado.
+   mpDesenho(nomeDoTalhão, {ponto:{lat,lng,nome}}) → texto SVG (ou null se não há contorno); mpPng(svg) → Blob PNG. */
+window.mpDesenho=function(nome,o={}){
+  const ts=talhoes().filter(t=>geo[t.id]?.coords?.length>2); if(!ts.length) return null;
+  const alvo=ts.find(t=>t.n===nome)||null; if(!alvo&&!o.ponto) return null;
+  const todos=ts.flatMap(t=>geo[t.id].coords).concat(o.ponto?[o.ponto]:[]);
+  let la0=Math.min(...todos.map(c=>c.lat)), la1=Math.max(...todos.map(c=>c.lat)), lo0=Math.min(...todos.map(c=>c.lng)), lo1=Math.max(...todos.map(c=>c.lng));
+  const k=Math.cos((la0+la1)/2*Math.PI/180), W=1000, M=60, TOP=96, BAIXO=90;
+  const larg=Math.max((lo1-lo0)*k,1e-5), alt=Math.max(la1-la0,1e-5);
+  const esc1=Math.min((W-2*M)/larg,(1250-TOP-BAIXO-2*M)/alt);
+  const H=Math.round(alt*esc1+TOP+BAIXO+2*M), ox=(W-larg*esc1)/2;
+  const X=c=>(ox+(c.lng-lo0)*k*esc1).toFixed(1), Y=c=>(TOP+M+(la1-c.lat)*esc1).toFixed(1);
+  const pts=cs=>cs.map(c=>X(c)+","+Y(c)).join(" ");
+  const e=t=>String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const F='font-family="Helvetica, Arial, sans-serif"';
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs><pattern id="hach" patternUnits="userSpaceOnUse" width="14" height="14" patternTransform="rotate(45)"><rect width="14" height="14" fill="#e3efd9"/><line x1="0" y1="0" x2="0" y2="14" stroke="#2e6b3a" stroke-width="5"/></pattern></defs>
+  <rect width="${W}" height="${H}" fill="#fbfaf5"/>
+  <text x="${M}" y="52" ${F} font-size="34" font-weight="700" fill="#1d2a1a">${e(alvo?`${alvo.n} — ${ha(alvo.ha)} ha`:(o.ponto?.nome||"Ponto"))}</text>
+  <text x="${M}" y="80" ${F} font-size="20" fill="#5b6656">${e([typeof propCfg!=="undefined"?propCfg.nome:"",alvo&&o.ponto?o.ponto.nome:""].filter(Boolean).join(" · ")||"Mapa da propriedade")}</text>`;
+  for(const t of ts){ if(t===alvo) continue; svg+=`<polygon points="${pts(geo[t.id].coords)}" fill="none" stroke="#8a9484" stroke-width="2.5" stroke-linejoin="round"/>`}
+  if(alvo) svg+=`<polygon points="${pts(geo[alvo.id].coords)}" fill="url(#hach)" stroke="#1f4d29" stroke-width="6" stroke-linejoin="round"/>`;
+  for(const t of ts){const c=centro(geo[t.id].coords), eh=t===alvo, fs=eh?30:20;
+    svg+=`<text x="${X(c)}" y="${Y(c)}" ${F} font-size="${fs}" font-weight="${eh?700:400}" fill="${eh?"#10240f":"#5b6656"}" text-anchor="middle" dominant-baseline="middle" stroke="#fbfaf5" stroke-width="${eh?8:6}" paint-order="stroke">${e(t.n)}</text>`}
+  if(o.ponto){const x=X(o.ponto), y=Y(o.ponto);
+    svg+=`<circle cx="${x}" cy="${y}" r="22" fill="none" stroke="#c0392b" stroke-width="4"/><circle cx="${x}" cy="${y}" r="9" fill="#c0392b"/>
+    <text x="${+x>W*.55?+x-30:+x+30}" y="${y}" text-anchor="${+x>W*.55?"end":"start"}" ${F} font-size="24" font-weight="700" fill="#c0392b" dominant-baseline="middle" stroke="#fbfaf5" stroke-width="6" paint-order="stroke">${e(o.ponto.nome||"Ponto")}</text>`}
+  // escala (100 m, 200 m, 500 m, 1 km… cabendo em ~1/4 da largura) e norte
+  const mPorPx=111320/esc1, alvoM=mPorPx*W/4, passos=[50,100,200,250,500,1000,2000,5000,10000], m=passos.filter(v=>v<=alvoM).pop()||50, px=m/mPorPx, yb=H-44;
+  svg+=`<g ${F} fill="#1d2a1a"><rect x="${M}" y="${yb}" width="${px.toFixed(1)}" height="10" fill="#1d2a1a"/><rect x="${M+px/2}" y="${yb}" width="${(px/2).toFixed(1)}" height="10" fill="#fbfaf5" stroke="#1d2a1a" stroke-width="2"/>
+    <text x="${M}" y="${yb-10}" font-size="20">0</text><text x="${(M+px).toFixed(1)}" y="${yb-10}" font-size="20" text-anchor="middle">${m>=1000?m/1000+" km":m+" m"}</text>
+    <path d="M${W-M-18} ${H-30} L${W-M} ${H-80} L${W-M+18} ${H-30} L${W-M} ${H-42} Z" fill="#1d2a1a"/><text x="${W-M}" y="${H-88}" font-size="24" font-weight="700" text-anchor="middle">N</text>
+    ${alvo?`<rect x="${W/2-120}" y="${yb-6}" width="26" height="22" fill="url(#hach)" stroke="#1f4d29" stroke-width="3"/><text x="${W/2-84}" y="${yb+10}" font-size="20">${e(alvo.n)}</text>`:""}</g></svg>`;
+  return svg;
+};
+window.mpPng=svg=>new Promise((ok,erro)=>{
+  const img=new Image(), u=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"}));
+  img.onload=()=>{const c=document.createElement("canvas"); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+    c.getContext("2d").drawImage(img,0,0); URL.revokeObjectURL(u); c.toBlob(b=>b?ok(b):erro(new Error("png")),"image/png")};
+  img.onerror=()=>{URL.revokeObjectURL(u); erro(new Error("svg"))}; img.src=u;
+});
+const desenhoDe=(nome,o)=>{const svg=window.mpDesenho(nome,o); return svg?{svg,nome:`mapa-${(nome||"ponto").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w]+/g,"-").toLowerCase()}.png`}:null};
+window.mpDesenhoTalhao=nome=>desenhoDe(nome);
+window.mpEnviaTalhao=id=>{const t=talhaoInfo(id); if(t&&window.compartilhar) compartilhar({titulo:`Localização — ${t.n}`,texto:textoLocalTalhao(t),desenho:desenhoDe(t.n)})};
+window.mpEnviaPonto=id=>{const p=pontos.find(x=>x.id===id); if(!p||!window.compartilhar) return; const [,nm]=TIPOS_P[p.tipo]||TIPOS_P.outro, tn=talhaoDo(p);
+  compartilhar({titulo:"Localização do ponto",texto:textoPonto(p),desenho:desenhoDe(tn,{ponto:{lat:p.lat,lng:p.lng,nome:nm+(p.obs?": "+p.obs.slice(0,30):"")}})})};
 listas();
 if(typeof col!=="undefined"&&col) window.mpInicia();
 })();

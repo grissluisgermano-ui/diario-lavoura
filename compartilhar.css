@@ -8,6 +8,8 @@
 .cp-bts .btn{flex:1 1 auto}
 .cp-wa{background:#1f8f4e;border-color:#1f8f4e;color:#fff}
 .cp-st:empty{display:none}
+.cp-des{margin:0 0 10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fbfaf5}
+.cp-des img{display:block;width:100%;height:auto;max-height:360px;object-fit:contain}
 @media (min-width:760px){
   #cp-modal{align-items:center;padding:24px}
 }

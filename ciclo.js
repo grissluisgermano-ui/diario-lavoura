@@ -260,6 +260,7 @@ function enviar(t){
     opcoes:[{k:"chuva",l:"Chuva (total e últimos 15 dias)",on:true},{k:"chuvaDia",l:"Chuva dia a dia",on:false},{k:"obs",l:"Observações dos lançamentos",on:true},
       ...(temLocal?[{k:"local",l:"Localização do talhão (Google Maps)",on:true}]:[]),...(temPts?[{k:"pontos",l:"Pontos marcados no talhão",on:false}]:[])],
     gerar:o=>textoTalhao(t,o),
+    desenho:window.mpDesenhoTalhao?window.mpDesenhoTalhao(t):null,
     nota:temLocal?"":"Para mandar também a localização, desenhe o contorno do talhão em Painel → Mapa."});
 }
 window.ciTexto=textoTalhao;
