@@ -300,9 +300,22 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .ent-lote{display:block;font-size:.78rem;color:var(--muted);font-family:var(--f-body,inherit)}
 .es-um{margin:14px 0 4px;font-size:.95rem;color:var(--muted);font-weight:600}
 .nf-cont{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
-.prod .p-embl{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
-.prod .p-embl[hidden]{display:none}
-.prod .p-embl select{flex:1;min-width:0}
+/* semente por embalagem: linha 1 = produto; linha 2 = quantas embalagens saíram; linha 3 = dose e total em sementes */
+.prod .p-embq{grid-column:2/-1;display:flex;flex-direction:column;gap:6px}
+.prod .p-embq[hidden]{display:none}
+.prod .p-eqt,.prod .p-dl{font-size:.78rem;color:var(--muted);font-weight:600}
+.prod .p-eqs{display:flex;flex-wrap:wrap;gap:6px 12px}
+.prod .p-eq{display:flex;align-items:center;gap:6px;font-size:.9rem;text-transform:none;letter-spacing:0;color:inherit;font-weight:400;margin:0}
+.prod .p-eq input{width:70px;text-align:right}
+.prod .p-eq small{color:var(--muted)}
+.prod .p-dl{display:none}
+.prod.emb .p-nome{grid-column:2/-2}
+.prod.emb .p-dl{display:block;grid-column:2/-1;margin-bottom:-4px}
+.prod.emb .p-dose{grid-column:2}
+@media (min-width:541px){.prod.emb .p-nome{grid-column:2/5}.prod.emb .rm{grid-column:6;grid-row:1}.prod.emb .p-dose{grid-column:2/3}}
+@media (max-width:540px){.prod.emb .rm{grid-column:5;grid-row:1}}
+.rec-prods li span .p-embs{display:block;font-size:.8rem;color:var(--muted);font-family:var(--f-body,inherit);white-space:normal}
+.prod.emb .p-tot{font-size:.88rem;padding-left:6px;padding-right:6px}
 .nf-cont select{width:auto}
 .es-embl{color:var(--ink)!important;opacity:.8;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 .es-embt{font-size:.92rem;line-height:1.3;white-space:nowrap}
@@ -1338,7 +1351,7 @@ function qtdDose(un,d,area,esp){
 const numDose=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:3});
 const temDose=p=>p.dose!==undefined&&p.dose!==null&&p.dose!=="";
 const doseTxt=p=>temDose(p)?(typeof p.dose==="number"?numDose(p.dose):p.dose)+(p.unidade?" "+p.unidade:""):"–";
-const prodTxt=p=>p.nome+(temDose(p)?" "+doseTxt(p):"");
+const prodTxt=p=>p.nome+((p.embs||[]).length?` (${embsTxt(p)})`:"")+(temDose(p)?" "+doseTxt(p):"");
 const $=s=>document.querySelector(s);
 /* XML de nota: alguns arquivos (principalmente os que chegam por e-mail) começam com uma marca invisível (BOM) ou linha em branco
    antes de <?xml, e aí o navegador não consegue ler. Limpa antes de ler, em qualquer lugar do app. */
@@ -1408,11 +1421,12 @@ function prodRow(p={}){
   const d=p.dose==null?"":typeof p.dose==="number"?String(p.dose).replace(".",","):p.dose;
   return `<div class="prod">
     <input class="p-nome" list="dl-prod" placeholder="Produto" value="${esc(p.nome||"")}" aria-label="Produto">
+    <div class="p-embq" hidden data-v="${esc(JSON.stringify(p.embs||[]))}" data-old="${esc(p.emb||"")}"></div>
+    <span class="p-dl">Dose e quantidade de sementes usada</span>
     <input class="p-dose" inputmode="decimal" placeholder="Dose" value="${esc(d)}" aria-label="Dose">
     <select class="p-un" aria-label="Unidade">${UNIDADES.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select>
     <input class="p-tot" inputmode="decimal" placeholder="Total (${esc(u.replace("/ha",""))})" aria-label="Quantidade total usada">
     <button type="button" class="rm" aria-label="Remover produto">×</button>
-    <label class="p-embl" hidden><span>Saiu de</span><select class="p-emb" data-v="${esc(p.emb||"")}" aria-label="Embalagem usada"></select></label>
     <small class="p-saldo"></small><small class="p-custo"></small></div>`;
 }
 function renderProds(list){
@@ -1430,7 +1444,7 @@ function readProds(){
     const n=uD==="sem/ha"?qMil(s):Number(s.includes(",")?s.replace(/\./g,"").replace(",","."):s);
     const nome=r.querySelector(".p-nome").value.trim(), e=prodEstoque(nome);
     const p={nome:e?e.comercial:nome,dose:s===""?null:(Number.isFinite(n)?n:s),unidade:r.querySelector(".p-un").value};
-    if(ehEmb(e)&&r.querySelector(".p-emb").value) p.emb=r.querySelector(".p-emb").value;
+    if(ehEmb(e)){const q=embsDaLinha(r); if(q.length) p.embs=q; else if(r.querySelector(".p-embq").dataset.old) p.emb=r.querySelector(".p-embq").dataset.old}
     if(e) p.produtoId=e.id;
     return p;
   }).filter(p=>p.nome);
@@ -1440,10 +1454,15 @@ function atualizaSaldos(){
     const el=r.querySelector(".p-saldo"), nome=r.querySelector(".p-nome").value.trim(), e=prodEstoque(nome);
     if(ehEmb(e)){const c=consumoEmb(e,null,editing), un=r.querySelector(".p-un").value, d=un==="sem/ha"?qMil(r.querySelector(".p-dose").value):parseNum(r.querySelector(".p-dose").value), q=qtdDose(un,d,areaForm(),espForm());
       const tem=c.gs.filter(g=>g.saldo>0).map(g=>embCurto(g.m,g.saldo)).join(" + ")||"sem saldo";
-      let usa=""; if(q){const g=c.gs.find(x=>x.k===r.querySelector(".p-emb").value)||c.gs.find(x=>embMed(x.m)===q.med&&embPor(x.m)>0);
+      const eq=embsDaLinha(r);
+      if(eq.length){const sq=embsQtd({embs:eq}), t=q?.med==="kg"?sq.kg:sq.sem, med=q?.med||(sq.sem?"sem":"kg"), falta=eq.filter(x=>{const g=c.gs.find(y=>y.k===x.k); return !g||x.q>g.saldo+1e-6});
+        el.classList.toggle("neg",falta.length>0);
+        el.textContent=`Estoque: ${tem} · sai ${embsTxt({embs:eq})} = ${qMedTxt(sq.sem?"sem":"kg",sq.sem||sq.kg)}`+(falta.length?` (não tem tudo isso no estoque)`:"")+(q&&t>0&&Math.abs(q.q-t)/t>0.03?` · a dose dá ${qMedTxt(med,q.q)}; o estoque baixa pelas embalagens`:"");
+        return}
+      let usa=""; if(q){const g=c.gs.find(x=>x.k===r.querySelector(".p-embq").dataset.old)||c.gs.find(x=>embMed(x.m)===q.med&&embPor(x.m)>0);
         usa=` · vai usar ${qMedTxt(q.med,q.q)}${g&&g.m.tipo!=="kg"&&embMed(g.m)===q.med?` ≈ ${num(q.q/embPor(g.m))} ${g.m.tipo==="bag"?"bags":"sacos"}`:""}`;
         const disp=c.gs.filter(g=>embMed(g.m)===q.med).reduce((t,g)=>t+Math.max(g.saldo,0)*embPor(g.m),0); el.classList.toggle("neg",q.q>disp+1e-6); if(q.q>disp+1e-6) usa+=` (faltam ${qMedTxt(q.med,q.q-disp)})`}
-      else{el.classList.remove("neg"); if(un==="sem/m"&&!espForm()) usa=" · informe o espaçamento para calcular"}
+      else{el.classList.remove("neg"); if(un==="sem/m"&&!espForm()) usa=" · informe o espaçamento para calcular"; else usa=" · diga quantas embalagens saíram ou a dose"}
       el.textContent=`Estoque: ${tem}${usa}`;}
     else if(e){const s=resumoProd(e);el.textContent=`${e.generico?e.generico+" · ":""}saldo ${num(s.saldo)} ${e.unidade}${s.programado>0?` · ${num(s.programado)} ${e.unidade} já programado`:""}`;el.classList.toggle("neg",s.saldo<=0)}
     else{el.textContent=nome&&estoque.length?"Fora do estoque":"";el.classList.remove("neg")}
@@ -1462,19 +1481,33 @@ function prodTotais(){
     if(!tot) return; tot.placeholder=`Total (${un})`;
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
+    if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)}
     else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*area,2)):""}
   });
 }
-/* semente por embalagem: escolher de qual embalagem saiu (bag, saco, kg) */
+/* semente por embalagem: quantas embalagens saíram de cada tipo (bags, sacos, kg) — é isso que baixa do estoque */
+function embsDaLinha(r){
+  return [...r.querySelectorAll(".p-eq input")].map(i=>({k:i.dataset.k,q:parseNum(i.value),tipo:i.dataset.tipo,cont:+i.dataset.cont||0,med:i.dataset.med})).filter(x=>x.q>0)
+    .map(x=>({k:x.k,q:x.q,tipo:x.tipo,...(x.tipo!=="kg"?{cont:x.cont,med:x.med}:{})}));
+}
+const embsTxt=p=>(p.embs||[]).map(x=>embCurto({tipo:x.tipo,cont:x.cont,med:x.med},x.q)).join(" + ");
+const embsQtd=p=>{let sem=0,kg=0; for(const x of p.embs||[]){const v=x.q*(x.tipo==="kg"?1:(x.cont||0)); if(embMed(x)==="kg") kg+=v; else sem+=v} return {sem,kg}};
 function embLinha(r){
-  const e=prodEstoque(r.querySelector(".p-nome").value.trim()), l=r.querySelector(".p-embl"), sel=r.querySelector(".p-emb");
-  if(!ehEmb(e)){l.hidden=true; sel.innerHTML=""; return}
-  const un=r.querySelector(".p-un").value, med=/^(sem\/|mil sem)/.test(un)?"sem":"kg", gs=resumoProd(e).grupos;
-  const ok=gs.filter(g=>embMed(g.m)===med), atual=sel.value||sel.dataset.v||"";
-  sel.innerHTML=`<option value="">Automático (${med==="sem"?"bags e sacos em sementes":"kg"})</option>`+ok.map(g=>`<option value="${esc(g.k)}" ${g.k===atual?"selected":""}>${esc(embCurto(g.m,g.saldo))} disponíve${g.saldo===1?"l":"is"}</option>`).join("");
-  if(atual&&!ok.some(g=>g.k===atual)) sel.insertAdjacentHTML("beforeend",`<option value="${esc(atual)}" selected>(embalagem sem saldo)</option>`);
-  l.hidden=false;
+  const e=prodEstoque(r.querySelector(".p-nome").value.trim()), box=r.querySelector(".p-embq");
+  r.classList.toggle("emb",ehEmb(e));
+  if(!ehEmb(e)){box.hidden=true; box.innerHTML=""; return}
+  const un=r.querySelector(".p-un").value, med=/^(sem\/|mil sem)/.test(un)?"sem":"kg";
+  const atual=box.querySelector(".p-eq")?Object.fromEntries(embsDaLinha(r).map(x=>[x.k,x.q])):Object.fromEntries((JSON.parse(box.dataset.v||"[]")).map(x=>[x.k,x.q]));
+  const gs=consumoEmb(e,null,editing).gs.filter(g=>embPor(g.m)>0&&(embMed(g.m)===med||atual[g.k]));
+  const lin=gs.filter(g=>g.saldo>0||atual[g.k]), sig=lin.map(g=>g.k).join(",")+"|"+med;
+  if(box.dataset.sig===sig&&box.querySelector(".p-eqt")){ // mesmo jeito: só atualiza o saldo (não apaga o que está sendo digitado)
+    for(const g of lin){const i=box.querySelector(`input[data-k="${CSS.escape(g.k)}"]`); const sm=i?.nextElementSibling?.querySelector("small"); if(sm) sm.textContent=`(tem ${num(g.saldo)})`}
+    box.hidden=false; return}
+  box.dataset.sig=sig;
+  box.innerHTML=`<span class="p-eqt">Quantidade que saiu do estoque</span>`+(lin.length?`<div class="p-eqs">${lin.map(g=>`<label class="p-eq"><input inputmode="decimal" data-k="${esc(g.k)}" data-tipo="${g.m.tipo}" data-cont="${g.m.cont||0}" data-med="${g.m.med||""}" value="${atual[g.k]?String(atual[g.k]).replace(".",","):""}" placeholder="0" aria-label="${esc(embRot(g.m,2))}"><span>${esc(g.m.tipo==="kg"?"kg":embCurto(g.m,2).replace(/^2 /,""))} <small>(tem ${num(g.saldo)})</small></span></label>`).join("")}</div>`
+    :`<small class="note">Sem saldo desta semente no estoque${med==="kg"?" em kg":" em sementes"}.</small>`);
+  box.hidden=false;
 }
 function addProd(){$("#prods").insertAdjacentHTML("beforeend",prodRow());$("#prods").lastElementChild.querySelector(".p-nome").focus()}
 $("#add-prod").onclick=addProd;
@@ -1493,13 +1526,14 @@ $("#prods").addEventListener("change",e=>{
 });
 $("#prods").addEventListener("input",e=>{
   const r=e.target.closest(".prod");
+  if(e.target.closest(".p-eq")){r.dataset.src=embsDaLinha(r).length?"emb":""; prodTotais(); atualizaSaldos(); return}
   if(e.target.classList.contains("p-tot")){r.dataset.src=e.target.value.trim()?"tot":""; prodTotais()}
   else if(e.target.classList.contains("p-dose")){r.dataset.src="dose"; prodTotais()}
   if(e.target.classList.contains("p-nome")||(r&&ehEmb(prodEstoque(r.querySelector(".p-nome").value)))) atualizaSaldos(); else atualizaCustos()});
 $("#prods").addEventListener("change",()=>atualizaCustos());
 $("#areas").addEventListener("input",()=>{prodTotais(); atualizaSaldos()});
 $("#talhoes").addEventListener("click",()=>setTimeout(()=>{prodTotais(); atualizaCustos()}));
-$("#prods").addEventListener("change",e=>{if(e.target.classList.contains("p-un")){embLinha(e.target.closest(".prod")); prodTotais(); atualizaSaldos()} if(e.target.classList.contains("p-emb")) atualizaSaldos()});
+$("#prods").addEventListener("change",e=>{if(e.target.classList.contains("p-un")){embLinha(e.target.closest(".prod")); prodTotais(); atualizaSaldos()} });
 $("#prods").addEventListener("keydown",e=>{
   if(e.key!=="Enter"||e.target.tagName!=="INPUT") return;
   e.preventDefault();
@@ -2006,6 +2040,10 @@ function consumoEmb(prod,ate,semId){
   const regs=registros.filter(r=>r.id!==semId&&(!ate||r.data<=ate)).sort((a,b)=>a.data.localeCompare(b.data));
   for(const r of regs) for(const p of r.campos?.produtos||[]){
     if(!(p.produtoId===prod.id||(!p.produtoId&&String(p.nome).toLowerCase()===nomeL))) continue;
+    if((p.embs||[]).length){ // saíram estas embalagens (bags, sacos, kg)
+      if(ehProg(r)){const t=embsQtd(p); reserva.sem+=t.sem; reserva.kg+=t.kg; continue}
+      usos++; for(const x of p.embs){const g=gs.find(y=>y.k===x.k); const pode=g?Math.max(0,g.entrou-g.usado):0, tira=Math.min(pode,x.q); if(g) g.usado+=tira; if(x.q-tira>1e-9) falta[embMed(x)]+=(x.q-tira)*(x.tipo==="kg"?1:(x.cont||0))}
+      continue}
     const d=typeof p.dose==="number"?p.dose:parseNum(p.dose), q=qtdDose(p.unidade,d,areaTotal(r),espDe(r));
     if(ehProg(r)){if(q) reserva[q.med]+=q.q; continue}
     usos++; if(!q){semConv++; continue}
@@ -2467,7 +2505,7 @@ function recCard(r,extra="",acoesExtra=""){
       <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas,r.data))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
       ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc</span></li>`).join("")}</ul>`:""}
-      ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
+      ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}${(p.embs||[]).length?`<span class="p-embs">${esc(embsTxt(p))}</span>`:""}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
       ${r.descricao?`<p class="rec-desc">${esc(r.descricao)}</p>`:""}
       ${(r.fotos||[]).length?`<div class="rec-fotos">${r.fotos.map((id,i)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${i+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${i+1}"></button>`).join("")}</div>`:""}
       ${extra}
@@ -3960,9 +3998,14 @@ async function executar(b){
 
 /* ---------- Custo da aplicação ---------- */
 let custoAnterior={};  // ao editar: preço por unidade gravado no lançamento original
+let areaCtx=null; // área do lançamento em cálculo (custo de semente por embalagem)
 let espCtx=null; // espaçamento do lançamento em cálculo (sementes por metro)
 function custoProd(p){
   const e=prodEstoque(p.nome);
+  if(ehEmb(e)&&(p.embs||[]).length){ // custo = embalagens que saíram × custo de cada uma, dividido pela área
+    const gs=gruposEmb(e), ar=areaCtx??areaForm(); let tot=0,qt=0,falt=false; const t=embsQtd(p), med=t.sem?"sem":"kg";
+    for(const x of p.embs){const g=gs.find(y=>y.k===x.k); if(!g||g.custo==null){falt=true; continue} tot+=x.q*g.custo; qt+=x.q*(x.tipo==="kg"?1:(x.cont||0))}
+    if(falt||!(qt>0)||!(ar>0)) return null; const cu=tot/qt; return {custoUnit:cu,unidadeEst:med,custoHa:tot/ar,custoUnitLiq:null,custoHaLiq:tot/ar} }
   if(ehEmb(e)){ const d=typeof p.dose==="number"?p.dose:(p.unidade==="sem/ha"?qMil(p.dose):parseNum(p.dose)), q=qtdDose(p.unidade,d,1,espCtx??espForm()); if(!q) return null;
     const cu=custoUnEmb(e,q.med,p.emb); if(cu==null) return null; return {custoUnit:cu,unidadeEst:q.med,custoHa:q.q*cu,custoUnitLiq:null,custoHaLiq:q.q*cu} }
   const chave=(p.produtoId||e?.id||String(p.nome).toLowerCase());
@@ -3984,7 +4027,7 @@ function atualizaCustos(){
     const nome=r.querySelector(".p-nome").value.trim(); if(!nome){el.textContent="";return}
     n++;
     const s=r.querySelector(".p-dose").value.trim(), dn=r.querySelector(".p-un").value==="sem/ha"?qMil(s):parseNum(s);
-    const c=custoProd({nome,dose:Number.isFinite(dn)?dn:s,unidade:r.querySelector(".p-un").value,emb:r.querySelector(".p-emb")?.value||undefined});
+    const c=custoProd({nome,dose:Number.isFinite(dn)?dn:s,unidade:r.querySelector(".p-un").value,embs:embsDaLinha(r)});
     if(c){ha+=c.custoHa; hl+=c.custoHaLiq; if(c.custoUnitLiq!=null) liq=true; el.textContent=`${c.unidadeEst==="sem"?brl(c.custoUnit*1000)+"/mil sementes":brl(c.custoUnit)+"/"+c.unidadeEst} → ${brl(c.custoHa)}/ha${c.custoUnitLiq!=null?` · com desconto ${brl(c.custoHaLiq)}/ha`:""}`}
     else{sem++; el.textContent=!prodEstoque(nome)&&!custoAnterior[String(nome).toLowerCase()]?"Sem preço: cadastre no Estoque com o valor":(!(dn>0)?"Informe a dose para calcular o custo":"Sem custo: confira a unidade ou o valor no Estoque")}
   });
@@ -3995,11 +4038,11 @@ function atualizaCustos(){
     ${sem?`<div class="note">${sem} produto${sem>1?"s":""} sem custo, não somado${sem>1?"s":""}.</div>`:""}`:"";
 }
 function custosDoRegistro(produtos,area,esp){
-  espCtx=esp??null; let ha=0,hl=0,sem=0,temLiq=false;
+  espCtx=esp??null; areaCtx=area??null; let ha=0,hl=0,sem=0,temLiq=false;
   const ps=produtos.map(p=>{const c=custoProd(p); if(!c){sem++;return p}
     ha+=c.custoHa; hl+=c.custoHaLiq; const o={...p,custoUnit:+c.custoUnit.toFixed(c.unidadeEst==="sem"?8:4),unidadeEst:c.unidadeEst,custoHa:+c.custoHa.toFixed(2)};
     if(c.custoUnitLiq!=null){temLiq=true; o.custoUnitLiq=+c.custoUnitLiq.toFixed(4); o.custoHaLiq=+c.custoHaLiq.toFixed(2)} return o});
-  espCtx=null; const r={ps,custoHa:+ha.toFixed(2),custoTotal:+(ha*area).toFixed(2),semCusto:sem};
+  espCtx=null; areaCtx=null; const r={ps,custoHa:+ha.toFixed(2),custoTotal:+(ha*area).toFixed(2),semCusto:sem};
   if(temLiq){r.custoHaLiq=+hl.toFixed(2); r.custoTotalLiq=+(hl*area).toFixed(2)}
   return r;
 }
