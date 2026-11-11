@@ -1306,6 +1306,42 @@ function renderSafra(){
   $("#rsf-tal").innerHTML=`<thead><tr><th>Talhão</th><th>ha</th><th>Insumos</th><th>Diretos</th>${rateio?"<th>Gerais</th>":""}<th>Custo/ha</th><th>Sacas</th><th>sc/ha</th><th>Receita</th><th>Resultado</th></tr></thead><tbody>${rows.join("")}</tbody>
     <tfoot><tr><td>Total</td><td>${num(tot.a)}</td><td>${brlC(tot.i)}</td><td>${brlC(tot.d)}</td>${rateio?`<td>${brlC(tot.g)}</td>`:""}<td>${brl(tot.a?ct/tot.a:0)}</td><td>${num(tot.sc)}</td><td>–</td><td>${brlC(tot.r)}</td><td class="${tot.r-ct<0?"fn-neg":""}">${brlC(tot.r-ct)}</td></tr></tfoot>`;
   $("#rsf-tal-nota").textContent=`Mesma divisão da tabela por cultura, mas os custos gerais aqui são divididos pela área de cada talhão. Receita: sacas colhidas × preço médio de venda.`;
+  renderCtrRet(sy);
+}
+/* ---------- Contratos de insumos: pago no Financeiro × retirado (notas de retirada, sem duplicata) ---------- */
+const ctrN=v=>{const t=String(v||"").trim(); return /^pedido/i.test(t)?t.toLowerCase().replace(/\s+/g," "):t.replace(/\D/g,"")};
+let ctrTodos=false;
+function renderCtrRet(sy){
+  const box=$("#rsf-ctr"); if(!box) return;
+  const M=new Map(), get=n=>{let o=M.get(n); if(!o){o={n,forn:"",pago:0,aberto:0,ret:0,rets:[],dup:0,datas:[]}; M.set(n,o)} return o};
+  for(const l of fnLanc) if(l.natureza==="pagar"&&l.contrato){const n=ctrN(l.contrato); if(!n) continue; const o=get(n);
+    if(l.status==="pago") o.pago+=Number(l.valorPago??l.valor)||0; else o.aberto+=vp(l); o.forn||=l.pessoa||""; o.datas.push(l.competencia||l.vencimento)}
+  for(const e of (typeof estoque!=="undefined"?estoque:[])) for(const x of e.entradas||[]) if(x.contrato){const n=ctrN(x.contrato); if(!n) continue; const o=get(n);
+    const v=Number(x.valorTotal)||0; if(x.retirada){o.ret+=v; o.rets.push({e,x})} else o.dup+=v; o.forn||=x.origem||""; o.datas.push(x.data)}
+  const daSafra=o=>o.datas.some(d=>d&&safraDe(d)===sy);
+  const todos=[...M.values()].filter(o=>o.ret>0||((o.pago>0||o.aberto>0)&&!o.dup)); // contrato de compra com duplicata (ex.: desconto Casarão) não entra
+  const ls=(ctrTodos?todos:todos.filter(daSafra)).sort((a,b)=>(b.ret-(b.pago+b.aberto))-(a.ret-(a.pago+a.aberto)));
+  const st=o=>{const pg=o.pago+o.aberto, dif=pg-o.ret;
+    if(o.ret>0&&pg<=0) return ["ruim",`⚠️ Tem ${brl(o.ret)} retirado e o pagamento do contrato não está no Financeiro.`];
+    if(!o.ret) return ["",o.dup>0?`Sem notas de retirada. Compras com duplicata neste contrato: ${brl(o.dup)} (entram no Financeiro pelas parcelas).`:"Nenhuma retirada ainda."];
+    if(Math.abs(dif)<=Math.max(1,pg*.01)) return ["ok","✓ Tudo retirado: o valor retirado bate com o lançado no Financeiro."];
+    if(dif>0) return ["atn",`Falta retirar ${brl(dif)} (produto ainda no depósito${o.forn?" da "+esc(o.forn):""}).`];
+    return ["ruim",`Retirado ${brl(-dif)} a mais do que o lançado no Financeiro. Confira o valor do contrato (descontos, juros ou pagamento que falta lançar).`]};
+  box.innerHTML=`<div class="row" style="justify-content:space-between;flex-wrap:wrap"><h3>Contratos de insumos <small>pago × retirado</small></h3>
+      <label class="nf-chk"><input type="checkbox" id="ctr-todos" ${ctrTodos?"checked":""}> Todas as safras</label></div>
+    <p class="note">As notas de retirada (sem duplicata) entram no estoque e no custo das aplicações, mas não no Financeiro: lá vale o <b>pagamento do contrato</b>. Aqui você confere se cada contrato está lançado e quanto ainda está no depósito.</p>
+    ${ls.length?ls.map(o=>{const [c,t]=st(o); return `<div class="ctr-it"><b>Contrato ${esc(o.n)}${o.forn?` · ${esc(o.forn)}`:""}</b>
+      <div class="ctr-nums"><div><span>Pago</span><b>${brl(o.pago)}</b></div><div><span>A pagar</span><b>${brl(o.aberto)}</b></div><div><span>Retirado</span><b>${brl(o.ret)}</b></div></div>
+      <span class="ctr-st ${c}">${t}</span>
+      ${o.rets.length?`<details><summary class="note">${o.rets.length} retirada${o.rets.length>1?"s":""}</summary><ul class="lg-lista">${o.rets.sort((a,b)=>String(a.x.data).localeCompare(String(b.x.data))).map(({e,x})=>`<li>${brDate(x.data)} · NF ${esc(x.nf||"")} · ${esc(e.comercial)} · ${brl(x.valorTotal)}</li>`).join("")}</ul></details>`:""}
+      ${o.ret>0&&o.pago+o.aberto<=0?`<div class="row"><button type="button" class="btn fn-mini" data-ctrl="${esc(o.n)}">Lançar o pagamento do contrato</button></div>`:""}
+    </div>`}).join(""):`<p class="note">Nenhum contrato ${ctrTodos?"":"nesta safra "}— o número do contrato vem da nota (informações complementares) ou do campo Contrato da conta.</p>`}`;
+  $("#ctr-todos").onchange=e=>{ctrTodos=e.target.checked; renderCtrRet(sy)};
+  box.querySelectorAll("[data-ctrl]").forEach(b=>b.onclick=()=>{const o=M.get(b.dataset.ctrl); if(!o) return;
+    const itens=o.rets.map(({e,x})=>({desc:`${e.comercial} — ${num(x.quantidade)} ${e.unidade==="emb"?"emb":e.unidade}`,valor:Number(x.valorTotal)||0,classe:e.classe}));
+    const data=o.rets.map(r=>r.x.data).sort()[0]||hoje();
+    show("fin_contas"); formDePendencia({k:null,natureza:"pagar",descricao:`Contrato ${o.n}${o.forn?" — "+o.forn:""}`,pessoa:o.forn,categoria:catDosItens(itens),data,nf:"",valor:+o.ret.toFixed(2),itens:itens.map(({classe,...i})=>i),contrato:o.n,fonte:`Contrato ${o.n} (retiradas)`});
+    origemTxt(`Pagamento do <b>contrato ${esc(o.n)}</b>: veio preenchido com o valor das retiradas (${brl(o.ret)}). Ajuste para o valor e a data em que o contrato foi pago de verdade (com desconto, se teve), e marque se já está pago.`)});
 }
 
 /* ---------- ligação com o app ---------- */
