@@ -294,6 +294,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .fn-estopt{margin-top:10px}
 .nf-parc .note{min-width:46px}
 #nf-add{align-self:flex-start}
+.refaz-box{display:flex;flex-direction:column;gap:6px;border:1px solid #e0b44a;background:rgba(224,180,74,.12);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.refaz-box .row{flex-wrap:wrap;gap:8px}
 .ent-lote{display:block;font-size:.78rem;color:var(--muted);font-family:var(--f-body,inherit)}
 .es-um{margin:14px 0 4px;font-size:.95rem;color:var(--muted);font-weight:600}
 .nf-cont{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
@@ -1867,12 +1869,14 @@ function embDaDesc(desc,uCom,obs){
   return {tipo,cont,med};
 }
 /* Refazer as sementes de uma nota já lançada, lendo de novo o XML guardado (embalagens, nomes, lote, germinação) */
-window.nfRefazer=function(chave){
-  const d=(window.danfeColecao?.()||[]).find(x=>x.id===chave); if(!d?.xml){nfSt("O XML desta nota não está guardado no app.");return}
-  let x; try{x=xmlSemClaude(lerXml(d.xml))}catch{nfSt("Não consegui ler o XML desta nota.");return}
+window.nfRefazer=function(chave,xmlTxt){
+  const d=xmlTxt?{xml:xmlTxt}:(window.danfeColecao?.()||[]).find(x=>x.id===chave); if(!d?.xml){nfSt("O XML desta nota não está guardado no app: escolha o arquivo XML.");return}
+  let x; try{x=xmlSemClaude(lerXml(d.xml))}catch{esAba("entrada"); nfSt("Não consegui ler o XML desta nota.");return}
+  if(!chave) chave=x.fin?.chave||null;
+  if(xmlTxt&&chave&&x.fin?.chave&&x.fin.chave!==chave){esAba("entrada"); nfSt(`Este XML é de outra nota (NF ${x.numero}). Escolha o XML da nota certa.`);return}
   x.itens=x.itens.filter(it=>it.classe==="Semente"&&it.emb);
   if(!x.itens.length){nfSt("Não achei sementes nesta nota.");return}
-  esAba("entrada"); nfCtl?.abort(); nfXmlTxt=d.xml; x.refaz=chave; nfDados=x; renderNfRev();
+  esAba("entrada"); nfCtl?.abort(); nfXmlTxt=d.xml; x.refaz=chave||"__sem"; x.refazProd=window.nfRefazProd||null; window.nfRefazProd=null; nfDados=x; renderNfRev();
   nfSt(`Nota ${x.numero}: confira as sementes por embalagem e toque em Lançar. As entradas antigas de semente desta nota serão trocadas por estas (o Financeiro não muda).`);
 };
 window.nfManual=function(pre){ // Estoque → "Nota fiscal à mão (vários produtos)"; pre.semente = produto de semente para nova entrada
@@ -1923,9 +1927,10 @@ async function nfLancar(){
       const k=it.nome.toLowerCase(), pp=porProd.get(k)||{it,ents:[]}; pp.ents.push(entrada); if(it.emb) pp.emb=true; porProd.set(k,pp);
     }
     if(nfDados?.refaz){ // "Refazer pela nota": tira as entradas de semente desta nota antes de lançar de novo
-      const ch=nfDados.refaz;
-      for(const e of estoque.filter(x=>(x.classe==="Semente"||ehEmb(x))&&(x.entradas||[]).some(y=>y.chave===ch))){
-        const {id,...doc}=e; doc.entradas=(e.entradas||[]).filter(y=>y.chave!==ch); e.entradas=doc.entradas;
+      const ch=nfDados.refaz, nfN=String(nfDados.numero||"").replace(/^0+/,"");
+      const daNota=y=>ch!=="__sem"?y.chave===ch:(y.nf&&String(y.nf).replace(/^0+/,"")===nfN);
+      for(const e of estoque.filter(x=>(x.classe==="Semente"||ehEmb(x))&&((x.entradas||[]).some(daNota)||x.id===nfDados.refazProd))){
+        const {id,...doc}=e; doc.entradas=(e.entradas||[]).filter(y=>!daNota(y)&&!(e.id===nfDados.refazProd&&!y.chave&&(!y.emb||!(y.emb.cont>0)))); e.entradas=doc.entradas;
         const usado=registros.some(r=>(r.campos?.produtos||[]).some(p=>p.produtoId===id||String(p.nome).toLowerCase()===e.comercial.toLowerCase()));
         if(!doc.entradas.length&&!usado&&!porProd.has(e.comercial.toLowerCase())) await db.collection("estoque").doc(id).delete();
         else await db.collection("estoque").doc(id).set(doc);
@@ -2142,6 +2147,11 @@ function renderEstoque(){
     ${!ab?"":`<div class="es-det">
     ${e.classe?`<div class="pc-gen">${esc(e.classe)}</div>`:""}
     ${reservaBox(e,s)}
+    ${(()=>{if(!(e.classe==="Semente"||ehEmb(e))) return ""; const faltaCont=(e.entradas||[]).some(x=>!x.emb||(x.emb.tipo!=="kg"&&!(x.emb.cont>0))); if(!faltaCont) return "";
+      const notas=[...new Map((e.entradas||[]).filter(x=>x.chave||x.nf).map(x=>[x.chave||("nf"+x.nf),x])).values()];
+      return `<div class="refaz-box"><b>⚠️ Embalagens sem o conteúdo (sementes ou kg)</b><span class="note">Refaça pela nota fiscal: o app lê o XML e separa em bags e sacos com o número de sementes, lote e germinação.</span>
+        <div class="row">${notas.map(x=>window.danfeTem?.(x.chave)?`<button type="button" class="btn fn-mini" data-refaz="${esc(x.chave)}">🔁 Refazer pela NF ${esc(x.nf||"")}</button>`:`<label class="btn ghost fn-mini">🔁 Escolher o XML da NF ${esc(x.nf||"")}<input type="file" accept=".xml,text/xml" hidden data-refazxml="${esc(x.chave||"")}" data-refazprod="${esc(e.id)}"></label>`).join("")||`<label class="btn ghost fn-mini">🔁 Escolher o XML da nota<input type="file" accept=".xml,text/xml" hidden data-refazxml="" data-refazprod="${esc(e.id)}"></label>`}</div>
+        <span class="note">Ou corrija à mão: abra <b>Entradas</b> e toque em <b>Editar</b> em cada uma.</span></div>`})()}
     ${s.emb?`<div class="emb-tab">${s.grupos.map(g=>`<div class="emb-l"><span><b>${num(g.saldo)}</b> ${esc(embRot(g.m,g.saldo))}${g.usado>0?` <small class="note">(entrou ${num(g.entrou)} · usado ${num(g.usado)})</small>`:""}</span><span>${g.custo!=null?brl(g.custo)+(g.m.tipo==="kg"?"/kg":" cada"):"–"}</span><span>${g.custo!=null?brl(g.saldo*g.custo):""}</span></div>`).join("")}
       <div class="emb-l emb-tot"><span>Total ${esc(embTotTxt(s.grupos)||"–")}</span><span></span><span>${brl(s.valorSaldo)}</span></div></div>
       <p class="note">${s.usos?`Usado em ${s.usos} plantio${s.usos>1?"s":""} (dose × área, da embalagem escolhida no plantio).`:"Saldo por embalagem. Os plantios descontam daqui (dose × área)."}${s.semConv?` ${s.semConv} plantio${s.semConv>1?"s":""} sem dose em sementes ou kg (ou sem espaçamento), não descontado${s.semConv>1?"s":""}.`:""}${s.falta.sem>0||s.falta.kg>0?` <span class="falta">Faltou no estoque: ${[s.falta.sem?semTxt(s.falta.sem):"",s.falta.kg?num(s.falta.kg)+" kg":""].filter(Boolean).join(" + ")} (lance a compra).</span>`:""}${s.reserva.sem>0||s.reserva.kg>0?` Programado: ${[s.reserva.sem?semTxt(s.reserva.sem):"",s.reserva.kg?num(s.reserva.kg)+" kg":""].filter(Boolean).join(" + ")}.`:""}</p>`:`<div class="pc-nums">
@@ -2165,6 +2175,7 @@ function renderEstoque(){
     peLiga(box)});
   $("#es-lista").querySelectorAll("[data-edent]").forEach(b=>b.onclick=()=>{const [id,i]=b.dataset.edent.split(":"); entEditar(b,id,+i)});
   $("#es-lista").querySelectorAll("[data-refaz]").forEach(b=>b.onclick=()=>window.nfRefazer(b.dataset.refaz));
+  $("#es-lista").querySelectorAll("[data-refazxml]").forEach(inp=>inp.onchange=async()=>{const f=inp.files[0]; inp.value=""; if(!f) return; window.nfRefazProd=inp.dataset.refazprod||null; window.nfRefazer(inp.dataset.refazxml||null,await f.text())});
   $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada); if(ehEmb(e)||e?.classe==="Semente"){window.nfManual({semente:e});return} esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
   $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
   $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
