@@ -731,7 +731,8 @@ async function importarXml(file){
       (noEst?"":` <span class="note">Se forem insumos para o estoque, importe pela aba <b>Estoque</b>: lá entra no estoque e no Financeiro de uma vez.</span>`)+
       ` <button type="button" class="link" id="fn-danfe">Ver DANFE</button>`);
     $("#fn-danfe").onclick=()=>window.danfeAbrir?.(fnXmlTxt);
-  }catch{flash("#fn-toast","Não consegui ler o XML. Confira se é o XML da NF-e.")}
+    $("#fn-form").scrollIntoView({block:"start"}); // abre a janela do formulário (form-botao.js) já preenchido
+  }catch{window.fbAbre?.("#fn-form"); flash("#fn-toast","Não consegui ler o XML. Confira se é o XML da NF-e.")}
 }
 
 /* Várias notas de uma vez (histórico): só no Financeiro, sem mexer no estoque */

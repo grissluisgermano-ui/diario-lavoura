@@ -1,7 +1,7 @@
 /* Guarda o app no aparelho para abrir mesmo sem sinal na lavoura.
    Arquivos do app: tenta a internet primeiro (pega a versão nova) e usa a cópia guardada se estiver sem sinal.
    Bibliotecas externas (Firebase, Excel, PDF, fontes): usa a cópia guardada. Os dados ficam no cache do próprio Firestore. */
-const CACHE = "diario-v71";
+const CACHE = "diario-v72";
 const MAPA = "diario-mapa"; // imagens de satélite já vistas (ficam entre versões, para abrir o mapa sem sinal)
 const APP = ["./", "index.html", "ponte.js", "ponte.css", "layout.css", "layout.js", "lixeira.js","lote-notas.js","lote-notas.css", "anexos.js", "anexos.css", "anexo-nota.js", "linhas.js", "form-botao.js", "linhas.css", "compartilhar.js", "regulagens.js", "regulagens.css", "ligacoes.js", "ligacoes.css", "limpar.js", "limpar.css", "compartilhar.css", "financeiro.js", "financeiro.css", "danfe.js", "danfe.css", "lembretes.js", "lembretes.css", "vinculo.js", "vinculo.css", "mapa.js", "mapa.css", "ciclo.js", "ciclo.css", "entrega.js", "entrega.css", "agrofit.js", "versao.js", "config.js", "manifest.webmanifest", "icone-180.png", "icone-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(APP)).then(() => self.skipWaiting())) });
