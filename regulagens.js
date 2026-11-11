@@ -80,8 +80,9 @@ function render(){
 }
 function linhaReg(r){
   const pl=pltPorNome(r.plantadeira), esp=Number(r.esp)||pl?.esp, q=qtdDose(r.unidade,Number(r.dose),1,esp), sha=q?.med==="sem"?q.q:null;
-  const det=[r.plantadeira,`${n2(r.dose,3)} ${r.unidade}${sha&&r.unidade!=="sem/ha"?` (${fmtSem(sha)}/ha)`:""}`,r.aduboKgHa?`adubo ${n2(r.aduboKgHa)} kg/ha${r.adubo?" "+r.adubo:""}`:"",r.disco?`disco ${r.disco}`:"",r.engrenagens?`engrenagens ${r.engrenagens}`:"",r.pms?`PMS ${n2(r.pms)} g`:""].filter(Boolean).join(" · ");
-  return `<article class="rg-reg"><div class="rg-reg-t"><b>${esc(r.nome||[r.cultura,r.cultivar].filter(Boolean).join(" "))}</b><small>${esc(det)}</small>${r.obs?`<small class="rg-obs">${esc(r.obs)}</small>`:""}</div>
+  const det=[r.plantadeira,r.dose>0?`${n2(r.dose,3)} ${r.unidade}${sha&&r.unidade!=="sem/ha"?` (${fmtSem(sha)}/ha)`:""}`:"",r.aduboKgHa?`adubo ${n2(r.aduboKgHa)} kg/ha${r.adubo?" "+r.adubo:""}`:"",r.disco?`disco ${r.disco}`:"",r.engrenagens?`engrenagens ${r.engrenagens}`:"",r.pms?`PMS ${n2(r.pms)} g`:""].filter(Boolean).join(" · ");
+  const cx=EC().caixaDe(pl), des=cx&&r.eng?Object.keys(EC().LADOS).filter(k=>r.eng[k]&&cx[k]).map(k=>`<figure class="rg-engmini"><figcaption>${EC().LADOS[k]}</figcaption>${EC().engSvg(cx[k],r.eng[k],{mini:true,lado:k})}</figure>`).join(""):"";
+  return `<article class="rg-reg"><div class="rg-reg-t"><b>${esc(r.nome||[r.cultura,r.cultivar].filter(Boolean).join(" "))}</b><small>${esc(det)}</small>${r.obs?`<small class="rg-obs">${esc(r.obs)}</small>`:""}</div>${des?`<div class="rg-engminis">${des}</div>`:""}
     <div class="rec-actions"><button type="button" class="link" data-rgusar="${esc(r.id)}">Usar no plantio</button><button type="button" class="link" data-rged="${esc(r.id)}">Editar</button><button type="button" class="link danger" data-rgdel="${esc(r.id)}">Excluir</button></div></article>`;
 }
 
@@ -163,25 +164,30 @@ function formReg(r){
       <div class="field"><label for="rf-pms">PMS (g)</label><input id="rf-pms" inputmode="decimal" value="${r.pms?esc(String(r.pms).replace(".",",")):""}"></div>
       <div class="field"><label for="rf-germ">Germinação (%)</label><input id="rf-germ" inputmode="decimal" value="${esc(String(r.germ??"").replace(".",","))}" placeholder="Ex.: 90"></div>
       <div class="field"><label for="rf-disco">Disco / anel</label><input id="rf-disco" value="${esc(r.disco||"")}" placeholder="Ex.: 45 furos"></div>
-      <div class="field"><label for="rf-eng">Engrenagens / caixa</label><input id="rf-eng" value="${esc(r.engrenagens||"")}" placeholder="Ex.: motora 18 / movida 24"></div>
+      <div class="field"><label for="rf-eng">Engrenagens <small class="note">(texto livre, opcional)</small></label><input id="rf-eng" value="${esc(r.engrenagens||"")}" placeholder="Preenchido pelo desenho abaixo"></div>
+      <div class="field rg-engf" style="grid-column:1/-1"><label>Caixa de engrenagens <small class="note">— toque numa engrenagem de cima e numa de baixo</small></label><div id="rf-engbox"></div></div>
       <div class="field"><label for="rf-adu">Adubo (do estoque)</label><input id="rf-adu" list="dl-rf-adu" value="${esc(r.adubo||"")}"><datalist id="dl-rf-adu">${adubos().map(e=>`<option value="${esc(e.comercial)}">`).join("")}</datalist></div>
       <div class="field"><label for="rf-akg">Adubo (kg/ha)</label><input id="rf-akg" inputmode="decimal" value="${r.aduboKgHa?esc(String(r.aduboKgHa).replace(".",",")):""}"></div>
       <div class="field" style="grid-column:1/-1"><label for="rf-obs">Observação</label><input id="rf-obs" value="${esc(r.obs||"")}" placeholder="Ex.: velocidade 6 km/h, pressão do pneu…"></div>
     </div>
     <div class="row"><button type="button" class="btn" id="rf-ok">${r.id?"Salvar alterações":"Salvar regulagem"}</button><button type="button" class="btn ghost" id="rf-x">Cancelar</button><span class="note" id="rf-st" role="status"></span></div>
   </div>`;
-  $("#rf-plt").onchange=()=>{const p=pltPorNome($("#rf-plt").value); if(p){$("#rf-esp").value=espTxt(p.esp); if(!$("#rf-dose").value) $("#rf-un").value=p.dose||"sem/m"}};
+  engSel=JSON.parse(JSON.stringify(r.eng||{})); engR=r; engForm();
+  $("#rf-plt").onchange=()=>{const p=pltPorNome($("#rf-plt").value); if(p){$("#rf-esp").value=espTxt(p.esp); if(!$("#rf-dose").value) $("#rf-un").value=p.dose||"sem/m"} engForm()};
+  $("#rf-akg").addEventListener("input",engForm); $("#rf-dose").addEventListener("input",engForm);
   $("#rf-cul").onchange=()=>{const p=pltDaCultura($("#rf-cul").value); if(p&&!r.id){$("#rf-plt").value=p.nome; $("#rf-plt").onchange()}};
   $("#rf-sem").onchange=()=>{const e=prodEstoque($("#rf-sem").value); if(e&&!$("#rf-cv").value&&e.generico) $("#rf-cv").value=e.generico};
   $("#rf-x").onclick=()=>{rgEdit=null; f.innerHTML=""};
   $("#rf-ok").onclick=async ev=>{
     const st=t=>$("#rf-st").textContent=t, un=$("#rf-un").value;
     const dose=un==="sem/ha"?pm($("#rf-dose").value):pn($("#rf-dose").value);
-    if(!$("#rf-cul").value.trim()&&!$("#rf-sem").value.trim()){st("Informe a cultura ou a semente.");return}
+    const eng=engLimpo();
+    if(!$("#rf-cul").value.trim()&&!$("#rf-sem").value.trim()&&!eng&&!pn($("#rf-akg").value)){st("Informe a cultura, a semente, o adubo ou as engrenagens.");return}
     const d={nome:$("#rf-nome").value.trim(),plantadeira:$("#rf-plt").value,esp:pn($("#rf-esp").value)||null,cultura:$("#rf-cul").value.trim(),cultivar:$("#rf-cv").value.trim(),
       semente:$("#rf-sem").value.trim(),dose:dose>0?dose:null,unidade:un,pms:pn($("#rf-pms").value)||null,germ:pn($("#rf-germ").value)||null,
-      disco:$("#rf-disco").value.trim(),engrenagens:$("#rf-eng").value.trim(),adubo:$("#rf-adu").value.trim(),aduboKgHa:pn($("#rf-akg").value)||null,obs:$("#rf-obs").value.trim(),data:todayISO()};
-    if(!d.nome) d.nome=[d.cultura,d.cultivar||d.semente,d.dose?`${n2(d.dose,2)} ${d.unidade}`:""].filter(Boolean).join(" · ");
+      disco:$("#rf-disco").value.trim(),engrenagens:$("#rf-eng").value.trim()||engTexto(eng),eng:eng||null,adubo:$("#rf-adu").value.trim(),aduboKgHa:pn($("#rf-akg").value)||null,obs:$("#rf-obs").value.trim(),data:todayISO()};
+    if(!d.nome) d.nome=[d.cultura,d.cultivar||d.semente,d.dose?`${n2(d.dose,2)} ${d.unidade}`:"",d.aduboKgHa?`adubo ${n2(d.aduboKgHa,0)} kg/ha`:""].filter(Boolean).join(" · ")||"Regulagem da caixa";
+    if(!d.cultura&&!d.semente&&d.plantadeira&&!$("#rf-nome").value.trim()) d.nome=`${d.plantadeira} · ${d.nome}`;
     ev.target.disabled=true;
     try{ if(r.id) await db.collection("regulagens").doc(r.id).set(limpa({...r,...d,criadoEm:r.criadoEm||new Date().toISOString()})); else await db.collection("regulagens").add({...d,criadoEm:new Date().toISOString()});
       rgEdit=null; window.ponte?.aviso?.("Regulagem salva.",true); f.innerHTML=""}
@@ -190,6 +196,53 @@ function formReg(r){
   f.scrollIntoView({block:"nearest"});
 }
 const limpa=o=>{const c={...o}; delete c.id; for(const k of Object.keys(c)) if(c[k]===undefined) delete c[k]; return c};
+
+/* ---------- caixa de engrenagens no formulário da regulagem (desenho em engrenagens.js) ---------- */
+const EC=()=>window.engCaixa;
+let engSel={}, engR=null;
+const engLimpo=()=>{const o={}; for(const k of Object.keys(EC().LADOS)){const s=engSel[k]; if(s&&s.c!=null&&s.b!=null) o[k]={c:s.c,b:s.b}} return Object.keys(o).length?o:null};
+const engTexto=eng=>{if(!eng) return ""; const cx=EC().caixaDe(pltPorNome($("#rf-plt")?.value)); return Object.keys(eng).map(k=>EC().selTxt(k,cx,eng[k])).filter(Boolean).join("; ")};
+function engForm(){
+  const b=$("#rf-engbox"); if(!b) return; const plt=$("#rf-plt").value, cx=EC().caixaDe(pltPorNome(plt));
+  if(!cx){b.innerHTML=`<p class="note">Esta plantadeira ainda não tem a caixa cadastrada. Cadastre em <b>🚜 Plantadeiras → ⚙️ Caixa de engrenagens</b>.</p>`; return}
+  b.innerHTML=Object.entries(EC().LADOS).filter(([k])=>cx[k]).map(([k,nome])=>{
+    const s=engSel[k]||{}, e=EC().estimativa(k,plt,cx[k],s,regs,engR?.id), tab=EC().tabela(k,plt,cx[k],regs.filter(x=>x.id!==engR?.id));
+    const atual=k==="adubo"?pn($("#rf-akg")?.value):pn($("#rf-dose")?.value);
+    return `<div class="rg-engl" data-lado="${k}"><div class="rg-engh"><b>${nome}</b>${s.c!=null||s.b!=null?`<button type="button" class="link" data-eglimpa="${k}">Limpar</button>`:""}</div>
+      ${EC().engSvg(cx[k],s,{lado:k})}
+      <p class="note rg-engtxt">${s.c!=null&&s.b!=null?esc(EC().selTxt(k,cx,s)):s.c!=null?"Agora toque na engrenagem de baixo.":s.b!=null?"Agora toque na engrenagem de cima.":"Toque na engrenagem de cima e na de baixo onde está a corrente."}</p>
+      ${e?`<p class="rg-tal ok">Estimativa: <b>≈ ${n2(e.v,e.un==="kg/ha"?0:1)} ${esc(e.un)}</b> <small>(pela regulagem “${esc(e.base.nome||"")}”, medida com ${n2(k==="adubo"?e.base.aduboKgHa:e.base.dose,1)} ${esc(e.un)})</small>${!(atual>0)?` <button type="button" class="link" data-egusa="${k}:${e.v.toFixed(k==="adubo"?0:1)}">Usar este valor</button>`:""}</p>`:""}
+      ${tab.length?`<details class="rg-engtab"><summary>Ver todas as combinações estimadas (${tab.length})</summary><table class="ra-tab"><thead><tr><th>Em cima</th><th>Embaixo</th><th>${esc(tab[0].un)}</th></tr></thead><tbody>${tab.map(t=>`<tr${t.i===s.c&&t.j===s.b?' class="sel"':""}><td>${esc(EC().posTxt(cx[k].cima,t.i))}</td><td>${esc(EC().posTxt(cx[k].baixo,t.j))}</td><td>${n2(t.v,t.un==="kg/ha"?0:1)}</td></tr>`).join("")}</tbody></table></details>`
+        :cx[k].cima.some(z=>!(z>0))||cx[k].baixo.some(z=>!(z>0))?`<p class="note">Conte os dentes de cada engrenagem (em Plantadeiras → Caixa de engrenagens) para o app estimar as outras combinações.</p>`:""}
+    </div>`}).join("");
+  b.querySelectorAll("[data-eg]").forEach(g=>{const f=()=>{const k=g.closest("[data-lado]").dataset.lado, [row,i]=g.dataset.eg.split(":"); const s=engSel[k]=engSel[k]||{}; const key=row==="c"?"c":"b"; s[key]=s[key]===+i?null:+i;
+    const eng=engLimpo(); if(!$("#rf-eng").dataset.mao) $("#rf-eng").value=engTexto(eng); engForm()}; g.onclick=f; g.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault(); f()}}});
+  b.querySelectorAll("[data-eglimpa]").forEach(x=>x.onclick=()=>{delete engSel[x.dataset.eglimpa]; if(!$("#rf-eng").dataset.mao) $("#rf-eng").value=engTexto(engLimpo()); engForm()});
+  b.querySelectorAll("[data-egusa]").forEach(x=>x.onclick=()=>{const [k,v]=x.dataset.egusa.split(":"); if(k==="adubo") $("#rf-akg").value=v.replace(".",","); else $("#rf-dose").value=v.replace(".",","); engForm()});
+  const ei=$("#rf-eng"); if(ei&&!ei._eg){ei._eg=1; ei.addEventListener("input",()=>{ei.dataset.mao=ei.value.trim()?"1":""})}
+}
+/* caixa da plantadeira (Plantadeiras → ⚙️ Caixa de engrenagens) */
+const zTxt=a=>(a||[]).map(z=>z>0?z:"?").join(", ");
+function caixaHtml(p){
+  const cx=EC().caixaDe(p)||EC().CAIXA_PAD;
+  return `<details class="rp-cx"${p._cxAberta?" open":""}><summary>⚙️ Caixa de engrenagens</summary>
+    <p class="note">Conte as engrenagens de cada eixo, <b>da esquerda para a direita</b>, olhando a caixa como na foto. Os dentes são opcionais, mas com eles o app estima as outras combinações a partir de uma regulagem medida.</p>
+    ${Object.entries(EC().LADOS).map(([k,nome])=>{const c=cx[k]||EC().CAIXA_PAD[k]; return `<div class="rp-cxl" data-lado="${k}"><b>${nome}</b>
+      <div class="grid2">
+        <div class="field"><label>Engrenagens em cima</label><input class="rc-nc" inputmode="numeric" value="${c.cima.length}"></div>
+        <div class="field"><label>Dentes em cima <small class="note">(ex.: 14, 18, 24)</small></label><input class="rc-zc" value="${esc(zTxt(c.cima))}"></div>
+        <div class="field"><label>Engrenagens embaixo</label><input class="rc-nb" inputmode="numeric" value="${c.baixo.length}"></div>
+        <div class="field"><label>Dentes embaixo</label><input class="rc-zb" value="${esc(zTxt(c.baixo))}"></div>
+        <div class="field" style="grid-column:1/-1"><label>Qual eixo puxa (motora)</label><select class="rc-m"><option value="cima" ${c.motora!=="baixo"?"selected":""}>O de cima puxa o de baixo</option><option value="baixo" ${c.motora==="baixo"?"selected":""}>O de baixo puxa o de cima</option></select></div>
+      </div>${EC().engSvg(c,null,{lado:k}).replace('class="eg-svg"','class="eg-svg prev"')}</div>`}).join("")}
+  </details>`;
+}
+function caixaLe(b){
+  const cx={}; b.querySelectorAll(".rp-cxl").forEach(l=>{const k=l.dataset.lado;
+    const arr=(n,t)=>{const zs=String(t||"").split(/[,;\s]+/).filter(Boolean).map(x=>{const v=parseInt(x,10); return v>0?v:null}); const q=Math.max(1,Math.min(10,parseInt(n,10)||zs.length||1)); return Array.from({length:q},(_,i)=>zs[i]??null)};
+    cx[k]={cima:arr(l.querySelector(".rc-nc").value,l.querySelector(".rc-zc").value),baixo:arr(l.querySelector(".rc-nb").value,l.querySelector(".rc-zb").value),motora:l.querySelector(".rc-m").value}});
+  return Object.keys(cx).length?cx:null;
+}
 
 /* usar uma regulagem no lançamento do plantio */
 function aplicaNoPlantio(r){
@@ -277,12 +330,13 @@ function pltHtml(){
       <div class="field"><label>Culturas <small class="note">(separe por vírgula)</small></label><input class="rp-c" value="${esc((p.culturas||[]).join(", "))}"></div>
       <div class="field"><label>Dose da semente</label><select class="rp-d">${["sem/m","sem/ha","kg/ha"].map(u=>`<option ${u===(p.dose||"sem/m")?"selected":""}>${u}</option>`).join("")}</select></div>
     </div>
+    ${caixaHtml(p)}
     <div class="row" style="justify-content:space-between"><small class="note rp-info">${p.linhas&&p.esp?`Largura de trabalho ${n2(p.linhas*p.esp,2)} m · ${nInt(10000/p.esp)} m de linha por ha`:""}</small><button type="button" class="link danger rp-rm">Remover</button></div>
   </div>`).join("")}</div>
   <div class="row"><button type="button" class="btn ghost" id="rp-add">+ Plantadeira</button><button type="button" class="btn" id="rp-ok">Salvar plantadeiras</button><span class="note" id="rp-st" role="status"></span></div>`;
 }
 const pltLe=()=>$$(".rg-plt").map((b,i)=>({id:(pltEdit||plList())[i]?.id||"p"+Date.now().toString(36)+i,nome:b.querySelector(".rp-n").value.trim(),linhas:Math.round(pn(b.querySelector(".rp-l").value))||null,esp:pn(b.querySelector(".rp-e").value)||null,
-  culturas:b.querySelector(".rp-c").value.split(/[,;]/).map(x=>x.trim()).filter(Boolean),dose:b.querySelector(".rp-d").value}));
+  culturas:b.querySelector(".rp-c").value.split(/[,;]/).map(x=>x.trim()).filter(Boolean),dose:b.querySelector(".rp-d").value,caixa:caixaLe(b),_cxAberta:b.querySelector(".rp-cx")?.open||false}));
 
 /* ---------- ligações ---------- */
 function liga(){
@@ -308,6 +362,7 @@ function liga(){
     ligaEstande();
   }
   // plantadeiras
+  $$(".rp-cxl input,.rp-cxl select").forEach(i=>i.addEventListener("change",()=>{const pl=i.closest(".rg-plt"), cx=caixaLe(pl), l=i.closest(".rp-cxl"); const sv=l.querySelector("svg"); if(sv&&cx) sv.outerHTML=EC().engSvg(cx[l.dataset.lado],null,{lado:l.dataset.lado}).replace('class="eg-svg"','class="eg-svg prev"')}));
   $("#rp-add").onclick=()=>{pltEdit=pltLe(); pltEdit.push({id:"p"+Date.now().toString(36),nome:"",linhas:null,esp:null,culturas:[],dose:"sem/m"}); $('.rg-sec[data-k="plantadeiras"] .rg-corpo').innerHTML=pltHtml(); liga()};
   $$(".rp-rm").forEach(b=>b.onclick=()=>{pltEdit=pltLe(); pltEdit.splice(+b.closest(".rg-plt").dataset.i,1); $('.rg-sec[data-k="plantadeiras"] .rg-corpo').innerHTML=pltHtml(); liga()});
   $("#rp-ok").onclick=async ev=>{
@@ -315,7 +370,7 @@ function liga(){
     if(!ls.length){st("Cadastre ao menos uma plantadeira.");return}
     for(const p of ls){ if(!p.nome){st("Há plantadeira sem nome.");return} if(!(p.esp>0)){st(`Informe o espaçamento de ${p.nome}.`);return} }
     ev.target.disabled=true;
-    try{await db.collection("config").doc("plantio").set({plantadeiras:ls}); pltEdit=null; window.ponte?.aviso?.("Plantadeiras salvas.",true)}
+    try{await db.collection("config").doc("plantio").set({plantadeiras:ls.map(({_cxAberta,...p})=>p)}); pltEdit=null; window.ponte?.aviso?.("Plantadeiras salvas.",true)}
     catch{ev.target.disabled=false; st("Não foi possível salvar.")}
   };
   rsCalc(); raCalc();
