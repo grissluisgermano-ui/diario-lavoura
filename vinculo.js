@@ -197,7 +197,7 @@ async function vincular(g,alvo){
     custoAnterior={};
     for(const p of ps) if(p.custoUnit!=null){const k=p.produtoId||prodEstoque(p.nome)?.id||String(p.nome).toLowerCase(); custoAnterior[k]={custoUnit:p.custoUnit,unidadeEst:p.unidadeEst,custoUnitLiq:p.custoUnitLiq}}
     const novos=ps.map(p=>norm(p.nome)===g.k&&!(p.produtoId&&estoque.some(e=>e.id===p.produtoId))?(({custoUnit,unidadeEst,custoHa,custoUnitLiq,custoHaLiq,...q})=>({...q,nome:alvo.comercial,produtoId:alvo.id}))(p):p);
-    const c=custosDoRegistro(novos,areaTotal(r));
+    const c=custosDoRegistro(novos,areaTotal(r),typeof espDe==="function"?espDe(r):null);
     doc.campos={...doc.campos,produtos:c.ps}; doc.custoHa=c.custoHa; doc.custoTotal=c.custoTotal; doc.semCusto=c.semCusto; if(c.custoHaLiq!=null){doc.custoHaLiq=c.custoHaLiq;doc.custoTotalLiq=c.custoTotalLiq}else{delete doc.custoHaLiq;delete doc.custoTotalLiq};
     await col.doc(id).set(doc);
   }
