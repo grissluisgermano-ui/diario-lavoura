@@ -284,6 +284,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nf-it{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
 .nf-chk{display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:.95rem;color:var(--ink)}
 .nf-chk input{width:auto}
+.nf-tit-box{display:flex;flex-direction:column;gap:2px}
+.nf-tit-box b{font-size:1.02rem}
+.nf-rm{flex:none}
+.nf-finbox{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.nf-parc{display:grid;grid-template-columns:auto minmax(0,1.25fr) minmax(0,1fr);gap:8px;align-items:center;margin-top:6px}
+.nf-parc input{min-width:0;width:100%;box-sizing:border-box}
+.fn-estopt{margin-top:10px}
+.nf-parc .note{min-width:46px}
+#nf-add{align-self:flex-start}
+.es-um{margin:14px 0 4px;font-size:.95rem;color:var(--muted);font-weight:600}
 .pn-filtros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .pn-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 @media (min-width:640px){.pn-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -769,10 +779,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <label class="btn ghost foto-btn" for="nf-in">Escolher XML</label>
         <input id="nf-in" type="file" accept=".xml,text/xml,application/xml" hidden>
       </div>
+      <div class="nf-imp">
+        <div><b>Nota fiscal à mão</b><div class="note">Sem XML? Digite a nota com vários produtos de uma vez, e as parcelas para o Financeiro.</div></div>
+        <button type="button" class="btn ghost" id="nf-man">📝 Lançar nota à mão</button>
+      </div>
       <div class="field"><span class="lbl">Foto ou PDF da nota <small class="note">(opcional — fica guardado junto da entrada, para consultar depois)</small></span><div id="es-anx"></div></div>
       <p class="note" id="nf-st" role="status"></p>
       <div id="nf-rev" hidden></div>
 
+      <h4 class="es-um">Ou lance um produto só</h4>
       <div class="grid2">
         <div class="field"><label for="es-com">Nome comercial</label><input id="es-com" list="dl-estoque" placeholder="Ex.: Fox Xpro"></div>
         <div class="field"><label for="es-gen">Nome genérico / princípio ativo</label><input id="es-gen" placeholder="Preenchido sozinho ao digitar o nome comercial">
@@ -1110,6 +1125,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <span class="lbl">Produtos / itens da nota <small class="note">(opcional — aparecem discriminados no livro caixa)</small></span>
         <div id="fn-itens"></div>
         <button type="button" class="link" id="fn-item-add">+ Item</button>
+        <label class="nf-chk fn-estopt" id="fn-est-l"><input type="checkbox" id="fn-est"> <span>📦 Lançar também no estoque <small class="note">(defensivos, sementes, adubos…)</small></span></label>
+        <p class="note" id="fn-est-n" hidden>Depois de salvar, abre a conferência dos produtos no Estoque (nome, classe, unidade e quantidade de cada item).</p>
       </div>
       <div class="field" data-fn="norm">
         <div class="row" style="justify-content:space-between"><span class="lbl" id="fn-venc-l">Vencimentos</span><span class="row fn-parc">Parcelas <input id="fn-np" inputmode="numeric" value="1" aria-label="Número de parcelas"> <button type="button" class="link" id="fn-dividir">Dividir</button></span></div>
@@ -1613,57 +1630,142 @@ async function nfProcessar(file){
     nfSt(c==="cancelled"?"":c==="sem_claude"?"A leitura de PDF ou foto da nota precisa do Claude: cadastre a chave em Configurações. O XML funciona sem ele.":c==="not_granted"?"A chave do Claude foi recusada. Confira em Configurações.":c==="sem_imagem"?"Este PDF não tem texto e as imagens não podem ser enviadas aqui. Tente o XML da nota.":err?.message==="xml"?"O arquivo XML não pôde ser lido. Confira se é o XML da NF-e.":err?.message==="semitens"?"O XML não tem produtos (é mesmo uma NF-e?).":err?.message==="script"?"Não consegui carregar o leitor de PDF. Verifique a internet ou use o XML.":c==="invalid_json"?"Não consegui organizar os dados da nota. Tente de novo ou use o XML.":c==="rate_limited"?"Muitas leituras seguidas. Tente de novo em instantes.":"Não consegui ler a nota. Tente de novo ou use o XML.");
   }
 }
+/* Conferência da nota (lista de produtos). Três jeitos de chegar aqui:
+   - XML da NF-e (nfDados.fin vem do XML);
+   - "Nota fiscal à mão" (nfDados.manual: o Luis digita cabeçalho, vários produtos e as parcelas para o Financeiro);
+   - conta lançada no Financeiro com "Lançar também no estoque" (nfDados.finRef: já está no Financeiro, só falta o estoque). */
+const NF_UN=["L","kg","sc","un"];
+let nfNpOcupado=false;
+const nfUn=u=>{const x=String(u||"").trim().toLowerCase(); return /^(l|lt|lts|litros?)$/.test(x)?"L":/^(kg|kgs|quilos?)$/.test(x)?"kg":/^(sc|sacos?|sacas?)$/.test(x)?"sc":x?"un":""};
+const nfF2=v=>v!=null&&v!==""&&Number.isFinite(+v)?Number(v).toFixed(2).replace(".",","):"";
+function nfLer(){ // guarda o que está digitado antes de redesenhar
+  const r=nfDados; if(!r||$("#nf-rev").hidden) return;
+  const g=id=>document.getElementById(id);
+  if(g("nf-data")) r.data=g("nf-data").value; if(g("nf-num")) r.numero=g("nf-num").value; if(g("nf-orig")) r.origem=g("nf-orig").value; if(g("nf-tit")) r.titular=g("nf-tit").value;
+  r.itens=[...$("#nf-rev").querySelectorAll(".nf-it")].map((b,i)=>({...r.itens[i],nomeComercial:b.querySelector(".nf-nome").value,generico:b.querySelector(".nf-gen").value,classe:b.querySelector(".nf-cla").value,
+    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
+    .map(it=>({...it,quantidade:Number.isFinite(it.quantidade)?it.quantidade:null,vu:Number.isFinite(it.vu)?it.vu:null,valorTotal:Number.isFinite(it.valorTotal)?it.valorTotal:null}));
+  if(r.manual){r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
+}
+const nfTotal=()=>[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).reduce((t,b)=>{const v=parseNum(b.querySelector(".nf-v").value); return t+(v>0?v:0)},0);
+const nfMais=(iso,m)=>{const d=new Date(iso+"T12:00:00"); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10)};
+function nfParcsHtml(){
+  const r=nfDados, ps=r.parcs||[], n=ps.length;
+  return ps.map((p,i)=>`<div class="nf-parc"><span class="note">${n>1?`${i+1}/${n}`:"Vence em"}</span><input type="date" class="pc-d" value="${esc(p.venc||"")}" aria-label="Vencimento da parcela ${i+1}"><input class="pc-v" inputmode="decimal" placeholder="Valor R$" value="${nfF2(p.valor)}" aria-label="Valor da parcela ${i+1}"${p.mexeu?' data-mexeu="1"':""}></div>`).join("");
+}
+function nfDivide(){ // reparte o total da nota nas parcelas que o Luis não mexeu à mão
+  const r=nfDados; if(!r?.manual) return; const rows=[...$("#nf-rev").querySelectorAll(".nf-parc")]; if(!rows.length) return;
+  const tot=nfTotal(), fixo=rows.filter(x=>x.querySelector(".pc-v").dataset.mexeu).reduce((t,x)=>t+(parseNum(x.querySelector(".pc-v").value)||0),0);
+  const livres=rows.filter(x=>!x.querySelector(".pc-v").dataset.mexeu); if(!livres.length) return;
+  const resto=Math.max(0,tot-fixo), cada=Math.floor(resto/livres.length*100)/100;
+  livres.forEach((x,i)=>x.querySelector(".pc-v").value=resto>0?nfF2(i===livres.length-1?+(resto-cada*(livres.length-1)).toFixed(2):cada):"");
+  const st=$("#nf-tot"); if(st){const soma=rows.reduce((t,x)=>t+(parseNum(x.querySelector(".pc-v").value)||0),0); st.innerHTML=`Total da nota <b>${brl(tot)}</b>${Math.abs(soma-tot)>.009?` · <span class="falta">parcelas somam ${brl(soma)}</span>`:""}`}
+}
 function renderNfRev(){
-  const r=nfDados, un=["L","kg","sc","un"];
+  const r=nfDados, un=NF_UN;
+  if(r.manual&&!r.parcs) r.parcs=[{venc:r.data||todayISO(),valor:null}];
   $("#nf-rev").hidden=false;
-  $("#nf-rev").innerHTML=`<div class="nf-box">
+  const cab=r.manual?`<div class="nf-tit-box"><b>📝 Nota fiscal à mão</b><span class="note">Digite os dados da nota e cada produto. Tudo entra no estoque de uma vez${""} e, se quiser, vira conta a pagar no Financeiro.</span></div>`
+    :r.finRef?`<div class="nf-tit-box"><b>📦 Produtos da conta do Financeiro</b><span class="note">A conta já foi lançada no Financeiro. Confira os produtos (nome, classe, unidade e quantidade) para entrarem no estoque.</span></div>`:"";
+  $("#nf-rev").innerHTML=`<div class="nf-box">${cab}
     <div class="grid2">
       <div class="field"><label for="nf-data">Data</label><input type="date" id="nf-data" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(r.data||"")?r.data:todayISO())}"></div>
-      <div class="field"><label for="nf-num">Nota fiscal nº</label><input id="nf-num" value="${esc(r.numero||"")}"></div>
-      <div class="field" style="grid-column:1/-1"><label for="nf-orig">Origem / fornecedor</label><input id="nf-orig" list="dl-orig" value="${esc(r.origem||"")}"></div>
+      <div class="field"><label for="nf-num">Nota fiscal nº</label><input id="nf-num" inputmode="numeric" value="${esc(r.numero||"")}"></div>
+      <div class="field"${r.manual?"":` style="grid-column:1/-1"`}><label for="nf-orig">Origem / fornecedor</label><input id="nf-orig" list="dl-orig" value="${esc(r.origem||"")}" placeholder="Ex.: Coamo, Casarão"></div>
+      ${r.manual?`<div class="field"><label for="nf-tit">Nota em nome de <small class="note">(opcional)</small></label><input id="nf-tit" list="dl-nf-tit" value="${esc(r.titular||"")}"><datalist id="dl-nf-tit">${[...new Set((window.finTitulares?.()||[]))].map(t=>`<option value="${esc(t)}">`).join("")}</datalist></div>`:""}
     </div>
-    ${r.itens.map((it,i)=>{const ex=prodEstoque(it.nomeComercial||"");return `<div class="nf-it" data-i="${i}">
-      <div class="row" style="justify-content:space-between"><label class="nf-chk"><input type="checkbox" class="nf-ok" checked> Lançar</label><span class="pill ${ex?"ok":"prox"}">${ex?"Já no estoque":"Produto novo"}</span></div>
-      <div class="note">Na nota: ${esc(it.descricao||"")}</div>
+    ${r.itens.map((it,i)=>{const ex=prodEstoque(it.nomeComercial||""), u=ex?.unidade||nfUn(it.unidade)||"L";return `<div class="nf-it" data-i="${i}">
+      <div class="row" style="justify-content:space-between"><label class="nf-chk"><input type="checkbox" class="nf-ok" ${it.ok===false?"":"checked"}> ${r.manual?`Produto ${i+1}`:"Lançar"}</label><span class="row" style="gap:10px"><span class="pill ${ex?"ok":"prox"}">${ex?"Já no estoque":it.nomeComercial?"Produto novo":"—"}</span>${r.manual&&r.itens.length>1?`<button type="button" class="rm nf-rm" aria-label="Tirar produto ${i+1}">×</button>`:""}</span></div>
+      ${it.descricao?`<div class="note">Na nota: ${esc(it.descricao)}</div>`:""}
       <div class="grid2">
-        <div class="field"><label>Nome comercial</label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial||it.descricao||"")}"></div>
-        <div class="field"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"></div>
+        <div class="field"><label>Nome comercial</label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial??it.descricao??"")}" placeholder="Ex.: Fox Xpro, Semente soja P95R51"></div>
+        <div class="field"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
         <div class="field"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
-        <div class="field"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(u=>`<option ${u===(ex?.unidade||it.unidade)?"selected":""}>${u}</option>`).join("")}</select></div>
-        <div class="field"><label>Quantidade</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
-        <div class="field"><label>Valor total (R$)</label><input class="nf-v" inputmode="decimal" value="${it.valorTotal!=null?Number(it.valorTotal).toFixed(2).replace(".",","):""}"></div>
+        <div class="field"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div class="field"><label class="nf-q-l">Quantidade (${u})</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
+        <div class="field"><label class="nf-vu-l">Valor unitário (R$/${u})</label><input class="nf-vu" inputmode="decimal" placeholder="0,00" value="${it.vu!=null?nfF2(it.vu):it.quantidade>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.quantidade):""}"></div>
+        <div class="field" style="grid-column:1/-1"><label>Valor total (R$)</label><input class="nf-v" inputmode="decimal" placeholder="0,00" value="${nfF2(it.valorTotal)}"></div>
       </div>
       ${it.duvida?`<div class="falta">Confira: ${esc(it.duvida)}</div>`:""}
     </div>`}).join("")}
-    <p class="note">Princípio ativo e classe vêm do seu estoque ou da lista oficial do AGROFIT (MAPA); a conversão de embalagens, da nota. Confira no rótulo.</p>
-    ${r.fin?window.finNfOpcao?.(r.fin)||"":""}
+    ${r.manual?`<button type="button" class="btn ghost" id="nf-add">+ Adicionar outro produto</button>`:""}
+    <p class="note">Princípio ativo e classe vêm do seu estoque ou da lista oficial do AGROFIT (MAPA)${r.manual||r.finRef?"":"; a conversão de embalagens, da nota"}. Confira no rótulo.</p>
+    ${r.manual?`<div class="nf-finbox">
+      <label class="nf-chk fn-nfopt"><input type="checkbox" id="nf-fin" ${r.finOn===false?"":"checked"}> Lançar também no Financeiro (contas a pagar)</label>
+      <div id="nf-finpar" ${r.finOn===false?"hidden":""}>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Vencimentos</span><span class="row" style="gap:6px">Parcelas <input id="nf-np" inputmode="numeric" value="${(r.parcs||[]).length||1}" aria-label="Número de parcelas" style="width:56px"></span></div>
+        <div id="nf-parcs">${nfParcsHtml()}</div>
+        <p class="note" id="nf-tot"></p>
+      </div></div>`:r.finRef?"":r.fin?window.finNfOpcao?.(r.fin)||"":""}
     <div class="row"><button type="button" class="btn" id="nf-lancar">Lançar produtos no estoque</button><button type="button" class="btn ghost" id="nf-cancel">Cancelar</button>${nfXmlTxt?`<button type="button" class="link" id="nf-danfe">Ver DANFE</button>`:""}</div>
   </div>`;
-  $("#nf-rev").querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>{
+  const box$=$("#nf-rev");
+  const unSync=box=>{const u=box.querySelector(".nf-un").value; box.querySelector(".nf-q-l").textContent=`Quantidade (${u})`; box.querySelector(".nf-vu-l").textContent=`Valor unitário (R$/${u})`};
+  box$.querySelectorAll(".nf-it").forEach(box=>{
+    const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v");
+    q.addEventListener("input",()=>{const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
+    vu.addEventListener("input",()=>{box.dataset.ult="vu"; const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0) t.value=nfF2(a*b); nfDivide()});
+    t.addEventListener("input",()=>{box.dataset.ult="t"; const a=parseNum(q.value), c=parseNum(t.value); if(a>0&&c>=0) vu.value=nfF2(c/a); nfDivide()});
+    box.querySelector(".nf-ok").addEventListener("change",nfDivide);
+    box.querySelector(".nf-un").addEventListener("change",()=>unSync(box));
+    box.querySelector(".nf-gen").addEventListener("input",e=>e.target.dataset.touched="1");
+  });
+  box$.querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>{
     const box=inp.closest(".nf-it"), ex=prodEstoque(inp.value);
-    box.querySelector(".pill").className="pill "+(ex?"ok":"prox"); box.querySelector(".pill").textContent=ex?"Já no estoque":"Produto novo";
-    const u=box.querySelector(".nf-un"); u.disabled=!!ex; if(ex){u.value=ex.unidade; if(ex.generico) box.querySelector(".nf-gen").value=ex.generico; if(ex.classe) box.querySelector(".nf-cla").value=ex.classe}
+    box.querySelector(".pill").className="pill "+(ex?"ok":"prox"); box.querySelector(".pill").textContent=ex?"Já no estoque":inp.value.trim()?"Produto novo":"—";
+    const u=box.querySelector(".nf-un"); u.disabled=!!ex; if(ex){u.value=ex.unidade; if(ex.generico) box.querySelector(".nf-gen").value=ex.generico; if(ex.classe) box.querySelector(".nf-cla").value=ex.classe} unSync(box);
   }));
   const agPreenche=box=>{const ag=window.agrofitBusca?.(box.querySelector(".nf-nome").value)||window.agrofitBusca?.(box.querySelector(".note")?.textContent.replace(/^Na nota:\s*/,""));
     if(!ag||prodEstoque(box.querySelector(".nf-nome").value)) return;
     const g=box.querySelector(".nf-gen"), c=box.querySelector(".nf-cla"); if(!g.value.trim()) g.value=ag.generico; if(!c.value) c.value=ag.classe};
-  window.agrofitCarrega?.().then(()=>$("#nf-rev").querySelectorAll(".nf-it").forEach(agPreenche)).catch(()=>{});
-  $("#nf-rev").querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>agPreenche(inp.closest(".nf-it"))));
+  window.agrofitCarrega?.().then(()=>box$.querySelectorAll(".nf-it").forEach(agPreenche)).catch(()=>{});
+  box$.querySelectorAll(".nf-nome").forEach(inp=>inp.addEventListener("change",()=>agPreenche(inp.closest(".nf-it"))));
+  if(r.manual){
+    $("#nf-add").onclick=()=>{nfLer(); r.itens.push({}); renderNfRev(); const ns=box$.querySelectorAll(".nf-nome"); ns[ns.length-1]?.focus()};
+    box$.querySelectorAll(".nf-rm").forEach(b=>b.onclick=()=>{nfLer(); r.itens.splice(+b.closest(".nf-it").dataset.i,1); renderNfRev()});
+    $("#nf-fin").onchange=e=>{$("#nf-finpar").hidden=!e.target.checked};
+    $("#nf-np").onchange=()=>{const n=Math.max(1,Math.min(24,parseInt($("#nf-np").value)||1)); if(n===(r.parcs||[]).length||nfNpOcupado) return; nfNpOcupado=true; setTimeout(()=>{nfNpOcupado=false; nfMudaParcelas(n)},0)};
+    const nfMudaParcelas=n=>{nfLer(); const d0=$("#nf-data").value||todayISO(), ps=r.parcs||[];
+      r.parcs=Array.from({length:n},(_,k)=>ps[k]?{...ps[k],mexeu:false}:{venc:n===1?d0:nfMais(d0,k+1),valor:null}); if(n>1&&ps.length===1&&ps[0].venc===d0) r.parcs.forEach((p,k)=>p.venc=nfMais(d0,k+1));
+      renderNfRev(); $("#nf-parcs .pc-d")?.focus()};
+    box$.querySelectorAll(".nf-parc .pc-v").forEach(i=>i.addEventListener("input",()=>{i.dataset.mexeu="1"; nfDivide()}));
+    $("#nf-data").addEventListener("change",()=>{const rows=box$.querySelectorAll(".nf-parc .pc-d"); if(rows.length===1) rows[0].value=$("#nf-data").value});
+    nfDivide();
+  }
   $("#nf-cancel").onclick=()=>{$("#nf-rev").hidden=true;nfDados=null;nfXmlTxt=null;nfSt("")};
   if($("#nf-danfe")) $("#nf-danfe").onclick=()=>window.danfeAbrir?.(nfXmlTxt);
   $("#nf-lancar").onclick=nfLancar;
   $("#nf-rev").scrollIntoView({block:"start"});
 }
+window.nfManual=function(){ // Estoque → "Nota fiscal à mão (vários produtos)"
+  esAba("entrada"); nfCtl?.abort(); nfXmlTxt=null;
+  nfDados={manual:true,data:todayISO(),numero:"",origem:"",itens:[{}],fin:null};
+  renderNfRev(); nfSt(""); $("#nf-num").focus();
+};
+window.nfDoFinanceiro=function(d){ // Financeiro → conta salva com "Lançar também no estoque"
+  show("estoque"); esAba("entrada"); nfCtl?.abort(); nfXmlTxt=null;
+  nfDados={finRef:d.ref||true,chave:d.chave||null,data:d.data,numero:d.nf||"",origem:d.origem||"",fin:null,anexos:d.anexos||[],
+    itens:(d.itens||[]).map(i=>{const ex=prodEstoque(i.desc); const ag=!ex&&window.agrofitBusca?.(i.desc); return {nomeComercial:ex?.comercial||ag?.marca||i.desc,descricao:ex?"":i.desc,quantidade:i.qtd??null,unidade:ex?.unidade||nfUn(i.un)||ag?.unidade||"un",vu:i.vu??null,valorTotal:i.valor??null,generico:ag?.generico||"",classe:ag?.classe||""}})};
+  if(!nfDados.itens.length) nfDados.itens=[{}];
+  renderNfRev(); nfSt("Conta lançada no Financeiro. Agora confira os produtos e toque em Lançar.");
+};
 async function nfLancar(){
   if(!db){nfSt("Sem conexão com o banco de dados.");return}
-  const data=$("#nf-data").value||todayISO(), nf=$("#nf-num").value.trim(), origem=$("#nf-orig").value.trim();
+  const data=$("#nf-data").value||todayISO(), nf=$("#nf-num").value.trim(), origem=$("#nf-orig").value.trim(), man=!!nfDados?.manual;
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
-    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value)}));
+    un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value)}));
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return} }
   if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
-  const anx=esAnx.get();
+  let parcs=null;
+  if(man&&$("#nf-fin").checked){
+    parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value)}));
+    if(parcs.some(p=>!p.venc)){nfSt("Informe a data de vencimento de todas as parcelas.");return}
+    if(parcs.some(p=>!(p.valor>0))){nfSt("Informe o valor de todas as parcelas (ou desmarque o Financeiro).");return}
+    if(!origem){nfSt("Informe o fornecedor (vai para a conta a pagar).");$("#nf-orig").focus();return}
+  }
+  const anx=[...esAnx.get(),...(nfDados?.anexos||[]).filter(a=>!esAnx.get().some(b=>b.id===a.id))];
   $("#nf-lancar").disabled=true; let ok=0;
   try{
     // agrupa itens repetidos do mesmo produto
@@ -1671,12 +1773,21 @@ async function nfLancar(){
     for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     for(const it of grupos.values()){
       const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
+      if(nfDados?.finRef){entrada.doFinanceiro=true; if(nfDados.chave) entrada.chave=nfDados.chave} // já está no Financeiro: não vira pendência
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});
       ok++;
     }
-    let fin=""; if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
+    let fin="";
+    if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
+    else if(parcs){
+      const tot=itens.reduce((t,i)=>t+(i.v>0?i.v:0),0), unica=parcs.length===1&&parcs[0].venc===data;
+      const f={chave:null,numero:nf,emit:origem,dest:($("#nf-tit")?.value||"").trim(),total:tot,data,dups:unica?[]:parcs,contrato:"",
+        itens:itens.map(i=>({desc:i.nome,qtd:i.q,un:i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null}))};
+      if(unica) f.total=parcs[0].valor;
+      try{fin=await window.finDaNota(f,{data,nf,origem,itens,anexos:anx})||" Esta nota já estava no Financeiro."}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
+    }
     if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
     $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok} produto${ok>1?"s":""} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
@@ -1845,6 +1956,7 @@ function esSync(){
 $("#es-com").addEventListener("input",()=>{if($("#es-gen").dataset.ia){$("#es-gen").value="";delete $("#es-gen").dataset.ia} delete $("#es-gen").dataset.touched; $("#es-ia-st").textContent=""; esSync()});
 $("#es-com").addEventListener("change",()=>sugerirProduto(false));
 $("#es-ia").onclick=()=>sugerirProduto(true);
+$("#nf-man").onclick=()=>window.nfManual();
 $("#es-classe").innerHTML=`<option value="">—</option>`+CLASSES.map(c=>`<option>${c}</option>`).join("");
 $("#es-classe").addEventListener("change",()=>{$("#es-classe").dataset.touched="1"});
 $("#es-un").addEventListener("change",()=>{$("#es-un").dataset.touched="1"});
