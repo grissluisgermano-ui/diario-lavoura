@@ -64,7 +64,7 @@ function render(){
         <div class="field"><label for="ra-plt">Plantadeira / semeadeira</label><select id="ra-plt">${optPlt(p0?.nome)}</select></div>
         <div class="field"><label for="ra-esp">Espaçamento (m)</label><input id="ra-esp" inputmode="decimal" value="${p0?espTxt(p0.esp):""}"></div>
         <div class="field"><label for="ra-kg">Adubo desejado (kg/ha)</label><input id="ra-kg" inputmode="decimal" placeholder="Ex.: 300"></div>
-        <div class="field"><label for="ra-dist">Distância do teste (m)</label><input id="ra-dist" inputmode="decimal" value="50"></div>
+        <div class="field"><label for="ra-dist">Distância do teste (m)</label><input id="ra-dist" inputmode="decimal" value="10"></div>
         <div class="field"><label for="ra-lin">Linhas coletadas</label><input id="ra-lin" inputmode="numeric" value="1"></div>
         <div class="field"><label for="ra-col">Quanto você coletou (g, opcional)</label><input id="ra-col" inputmode="decimal" placeholder="Peso do teste"></div>
       </div>
@@ -138,10 +138,12 @@ function raCalc(){
   const r=$("#ra-res");
   if(!(esp>0)||!(dist>0)){r.innerHTML=""; return}
   const gLinha=kg>0?kg*esp*dist/10:null; // kg/ha × (esp × dist m²) ÷ 10.000 m² × 1000 g
-  let h=gLinha?`<div class="rg-kpis">
-    <div><span>Em cada linha, em ${n2(dist,0)} m</span><b>${n2(gLinha,0)} g</b></div>
-    <div><span>Nas ${lin} linha${lin>1?"s":""} coletada${lin>1?"s":""}</span><b>${n2(gLinha*lin,0)} g</b></div>
-    <div><span>Por metro de linha</span><b>${n2(gLinha/dist,1)} g</b></div></div>`:`<p class="note">Informe o adubo desejado (kg/ha).</p>`;
+  const plt=pltPorNome($("#ra-plt")?.value), nl=plt?.linhas||0;
+  let h=gLinha?`<p class="ra-frase">Para <b>${n2(kg,0)} kg/ha</b>, em <b>${n2(dist,dist%1?1:0)} m</b> tem que cair <b>${n2(gLinha,gLinha<100?1:0)} g</b> de adubo em cada linha${nl>1?` (<b>${n2(gLinha*nl/1000,2)} kg</b> somando as ${nl} linhas da ${esc(plt.nome.toLowerCase())})`:""}.</p>
+    <table class="ra-tab"><thead><tr><th>Distância</th><th>Cada linha</th>${nl>1?`<th>${nl} linhas</th>`:""}</tr></thead><tbody>${[...new Set([10,20,50,100,dist])].sort((a,b)=>a-b).map(d=>{const g=kg*esp*d/10; return `<tr${d===dist?' class="sel"':""}><td>${n2(d,d%1?1:0)} m</td><td>${n2(g,g<100?1:0)} g</td>${nl>1?`<td>${g*nl>=1000?n2(g*nl/1000,2)+" kg":n2(g*nl,0)+" g"}</td>`:""}</tr>`}).join("")}</tbody></table>
+    <div class="rg-kpis">
+    <div><span>Por metro de linha</span><b>${n2(gLinha/dist,1)} g</b></div>
+    ${lin>1?`<div><span>Nas ${lin} linhas coletadas, em ${n2(dist,dist%1?1:0)} m</span><b>${n2(gLinha*lin,0)} g</b></div>`:""}</div>`:`<p class="note">Informe o adubo desejado (kg/ha).</p>`;
   if(col>0){const real=col*10/(esp*dist*lin); h+=`<p class="rg-tal ${gLinha&&Math.abs(real-kg)/kg<=0.03?"ok":"falta"}">Você coletou ${n2(col,0)} g → está caindo <b>${n2(real,0)} kg/ha</b>.${gLinha?` ${Math.abs(real-kg)/kg<=0.03?"Dentro do esperado (até 3%).":real>kg?`${n2((real/kg-1)*100,1)}% a mais: <b>feche</b> a dosagem.`:`${n2((1-real/kg)*100,1)}% a menos: <b>abra</b> a dosagem.`}`:""}</p>`}
   r.innerHTML=h;
 }
