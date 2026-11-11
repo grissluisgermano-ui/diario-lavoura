@@ -90,3 +90,4 @@ button.cfg-mini.vazio{border:1px dashed var(--line)}
 button.cfg-mini:not(.vazio){border:0}
 .mp-ed .leaflet-tooltip-pane,.mp-mapa .leaflet-tooltip-pane{z-index:590}
 .mp-rot.fraco{font-size:.72rem;padding:1px 6px}
+.mq-sede{display:block;margin:8px 0 14px;font-size:.92rem;text-align:left}

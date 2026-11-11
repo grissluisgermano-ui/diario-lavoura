@@ -250,6 +250,7 @@ function textoTalhao(t,o={}){
   }
   if(o.local!==false&&window.mpLocal){const l=window.mpLocal(t); if(l){L.push(""); L.push(`📍 *Localização do talhão:* ${l.link}`)}
     const ps=window.mpPontosDo?window.mpPontosDo(t):[]; if(ps.length&&o.pontos!==false){L.push("Pontos marcados:"); for(const p of ps) L.push(`${p.ic} ${p.nome}${p.obs?" — "+p.obs:""}: ${p.link}`)}}
+  if(o.sede&&window.mpSede){const sd=window.mpSede(); if(sd){L.push(`🏠 *Sede:* ${sd.link}`)}}
   L.push(""); L.push("_Enviado pelo Diário da Lavoura_");
   return L.join("\n");
 }
@@ -258,7 +259,7 @@ function enviar(t){
   const temLocal=!!(window.mpLocal&&window.mpLocal(t)), temPts=!!(window.mpPontosDo&&window.mpPontosDo(t).length);
   compartilhar({titulo:`Enviar ${t} ao agrônomo`,
     opcoes:[{k:"chuva",l:"Chuva (total e últimos 15 dias)",on:true},{k:"chuvaDia",l:"Chuva dia a dia",on:false},{k:"obs",l:"Observações dos lançamentos",on:true},
-      ...(temLocal?[{k:"local",l:"Localização do talhão (Google Maps)",on:true}]:[]),...(temPts?[{k:"pontos",l:"Pontos marcados no talhão",on:false}]:[])],
+      ...(temLocal?[{k:"local",l:"Localização do talhão (Google Maps)",on:true}]:[]),...(temPts?[{k:"pontos",l:"Pontos marcados no talhão",on:false}]:[]),...(window.mpSede&&window.mpSede()?[{k:"sede",l:"Localização da sede",on:false}]:[])],
     gerar:o=>textoTalhao(t,o),
     desenho:window.mpDesenhoTalhao?window.mpDesenhoTalhao(t):null,
     nota:temLocal?"":"Para mandar também a localização, desenhe o contorno do talhão em Painel → Mapa."});
