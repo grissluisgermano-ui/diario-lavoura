@@ -1636,7 +1636,7 @@ function lerXml(txt){
   const ide=doc.getElementsByTagNameNS("*","ide")[0], emit=doc.getElementsByTagNameNS("*","emit")[0];
   const dets=[...doc.getElementsByTagNameNS("*","det")];
   if(!dets.length) throw new Error("semitens");
-  return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:window.finNomeEmit?window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant")):(g(emit,"xFant")||g(emit,"xNome")),
+  return {data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),numero:g(ide,"nNF"),origem:window.finNomeEmit?window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant"),g(emit,"xMun")):(g(emit,"xFant")||g(emit,"xNome")),
     itens:dets.map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];
       return {descricao:g(p,"xProd"),unidade:g(p,"uCom"),quantidade:+g(p,"qCom")||0,valorTotal:(+g(p,"vProd")||0)-(+g(p,"vDesc")||0),obs:g(d,"infAdProd")}}),
     fin:window.finDadosXml?.(doc)};

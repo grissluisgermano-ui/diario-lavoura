@@ -647,13 +647,16 @@ async function salvarLanc(ev){
 /* ---------- XML da NF-e ---------- */
 const titulo=t=>String(t||"").toLowerCase().replace(/(^|[\s\/(-])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g,x=>x.toLowerCase());
 /* Nome do fornecedor: a Coamo põe a unidade (ex.: "S.DOMINGOS") no nome fantasia, então reconhece os depósitos cadastrados pela razão social */
-window.finNomeEmit=function(xNome,xFant){
+window.finNomeEmit=function(xNome,xFant,xMun){
+  // nome fantasia que é só a cidade/unidade (ex.: "PALOTINA", "S.DOMINGOS") não serve: usa a razão social
+  {const f=norm(xFant).replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim(), m=norm(xMun).replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+   if(f&&m&&(f===m||m.includes(f)||f.includes(m)||m.split(" ").filter(w=>w.length>2).every(w=>f.includes(w))||(f.split(" ").filter(w=>w.length>2).length&&f.split(" ").filter(w=>w.length>2).every(w=>m.split(" ").includes(w))))) xFant="";}
   const n=norm(xNome), deps=(typeof DEPOSITOS!=="undefined"?DEPOSITOS:[]);
   const d=deps.find(x=>{const k=norm(x); return k&&(n===k||n.startsWith(k+" ")||n.includes(" "+k+" "))});
   if(d) return d;
   const ap=fnCfg.apelidos?.[n]; if(ap) return ap;
   return titulo(xFant&&norm(xFant).length>3&&norm(xFant)!==n?xFant:xNome).replace(/\s+(Ltda|Ltda\.?|S\.?a\.?|Me|Eireli|Epp)$/i,"")
-    .replace(/\b([B-DF-HJ-NP-TV-Zb-df-hj-np-tv-z]{2,4})\b/g,w=>w.toUpperCase()).replace(/\b(Hdi|Gga|Mec)\b/g,w=>w.toUpperCase());
+    .replace(/(?<!\p{L})([B-DF-HJ-NP-TV-Zb-df-hj-np-tv-z]{2,4})(?!\p{L})/gu,w=>w.toUpperCase()).replace(/(?<!\p{L})(Hdi|Gga|Mec)(?!\p{L})/gu,w=>w.toUpperCase());
 };
 /* reconhece o depósito também quando o nome termina nele ("Cooperativa Agroindustrial Alfa") */
 const nomeCurto=x=>{const n=norm(x); if(!n) return ""; const deps=(typeof DEPOSITOS!=="undefined"?DEPOSITOS:[]);
@@ -675,7 +678,7 @@ window.finDadosXml=function(doc){
     const dups=[...doc.getElementsByTagNameNS("*","dup")].map(d=>({n:g(d,"nDup"),venc:g(d,"dVenc"),valor:+g(d,"vDup")||0})).filter(d=>d.valor>0);
     const itens=[...doc.getElementsByTagNameNS("*","det")].map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];const q=+g(p,"qCom")||0;
       return {desc:`${g(p,"xProd")} — ${num(q)} ${g(p,"uCom")}`,valor:+(((+g(p,"vProd")||0)-(+g(p,"vDesc")||0)).toFixed(2))}});
-    return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant")),
+    return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant"),g(emit,"xMun")),emitRazao:g(emit,"xNome"),
       dest:titulo(g(dest,"xNome")),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens,
       contrato:contratoDoTexto(g(doc,"infCpl")),categoria:catDosItens(itens)};
   }catch{return null}
