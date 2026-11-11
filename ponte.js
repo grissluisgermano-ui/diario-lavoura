@@ -94,10 +94,11 @@
   const anexos = d => ({ fotos: [...(d?.fotos || []), ...(d?.docs || []).filter(x => x.tipo === "foto").map(x => x.id)], arqs: (d?.docs || []).filter(x => x.tipo === "arquivo").map(x => x.id) });
   async function paraLixeira(r) {
     const col = r.parent?.id; if (!col || SEM_LIXEIRA.has(col)) return;
+    const lote = ponte.lote || null; // excluídos juntos (ligacoes.js) voltam juntos
     let s; try { s = await r.get() } catch { return }
     if (!s.exists) return;
     await fs.collection("lixeira").doc().set({ colecao: col, docId: r.id, dados: s.data(), excluidoEm: new Date().toISOString(),
-      por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null });
+      por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null, ...(lote ? { lote } : {}) });
     aviso("Excluído. Fica 30 dias na Lixeira (Lavoura → Histórico) caso precise recuperar.", true);
   }
   const docW = r => ({
@@ -122,7 +123,23 @@
   ponte.lixeira = {
     dias: LIX_DIAS,
     ouvir: (fn) => fs.collection("lixeira").onSnapshot(s => fn(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}),
+    // entradas tiradas de um produto que continuou existindo (ligacoes.js): ao recuperar, voltam para o produto
+    async guardar({ colecao, docId, dados, entradas }) {
+      const lote = ponte.lote || null;
+      await naoTrava(fs.collection("lixeira").doc().set({ colecao, docId, dados, entradas, parcial: true, excluidoEm: new Date().toISOString(),
+        por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null, ...(lote ? { lote } : {}) }));
+    },
     async restaurar(item) {
+      if (item.parcial) {
+        let atual = null; try { const s = await fs.collection(item.colecao).doc(item.docId).get(); atual = s.exists ? s.data() : null } catch {}
+        if (atual) {
+          const tem = new Set((atual.entradas || []).map(x => JSON.stringify(x)));
+          atual.entradas = [...(atual.entradas || []), ...(item.entradas || []).filter(x => !tem.has(JSON.stringify(x)))];
+          await naoTrava(fs.collection(item.colecao).doc(item.docId).set(atual));
+        } else await naoTrava(fs.collection(item.colecao).doc(item.docId).set(item.dados));
+        await naoTrava(fs.collection("lixeira").doc(item.id).delete());
+        return;
+      }
       await naoTrava(fs.collection(item.colecao).doc(item.docId).set(item.dados));
       const ax = anexos(item.dados);
       for (const f of ax.fotos) fs.collection("fotos").doc(f).set({ excluidoEm: null }, { merge: true }).catch(() => {});

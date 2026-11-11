@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="mapa.css">
 <link rel="stylesheet" href="ciclo.css">
 <link rel="stylesheet" href="regulagens.css">
+<link rel="stylesheet" href="ligacoes.css">
 <link rel="stylesheet" href="entrega.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2109,6 +2110,7 @@ function entEditar(b,id,i){
     <div class="field"><label>Valor total (R$)</label><input class="ee-v" inputmode="decimal" value="${x.valorTotal!=null?Number(x.valorTotal).toFixed(2).replace(".",","):""}"></div>
     <div class="field"><label>Origem</label><input class="ee-o" value="${esc(x.origem||"")}"></div>
     <div class="field" style="grid-column:1/-1"><span class="lbl">Foto ou PDF da nota</span><div class="ee-anx"></div></div></div>
+    ${window.ligInfoEntrada?.(e,x)||""}
     <div class="row"><button type="button" class="btn fn-mini ee-ok">Salvar entrada</button><button type="button" class="link ee-x">Cancelar</button></div>`;
   row.after(f);
   const w=anxCampo(f.querySelector(".ee-anx")); w.set(x.anexos);
@@ -2177,13 +2179,16 @@ function renderEstoque(){
   $("#es-lista").querySelectorAll("[data-refaz]").forEach(b=>b.onclick=()=>window.nfRefazer(b.dataset.refaz));
   $("#es-lista").querySelectorAll("[data-refazxml]").forEach(inp=>inp.onchange=async()=>{const f=inp.files[0]; inp.value=""; if(!f) return; window.nfRefazProd=inp.dataset.refazprod||null; window.nfRefazer(inp.dataset.refazxml||null,await f.text())});
   $("#es-lista").querySelectorAll("[data-entrada]").forEach(b=>b.onclick=()=>{const e=estoque.find(x=>x.id===b.dataset.entrada); if(ehEmb(e)||e?.classe==="Semente"){window.nfManual({semente:e});return} esAba("entrada");$("#es-com").value=e.comercial;esSync();$("#es-qtd").focus();$("#es-form").scrollIntoView({block:"start"})});
-  $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
-  $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar",async()=>{
-    const [id,i]=b.dataset.rment.split(":"); const e=estoque.find(x=>x.id===id); if(!e) return;
+  $("#es-lista").querySelectorAll("[data-delprod]").forEach(b=>b.onclick=()=>ligOu(b,"produto",b.dataset.delprod,async()=>{await db.collection("estoque").doc(b.dataset.delprod).delete()}));
+  $("#es-lista").querySelectorAll("[data-rment]").forEach(b=>{const [id,i]=b.dataset.rment.split(":"); b.onclick=()=>ligOu(b,"entrada",{id,i:+i},async()=>{
+    const e=estoque.find(x=>x.id===id); if(!e) return;
     const {id:_,...doc}=e; doc.entradas=(e.entradas||[]).filter((_,k)=>k!==+i); await db.collection("estoque").doc(id).set(doc);
-  }));
+  })});
   window.nePintar?.();
 }
+// excluir algo que pode estar ligado a outra parte do app (ligacoes.js pergunta o que fazer com o resto)
+function ligOu(b,tipo,arg,fn){ if(window.ligDel) window.ligDel(tipo,arg,b,fn); else confirmar(b,"Confirmar exclusão",fn) }
+window.esAbrir=id=>{show("estoque"); try{esAba("produtos")}catch{} esAbertos.add(id); renderEstoque(); setTimeout(()=>document.querySelector(`[data-esab="${id}"]`)?.scrollIntoView({block:"center"}),80)};
 function confirmar(b,txt,fn){
   if(!b.dataset.armed){const orig=b.textContent;b.dataset.armed="1";b.textContent=txt;setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=orig}},4000);return}
   fn().catch(()=>{b.textContent="Falhou, tente de novo";delete b.dataset.armed});
@@ -2806,7 +2811,7 @@ function renderMaquinas(){
   $('[data-pted="maquinas:__novo"]').hidden=ptEdit==="maquinas:__novo";
   ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc); window.axLiga?.($("#mq-cards"),"maquinas");
   $("#mq-cards").querySelectorAll("[data-mqnova]").forEach(b=>b.onclick=()=>{mqReset();$("#mq-maq").value=b.dataset.mqnova;mqSyncNova();$("#mq-form").scrollIntoView({block:"start"})});
-  $("#mq-cards").querySelectorAll("[data-mqdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("maquinas").doc(b.dataset.mqdel).delete()}));
+  $("#mq-cards").querySelectorAll("[data-mqdel]").forEach(b=>b.onclick=()=>ligOu(b,"maquina",b.dataset.mqdel,async()=>{await db.collection("maquinas").doc(b.dataset.mqdel).delete()}));
   // select do formulário
   const cur=$("#mq-maq").value;
   $("#mq-maq").innerHTML=`<option value="">Escolha a máquina</option>`+maquinas.map(m=>`<option value="${m.id}">${esc(m.nome)}</option>`).join("")+`<option value="${NOVA}">+ Cadastrar nova máquina</option>`;
@@ -2827,7 +2832,7 @@ function renderMaquinas(){
     </article>`).join(""):`<div class="empty">Nenhuma manutenção registrada${mqSel?" para esta máquina":""}.</div>`;
   $("#mq-lista").querySelectorAll("[data-foto]").forEach(b=>b.onclick=()=>abrirFoto(b.dataset.foto));
   $("#mq-lista").querySelectorAll("[data-mqedit]").forEach(b=>b.onclick=()=>mqEditar(b.dataset.mqedit));
-  $("#mq-lista").querySelectorAll("[data-mqdelm]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{
+  $("#mq-lista").querySelectorAll("[data-mqdelm]").forEach(b=>b.onclick=()=>ligOu(b,"manut",b.dataset.mqdelm,async()=>{
     const x=manut.find(y=>y.id===b.dataset.mqdelm); await db.collection("manutencoes").doc(b.dataset.mqdelm).delete();
     for(const id of x?.fotos||[]) assets?.delete(id).catch(()=>{});
   }));
@@ -3000,7 +3005,7 @@ function renderDiesel(){
       <div class="rec-actions"><button type="button" class="link" data-dsedit="${d.id}">Editar</button><button type="button" class="link danger" data-dsdel="${d.id}">Excluir</button></div>
     </article>`}).join(""):`<div class="empty">Nenhuma movimentação ainda.<br>Comece lançando uma <b>Medição</b> com o nível atual do tanque.</div>`;
   $("#ds-lista").querySelectorAll("[data-dsedit]").forEach(b=>b.onclick=()=>dsEditar(b.dataset.dsedit));
-  $("#ds-lista").querySelectorAll("[data-dsdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("diesel").doc(b.dataset.dsdel).delete()}));
+  $("#ds-lista").querySelectorAll("[data-dsdel]").forEach(b=>b.onclick=()=>ligOu(b,"diesel",b.dataset.dsdel,async()=>{await db.collection("diesel").doc(b.dataset.dsdel).delete()}));
   dsHint();
 }
 $("#ds-filtro").addEventListener("change",renderDiesel);
@@ -3143,7 +3148,7 @@ function renderBenf(){
   $('[data-pted="benfeitorias:__novo"]').hidden=ptEdit==="benfeitorias:__novo";
   ptLiga($("#view-benfeitorias"),()=>benf,renderBenf); ptVolta(rasc); window.axLiga?.($("#bf-cards"),"benfeitorias");
   $("#bf-cards").querySelectorAll("[data-bfnovo]").forEach(b=>b.onclick=()=>{bfReset();$("#bf-item").value=b.dataset.bfnovo;bfSyncNova();$("#bf-form").scrollIntoView({block:"start"})});
-  $("#bf-cards").querySelectorAll("[data-bfdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("benfeitorias").doc(b.dataset.bfdel).delete()}));
+  $("#bf-cards").querySelectorAll("[data-bfdel]").forEach(b=>b.onclick=()=>ligOu(b,"benf",b.dataset.bfdel,async()=>{await db.collection("benfeitorias").doc(b.dataset.bfdel).delete()}));
   const cur=$("#bf-item").value;
   $("#bf-item").innerHTML=`<option value="">Escolha a benfeitoria</option>`+benf.map(b=>`<option value="${b.id}">${esc(b.nome)}</option>`).join("")+`<option value="${NOVA}">+ Cadastrar nova benfeitoria</option>`;
   if([...$("#bf-item").options].some(o=>o.value===cur)) $("#bf-item").value=cur; else if(!benf.length) $("#bf-item").value=NOVA;
@@ -3163,7 +3168,7 @@ function renderBenf(){
   $("#bf-lista").querySelectorAll("[data-foto]").forEach(b=>b.onclick=()=>abrirFoto(b.dataset.foto));
   $("#bf-lista").querySelectorAll("[data-bfedit]").forEach(b=>b.onclick=()=>bfEditar(b.dataset.bfedit));
   $("#bf-lista").querySelectorAll("[data-bfok]").forEach(b=>b.onclick=async()=>{const x=bfServ.find(y=>y.id===b.dataset.bfok);if(!x)return;const {id,...doc}=x;doc.status="concluido";b.disabled=true;try{await db.collection("servicos_benf").doc(id).set(doc)}catch{b.disabled=false}});
-  $("#bf-lista").querySelectorAll("[data-bfdels]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{
+  $("#bf-lista").querySelectorAll("[data-bfdels]").forEach(b=>b.onclick=()=>ligOu(b,"serv",b.dataset.bfdels,async()=>{
     const x=bfServ.find(y=>y.id===b.dataset.bfdels); await db.collection("servicos_benf").doc(b.dataset.bfdels).delete();
     for(const id of x?.fotos||[]) assets?.delete(id).catch(()=>{});
   }));
@@ -3511,7 +3516,7 @@ function renderGraos(){
       <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">Excluir</button>`}</div>
     </article>`).join(""):`<div class="empty">Nenhuma movimentação${fc||fl?" com esses filtros":""}.</div>`;
   $("#gr-lista").querySelectorAll("[data-grreg]").forEach(b=>b.onclick=()=>editar(b.dataset.grreg));
-  $("#gr-lista").querySelectorAll("[data-grdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("graos").doc(b.dataset.grdel).delete()}));
+  $("#gr-lista").querySelectorAll("[data-grdel]").forEach(b=>b.onclick=()=>ligOu(b,"graos",b.dataset.grdel,async()=>{await db.collection("graos").doc(b.dataset.grdel).delete()}));
   grHint();
 }
 ["#gr-safra","#gr-f-cult","#gr-f-local"].forEach(s=>$(s).addEventListener("change",renderGraos));
@@ -4703,6 +4708,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="form-botao.js"></script>
 <script src="compartilhar.js"></script>
 <script src="regulagens.js"></script>
+<script src="ligacoes.js"></script>
 <script>
 (function(){
   const v=window.APP_VERSAO||{n:"?",data:""}, $=s=>document.querySelector(s);

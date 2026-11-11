@@ -576,6 +576,7 @@ function formEditar(l){
   }
   $("#fn-obs").value=l.obs||"";
   if(l.quitGraos) origemTxt(`Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b>.`);
+  else {const lg=window.ligInfoConta?.(l); if(lg) origemTxt(lg)} // produtos desta nota no estoque (ligacoes.js)
   document.querySelector("#fn-np").closest(".fn-parc").hidden=true;
   $("#fn-form").scrollIntoView({block:"start",behavior:"smooth"});
 }
@@ -693,6 +694,9 @@ window.finNfOpcao=function(fin){
 function parcelasDaNota(fin,data){
   return fin.dups.length?fin.dups.map(d=>({venc:d.venc,valor:d.valor})):[{venc:data||fin.data,valor:fin.total}];
 }
+/* para ligacoes.js: contas, mesma regra de nota+fornecedor, abrir uma conta para editar */
+window.finLig={lanc:()=>fnLanc, pronto:()=>fnCarregou, nfKey, norm};
+window.finEditar=id=>{const l=fnLanc.find(x=>x.id===id); if(!l) return; show("fin_contas"); setTimeout(()=>formEditar(l),60)};
 window.finDaNota=async function(fin,{data,nf,origem,itens,anexos}){
   if(!db||!fin) return "";
   if(jaLancada(fin.chave,nf||fin.numero,origem||fin.emit)) return "";
@@ -1026,7 +1030,7 @@ function renderContas(){
   const L=$("#fn-lista");
   L.querySelectorAll("[data-fed]").forEach(b=>b.onclick=()=>formEditar(fnLanc.find(x=>x.id===b.dataset.fed)));
   L.querySelectorAll("[data-fnest]").forEach(b=>b.onclick=()=>{const l=fnLanc.find(x=>x.id===b.dataset.fnest); if(l) paraEstoque(l)});
-  L.querySelectorAll("[data-fdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("fin_lanc").doc(b.dataset.fdel).delete()}));
+  L.querySelectorAll("[data-fdel]").forEach(b=>b.onclick=()=>{const fn=async()=>{await db.collection("fin_lanc").doc(b.dataset.fdel).delete()}; window.ligDel?window.ligDel("conta",b.dataset.fdel,b,fn):confirmar(b,"Confirmar exclusão",fn)});
   L.querySelectorAll("[data-fbx]").forEach(b=>b.onclick=()=>abreBaixa(fnLanc.find(x=>x.id===b.dataset.fbx)));
   L.querySelectorAll("[data-fdes]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: voltar para em aberto",async()=>{
     const l=fnLanc.find(x=>x.id===b.dataset.fdes), {id,...d}=l;

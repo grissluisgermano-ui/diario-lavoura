@@ -1,0 +1,31 @@
+/* Ligações entre as partes do app (ligacoes.js): janela de pergunta ao excluir e "Conferir ligações" */
+.lg-modal{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.lg-modal[hidden]{display:none}
+.lg-jan{background:var(--surface,#fff);color:var(--ink,inherit);width:100%;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-sizing:border-box;display:flex;flex-direction:column;gap:10px}
+.lg-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lg-top h3{margin:0;font-size:1.1rem}
+.lg-x{background:none;border:0;font-size:1.2rem;padding:6px 8px;cursor:pointer;color:var(--muted)}
+.lg-corpo p{margin:0 0 8px}
+.lg-lista{margin:0 0 8px;padding-left:20px;font-size:.92rem}
+.lg-lista li{margin:2px 0}
+.lg-atn{background:rgba(178,106,0,.12);border-radius:8px;padding:8px 10px;font-size:.9rem}
+.lg-chk{display:flex;gap:8px;align-items:flex-start;font-size:.95rem;margin-top:4px}
+.lg-bts{display:flex;flex-direction:column;gap:8px}
+.lg-bt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;white-space:normal;padding:10px 14px;min-height:48px}
+.lg-bt small{font-weight:400;font-size:.8rem;opacity:.85}
+.lg-cancela{align-self:center;padding:10px}
+body.lg-aberto{overflow:hidden}
+@media (min-width:760px){.lg-modal{align-items:center}.lg-jan{max-width:520px;border-radius:14px}}
+.lg-box{border:1px solid rgba(179,38,30,.35);background:rgba(179,38,30,.05);border-radius:10px;padding:12px 14px;margin:10px 0;display:flex;flex-direction:column;gap:10px}
+.lg-box[hidden]{display:none}
+.lg-h{margin:0;font-size:1.02rem;display:flex;align-items:center;gap:8px}
+.lg-box>.note{margin:0}
+.lg-it{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.lg-it .lg-lista,.lg-it p{margin:0}
+.lg-it-bts{display:flex;flex-wrap:wrap;gap:8px}
+.lg-it .note{font-size:.8rem}
+.lg-nota{grid-column:1/-1;margin:6px 0}
+.lg-modal .btn.danger,.lg-box .btn.danger{background:var(--danger);color:#fff}
+.lg-box .btn.sm{font-size:.88rem;padding:8px 12px}
+.lg-modal label.lg-chk{text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:500;color:inherit;display:flex;grid-template-columns:none;align-items:flex-start;gap:8px;margin:4px 0 0}
+.lg-modal label.lg-chk input{width:20px;height:20px;flex:none;margin:0}

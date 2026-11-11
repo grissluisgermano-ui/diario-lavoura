@@ -5,7 +5,8 @@
   const box = document.getElementById("lx-box"); if (!box || !window.ponte?.lixeira) return;
   const lista = document.getElementById("lx-lista"), cont = document.getElementById("lx-cont");
   const NOMES_COL = { registros:"Lançamento", estoque:"Produto do estoque", graos:"Movimento de grãos", maquinas:"Máquina", manutencoes:"Manutenção",
-    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", notas:"Anotação", config:"Configuração", nfe:"Nota fiscal (XML)" };
+    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", notas:"Anotação", config:"Configuração", nfe:"Nota fiscal (XML)",
+    fin_lanc:"Conta do Financeiro", fin_contas:"Conta de banco/caixa", lembretes:"Lembrete", contratos_entrega:"Contrato de entrega", regulagens:"Regulagem", pontos:"Ponto do mapa", talhoes_geo:"Contorno de talhão" };
   const e = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
   const br = iso => { try { const [y, m, d] = String(iso).slice(0, 10).split("-"); return d ? `${d}/${m}/${y}` : "" } catch { return "" } };
   const n = v => Number(v || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -19,7 +20,8 @@
         const extra = d.tipo === "chuva" ? `${n(d.campos?.mm)} mm` : (d.nome || (d.campos?.produtos || []).map(p => p.nome).filter(Boolean).join(", "));
         return `${tipo}${extra ? " · " + extra : ""} · ${br(d.data)}${(d.talhoes || []).length ? " · " + d.talhoes.join(", ") : ""}`;
       }
-      case "estoque": return `${d.comercial || ""}${d.generico ? " (" + d.generico + ")" : ""}`;
+      case "estoque": return x.parcial ? `${d.comercial || ""}: ${(x.entradas || []).length} entrada(s)${(x.entradas || [])[0]?.nf ? " · NF " + x.entradas[0].nf : ""}` : `${d.comercial || ""}${d.generico ? " (" + d.generico + ")" : ""}`;
+      case "fin_lanc": return `${d.descricao || ""}${d.parcela ? " (" + d.parcela + ")" : ""} · R$ ${n(d.valor)} · vence ${br(d.vencimento)}`;
       case "graos": return `${d.tipo || ""} · ${n(d.sacas)} sc${d.cultura ? " de " + d.cultura : ""}${d.local ? " · " + d.local : ""} · ${br(d.data)}`;
       case "maquinas": case "benfeitorias": return d.nome || "";
       case "manutencoes": case "servicos_benf": return `${br(d.data)} · ${(d.servicos || []).join(", ") || d.descricao || ""}`;
@@ -33,22 +35,26 @@
   const restam = iso => Math.max(0, Math.ceil(ponte.lixeira.dias - (Date.now() - new Date(iso)) / 864e5));
 
   function render(){
-    cont.textContent = itens.length ? `(${itens.length})` : "";
-    if (!itens.length) { lista.innerHTML = `<p class="note">A lixeira está vazia.</p>`; return }
-    const mostra = aberto ? itens : itens.slice(0, 5);
+    if (!itens.length) { cont.textContent = ""; lista.innerHTML = `<p class="note">A lixeira está vazia.</p>`; return }
+    // excluídos juntos (mesmo lote) aparecem juntos e voltam juntos
+    const grupos = []; const vistos = new Map();
+    for (const x of itens) { if (x.lote && vistos.has(x.lote)) { vistos.get(x.lote).junto.push(x); continue } const g = { ...x, junto: [] }; grupos.push(g); if (x.lote) vistos.set(x.lote, g) }
+    cont.textContent = grupos.length ? `(${grupos.length})` : "";
+    const mostra = aberto ? grupos : grupos.slice(0, 5);
     lista.innerHTML = mostra.map(x => `<div class="lx-it">
-        <div class="lx-tx"><span class="lx-col">${e(NOMES_COL[x.colecao] || x.colecao)}</span><b>${e(resumo(x))}</b>
+        <div class="lx-tx"><span class="lx-col">${e(NOMES_COL[x.colecao] || x.colecao)}${x.junto.length ? ` + ${x.junto.length} ligado(s)` : ""}</span><b>${e(resumo(x))}</b>${x.junto.map(j => `<span class="note">↳ ${e(NOMES_COL[j.colecao] || j.colecao)}: ${e(resumo(j))}</span>`).join("")}
           <span class="note">Excluído em ${e(quando(x.excluidoEm))}${x.nome ? " por " + e(x.nome) : ""} · some em ${restam(x.excluidoEm)} dia(s)</span></div>
         <div class="lx-ac"><button type="button" class="btn ghost" data-lxr="${e(x.id)}">Recuperar</button><button type="button" class="link danger" data-lxa="${e(x.id)}">Apagar de vez</button></div>
-      </div>`).join("") + (itens.length > 5 ? `<button type="button" class="link" id="lx-mais">${aberto ? "Mostrar menos" : `Ver todos (${itens.length})`}</button>` : "");
+      </div>`).join("") + (grupos.length > 5 ? `<button type="button" class="link" id="lx-mais">${aberto ? "Mostrar menos" : `Ver todos (${grupos.length})`}</button>` : "");
     lista.querySelectorAll("[data-lxr]").forEach(b => b.onclick = async () => {
       const x = itens.find(i => i.id === b.dataset.lxr); if (!x) return; b.disabled = true; b.textContent = "Recuperando…";
-      try { await ponte.lixeira.restaurar(x); ponte.aviso("Recuperado: o item voltou para o app.", true) } catch { b.disabled = false; b.textContent = "Recuperar"; ponte.aviso("Não consegui recuperar agora. Tente de novo.") }
+      const todos = x.lote ? itens.filter(i => i.lote === x.lote) : [x];
+      try { for (const y of todos) await ponte.lixeira.restaurar(y); ponte.aviso("Recuperado: o item voltou para o app.", true) } catch { b.disabled = false; b.textContent = "Recuperar"; ponte.aviso("Não consegui recuperar agora. Tente de novo.") }
     });
     lista.querySelectorAll("[data-lxa]").forEach(b => b.onclick = async () => {
       if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Confirmar: apagar para sempre"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Apagar de vez" } }, 4000); return }
       const x = itens.find(i => i.id === b.dataset.lxa); if (!x) return; b.disabled = true;
-      try { await ponte.lixeira.apagar(x) } catch { b.disabled = false }
+      try { for (const y of (x.lote ? itens.filter(i => i.lote === x.lote) : [x])) await ponte.lixeira.apagar(y) } catch { b.disabled = false }
     });
     const mais = document.getElementById("lx-mais"); if (mais) mais.onclick = () => { aberto = !aberto; render() };
   }
