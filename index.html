@@ -1773,7 +1773,7 @@ async function nfLancar(){
     for(const it of itens){const k=it.nome.toLowerCase(); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     for(const it of grupos.values()){
       const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(anx.length) entrada.anexos=anx;
-      if(nfDados?.finRef){entrada.doFinanceiro=true; if(nfDados.chave) entrada.chave=nfDados.chave} // já está no Financeiro: não vira pendência
+      if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave} // já está no Financeiro: não vira pendência
       const e=prodEstoque(it.nome);
       if(e){const {id,...doc}=e; doc.entradas=[...(e.entradas||[]),entrada]; if(it.gen&&!e.generico) doc.generico=it.gen; if(it.classe&&!e.classe) doc.classe=it.classe; await db.collection("estoque").doc(id).set(doc)}
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:it.un,entradas:[entrada],criadoEm:new Date().toISOString()});

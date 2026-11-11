@@ -437,6 +437,17 @@ function fnSetNat(n){
   fnSetSit(fnSit);
   $("#fn-salvar").textContent=fnEdit?"Salvar alterações":tr?"Lançar transferência":n==="receber"?"Lançar conta a receber":"Lançar conta a pagar";
 }
+/* Conta a pagar já lançada → produtos no estoque (botão "📦 Lançar no estoque" no cartão) */
+function noEstoque(l){
+  if(/^est\|/.test(l.origem||"")) return true;
+  const ref=l.grupo||l.id, nk=l.nf?nfKey(l.nf,l.pessoa):null;
+  return (typeof estoque!=="undefined"?estoque:[]).some(e=>(e.entradas||[]).some(x=>x.finId===ref||x.finId===l.id||(l.chave&&x.chave===l.chave)||(nk&&x.nf&&nfKey(x.nf,x.origem)===nk)));
+}
+const CAT_EST=["insumos","sementes","defensivos","fertilizantes"];
+const podeEstoque=l=>l.natureza==="pagar"&&((l.itens||[]).some(i=>i.desc)||CAT_EST.includes(l.categoria))&&!noEstoque(l);
+function paraEstoque(l){
+  window.nfDoFinanceiro?.({data:l.competencia||l.vencimento,nf:l.nf||"",origem:l.pessoa||"",itens:(l.itens||[]).filter(i=>i.desc),anexos:l.anexos||[],ref:l.grupo||l.id,chave:l.chave||null});
+}
 function estVis(){ // "Lançar também no estoque": só conta a pagar nova que não veio do estoque
   const l=$("#fn-est-l"); if(!l) return; const esc_=fnNat!=="pagar"||!!fnEdit||/^est\|/.test(fnOrigem||"");
   l.hidden=esc_; if(esc_) $("#fn-est").checked=false; $("#fn-est-n").hidden=!$("#fn-est").checked;
@@ -611,17 +622,18 @@ async function salvarLanc(ev){
         base.origem=`rec|${rec.id}|${rec.inicio}`;
         await salvaCfg({recorrentes:[...(fnCfg.recorrentes||[]),rec]});
       }
+      let primeiro=null;
       for(let i=0;i<parcs.length;i++){
         const b={...base,vencimento:parcs[i].venc,valor:+parcs[i].valor.toFixed(2),...pago,criadoEm:agora};
         if(pago.status==="pago"&&parcs.length>1) b.pagoEm=parcs[i].venc;
         if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
-        await db.collection("fin_lanc").add(b);
+        const rf=await db.collection("fin_lanc").add(b); if(!primeiro) primeiro=rf?.id||null;
       }
       if(fnXmlTxt) window.danfeGuardar?.(fnXmlTxt);
       flash("#fn-toast",parcs.length>1?`${parcs.length} parcelas lançadas.`:"Lançamento salvo.");
       if(fnNat==="pagar"&&$("#fn-est")?.checked&&window.nfDoFinanceiro){
         const its=base.itens.filter(i=>i.desc);
-        if(its.length){const d={data:comp,nf:base.nf,origem:base.pessoa,itens:its,anexos:base.anexos,ref:grupo||true,chave:base.chave||null};
+        if(its.length){const d={data:comp,nf:base.nf,origem:base.pessoa,itens:its,anexos:base.anexos,ref:grupo||primeiro||true,chave:base.chave||null};
           setTimeout(()=>{window.fbFecha?.(); window.nfDoFinanceiro(d)},350)}
       }
     }
@@ -1008,11 +1020,12 @@ function renderContas(){
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
       ${assinatura(l)}
       <div class="fn-baixa" id="bx-${l.id}" hidden></div>
-      <div class="rec-actions">${!tr&&l.status!=="pago"?`<button type="button" class="btn fn-mini" data-fbx="${l.id}">${r?"Receber":"Pagar"}</button>`:""}${!tr&&l.status==="pago"?`<button type="button" class="link" data-fdes="${l.id}">Desfazer ${r?"recebimento":"pagamento"}</button>`:""}${l.chave?`<button type="button" class="link" data-danfe="${l.chave}">DANFE</button>`:""}<button type="button" class="link" data-fed="${l.id}">Editar</button><button type="button" class="link danger" data-fdel="${l.id}">Excluir</button></div>
+      <div class="rec-actions">${!tr&&l.status!=="pago"?`<button type="button" class="btn fn-mini" data-fbx="${l.id}">${r?"Receber":"Pagar"}</button>`:""}${!tr&&l.status==="pago"?`<button type="button" class="link" data-fdes="${l.id}">Desfazer ${r?"recebimento":"pagamento"}</button>`:""}${l.chave?`<button type="button" class="link" data-danfe="${l.chave}">DANFE</button>`:""}${podeEstoque(l)?`<button type="button" class="link" data-fnest="${l.id}">📦 Lançar no estoque</button>`:""}<button type="button" class="link" data-fed="${l.id}">Editar</button><button type="button" class="link danger" data-fdel="${l.id}">Excluir</button></div>
     </article>`}).join("")+(vis.length>300?`<p class="note">Mostrando 300 de ${vis.length}. Use a busca para achar os outros.</p>`:""):
     `<div class="empty">${fnLanc.length?"Nada com esse filtro.":"Nenhuma conta lançada ainda.<br>Use o formulário, importe o XML de uma nota ou traga do Diário pelo Resumo."}</div>`;
   const L=$("#fn-lista");
   L.querySelectorAll("[data-fed]").forEach(b=>b.onclick=()=>formEditar(fnLanc.find(x=>x.id===b.dataset.fed)));
+  L.querySelectorAll("[data-fnest]").forEach(b=>b.onclick=()=>{const l=fnLanc.find(x=>x.id===b.dataset.fnest); if(l) paraEstoque(l)});
   L.querySelectorAll("[data-fdel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",async()=>{await db.collection("fin_lanc").doc(b.dataset.fdel).delete()}));
   L.querySelectorAll("[data-fbx]").forEach(b=>b.onclick=()=>abreBaixa(fnLanc.find(x=>x.id===b.dataset.fbx)));
   L.querySelectorAll("[data-fdes]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: voltar para em aberto",async()=>{
