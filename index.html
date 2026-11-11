@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="ciclo.css">
 <link rel="stylesheet" href="regulagens.css">
 <link rel="stylesheet" href="ligacoes.css">
+<link rel="stylesheet" href="limpar.css">
 <link rel="stylesheet" href="entrega.css">
 <title>Diário da Lavoura</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -490,7 +491,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="eyebrow" id="hd-eyebrow">Caderno de campo · 312,5 ha</div>
       <h1>Diário da Lavoura</h1>
     </div>
-    <div class="hd-dir"><div class="note" id="sync">Conectando…</div><button type="button" class="tema-btn" id="cfg-abrir">Configurações</button></div>
+    <div class="hd-dir"><div class="note" id="sync">Conectando…</div><div class="hd-bts"><button type="button" class="tema-btn hd-rec" id="hd-recarregar" title="Recarregar o app" aria-label="Recarregar o app">↻</button><button type="button" class="tema-btn" id="cfg-abrir">Configurações</button></div></div>
     <button type="button" class="hd-st" id="hd-chuvas" aria-pressed="false" title="Abrir Chuvas: registrar e ver o histórico">
       <span class="hd-i"><span id="st-mes-l">Chuva no mês</span> <b id="st-mes">–</b></span>
       <span class="hd-i"><span id="st-safra-l">Safra</span> <b id="st-safra">–</b></span>
@@ -656,7 +657,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <form class="panel" id="view-lancar" autocomplete="off">
     <div class="row" style="justify-content:space-between">
       <h2 id="form-title">Novo registro</h2>
-      <button type="button" class="link" id="cancel-edit" hidden>Cancelar edição</button>
+      <span class="row lp-ca"><button type="button" class="link lp-bt" data-limpa="lancar">🧹 Limpar formulário</button><button type="button" class="link" id="cancel-edit" hidden>Cancelar edição</button></span>
     </div>
     <div class="banner" id="nodb" hidden>Sem conexão com o banco de dados. Confira a internet e recarregue a página.</div>
     <div class="field">
@@ -1480,8 +1481,8 @@ function prodTotais(){
     const fat=uD==="sem/m"?(espForm()?10000/espForm():0):uD==="mil sem/ha"?1000:1, un=/sem/.test(uD)?"sementes":uD.replace("/ha","");
     if(!tot) return; tot.placeholder=`Total (${un})`;
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
+    if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
-    if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)}
     else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*area,2)):""}
   });
@@ -1532,6 +1533,11 @@ $("#prods").addEventListener("input",e=>{
   if(e.target.classList.contains("p-nome")||(r&&ehEmb(prodEstoque(r.querySelector(".p-nome").value)))) atualizaSaldos(); else atualizaCustos()});
 $("#prods").addEventListener("change",()=>atualizaCustos());
 $("#areas").addEventListener("input",()=>{prodTotais(); atualizaSaldos()});
+/* qualquer coisa mudada no formulário (talhão, área, cultura, plantadeira, espaçamento, data…) recalcula doses, totais, saldo e custo,
+   não importa a ordem em que foi preenchido */
+{let tRec=0; const recalc=()=>{clearTimeout(tRec); tRec=setTimeout(()=>{try{document.querySelectorAll("#prods .prod").forEach(embLinha); prodTotais(); atualizaSaldos()}catch(e){console.warn(e)}},80)};
+ ["input","change"].forEach(ev=>$("#view-lancar").addEventListener(ev,e=>{if(!e.target.closest("#prods")) recalc()}));
+ $("#view-lancar").addEventListener("click",e=>{if(e.target.closest("#talhoes,#tipos,#situacao,.chips,[aria-pressed]")&&!e.target.closest("#prods")) recalc()});}
 $("#talhoes").addEventListener("click",()=>setTimeout(()=>{prodTotais(); atualizaCustos()}));
 $("#prods").addEventListener("change",e=>{if(e.target.classList.contains("p-un")){embLinha(e.target.closest(".prod")); prodTotais(); atualizaSaldos()} });
 $("#prods").addEventListener("keydown",e=>{
@@ -4761,6 +4767,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="compartilhar.js"></script>
 <script src="regulagens.js"></script>
 <script src="ligacoes.js"></script>
+<script src="limpar.js"></script>
 <script>
 (function(){
   const v=window.APP_VERSAO||{n:"?",data:""}, $=s=>document.querySelector(s);
