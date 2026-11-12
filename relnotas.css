@@ -1,0 +1,49 @@
+/* Relatório de notas fiscais (relnotas.js) */
+.rn-seg{display:flex;gap:0;margin:0 0 12px;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface);width:max-content;max-width:100%}
+.rn-seg button{border:0;background:transparent;padding:9px 16px;font:inherit;font-weight:600;color:var(--muted);cursor:pointer;min-height:40px}
+.rn-seg button[aria-selected="true"]{background:var(--accent);color:#fff}
+#rn-lancar[hidden],#rn-rel[hidden]{display:none}
+.rn-rel{display:flex;flex-direction:column;gap:8px}
+.rn-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
+.rn-filtros .field{margin:0;min-width:0}
+.rn-filtros .rn-busca{grid-column:1/-1}
+@media(min-width:700px){.rn-filtros{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.rn-res{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.rn-tot{display:flex;flex-direction:column;gap:2px}
+.rn-tot span{font-size:.85rem;color:var(--muted)}
+.rn-tot b{font-family:var(--f-display);font-size:1.3rem}
+.rn-tot small{color:var(--danger);font-weight:600}
+.rn-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rn-chip{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:6px 10px;font:inherit;font-size:.88rem;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;text-align:left;color:var(--ink)}
+.rn-chip small{color:var(--muted);font-size:.78rem}
+.rn-chip.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.rn-c-falta b{color:#b86b00}.rn-c-cancelada b{color:var(--danger)}.rn-c-lancada b{color:var(--accent)}
+.rn-dests{display:flex;flex-direction:column;gap:2px;font-size:.9rem}
+.rn-dests div{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:4px}
+.rn-forn>summary{cursor:pointer;font-weight:600;font-size:.92rem}
+.rn-fl{display:grid;grid-template-columns:1fr auto auto;gap:10px;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:7px 2px;font:inherit;font-size:.88rem;text-align:left;cursor:pointer;color:var(--ink)}
+.rn-fl span:first-child{overflow-wrap:anywhere}
+.rn-fl span:nth-child(2){color:var(--muted)}
+.rn-bt{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rn-mes{display:flex;justify-content:space-between;gap:10px;margin:10px 2px 0;font-size:.95rem;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:4px}
+.rn-nota{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;background:var(--surface);display:flex;flex-direction:column}
+.rn-s-falta{border-left-color:#d08a1c}.rn-s-ignorada{border-left-color:var(--muted);opacity:.9}.rn-s-cancelada{border-left-color:var(--danger);opacity:.85}
+.rn-lin{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;width:100%;border:0;background:none;padding:10px 12px 4px;font:inherit;text-align:left;cursor:pointer;color:var(--ink)}
+.rn-a{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rn-a b{font-weight:600;overflow-wrap:anywhere}
+.rn-a small{color:var(--muted);font-size:.85rem}
+.rn-v{font-weight:600;white-space:nowrap}
+.rn-s-cancelada .rn-v{text-decoration:line-through}
+.rn-tags{display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 10px}
+.rn-tag,.rn-pag{font-size:.78rem;border-radius:999px;padding:2px 8px;background:var(--bg);border:1px solid var(--line)}
+.rn-est{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rn-ret{background:#eef3ff;border-color:#b7c6ea;color:#2c3f73}
+.rn-pago{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.rn-aberto,.rn-parcial{color:#9a5a00;border-color:#e6c08a;background:#fff7ea}
+.pill.rn-falta{background:#fff1dc;color:#8a4f00}
+.pill.rn-ign{background:var(--bg);color:var(--muted)}
+.rn-det{border-top:1px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:.9rem}
+.rn-det>div:not(.rn-acoes){display:flex;flex-direction:column;gap:1px}
+.rn-det>div>span{font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.rn-ch{font-size:.78rem;overflow-wrap:anywhere}
+.rn-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}

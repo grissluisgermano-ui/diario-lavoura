@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="financeiro.css">
 <link rel="stylesheet" href="danfe.css">
 <link rel="stylesheet" href="lote-notas.css">
+<link rel="stylesheet" href="relnotas.css">
 <link rel="stylesheet" href="anexos.css">
 <link rel="stylesheet" href="lembretes.css">
 <link rel="stylesheet" href="vinculo.css">
@@ -802,12 +803,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="es-abas" id="es-abas" role="tablist" aria-label="Partes do estoque">
       <button type="button" role="tab" data-esaba="produtos" aria-selected="true">Produtos<span class="es-n" id="es-conf-n" hidden></span></button>
       <button type="button" role="tab" data-esaba="entrada" aria-selected="false">Lançar entrada</button>
-      <button type="button" role="tab" data-esaba="notas" aria-selected="false">Notas<span class="es-wide">&nbsp;do e-mail</span><span class="es-n" id="es-ne-n" hidden></span></button>
+      <button type="button" role="tab" data-esaba="notas" aria-selected="false">Notas<span class="es-wide">&nbsp;fiscais</span><span class="es-n" id="es-ne-n" hidden></span></button>
     </div>
     <div class="es-pane" data-pane="notas" hidden>
+      <div class="rn-seg" role="tablist" aria-label="Notas">
+        <button type="button" role="tab" data-rnv="lancar" aria-selected="true">Para lançar</button>
+        <button type="button" role="tab" data-rnv="rel" aria-selected="false">Relatório de notas</button>
+      </div>
+      <div id="rn-lancar">
       <div id="ne-box" class="ne-box" hidden></div>
       <div class="empty ne-vazio">Nenhuma nota nova por e-mail.<br>Quando chegar uma nota com XML no Gmail, ela aparece aqui para lançar.</div>
       <details id="ne-ign" class="ne-ign" hidden></details>
+      </div>
+      <div id="rn-rel" class="rn-rel" hidden></div>
     </div>
     <div class="es-pane" data-pane="entrada" hidden>
     <form class="sub" id="es-form" autocomplete="off">
@@ -4251,6 +4259,8 @@ const RELS=[
    linhas.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
    const porO={}; linhas.forEach(l=>{const k=l[7]||"Sem origem"; porO[k]=(porO[k]||0)+(+l[5]||0)});
    return {colunas:[["Data","data"],["Produto"],["Classe"],["Quantidade","num"],["Un."],["Valor","brl"],["Preço/un.","brl"],["Origem"],["NF"]],linhas,totais:{5:linhas.reduce((s,l)=>s+(+l[5]||0),0)},resumo:Object.entries(porO).map(([k,v])=>[k,brl(v)])}}},
+ {id:"nfs",nome:"Notas fiscais (lançadas e recebidas)",desc:"Uma linha por nota: data, número, fornecedor, em nome de quem, valor, onde entrou (estoque / financeiro), situação do pagamento e produtos.",filtros:["periodo","nfsit","nfforn","nfdest"],
+  gerar(F){return window.rnRelatorio?window.rnRelatorio(F):{colunas:[["Nota"]],linhas:[]}}},
  {id:"chuvas",nome:"Registro pluviométrico",desc:"Chuvas e eventos climáticos do período.",filtros:["periodo"],
   gerar(F){const rs=registros.filter(r=>r.tipo==="chuva"&&F.dentro(r.data)).sort((a,b)=>a.data.localeCompare(b.data));
    const linhas=rs.map(r=>[r.data,r.campos?.mm??"",(r.campos?.eventos||[]).join(", "),r.descricao||""]);
@@ -4323,6 +4333,9 @@ function rlFiltrosHtml(def){
     situacao:`<div class="field"><label for="rl-sit">Situação</label><select id="rl-sit"><option value="executada">Executadas</option><option value="programada">Programadas</option><option value="">Todas</option></select></div>`,
     classe:`<div class="field"><label for="rl-cla">Classe</label><select id="rl-cla"><option value="">Todas</option>${CLASSES.map(c=>`<option>${c}</option>`).join("")}</select></div>`,
     maquina:`<div class="field"><label for="rl-maq">Máquina</label><select id="rl-maq"><option value="">Todas</option>${maquinas.map(m=>`<option value="${m.id}">${esc(m.nome)}</option>`).join("")}</select></div>`,
+    nfsit:`<div class="field"><label for="rl-nfsit">Situação da nota</label><select id="rl-nfsit"><option value="">Todas</option><option value="lancada">Lançadas</option><option value="falta">Recebidas, falta lançar</option><option value="ignorada">Ignoradas</option><option value="cancelada">Canceladas</option></select></div>`,
+    nfforn:`<div class="field"><label for="rl-nfforn">Fornecedor</label><select id="rl-nfforn"><option value="">Todos</option>${(window.rnOpcoes?.().forn||[]).map(x=>`<option>${esc(x)}</option>`).join("")}</select></div>`,
+    nfdest:`<div class="field"><label for="rl-nfdest">Nota em nome de</label><select id="rl-nfdest"><option value="">Todos</option>${(window.rnOpcoes?.().dest||[]).map(x=>`<option>${esc(x)}</option>`).join("")}</select></div>`,
     titular:`<div class="field"><label for="rl-tit">Titular</label><select id="rl-tit"><option value="">Todos</option>${TITS.map(t=>`<option value="${t}">${esc(titNome(t))}</option>`).join("")}</select></div>`};
   return def.filtros.map(k=>f[k]).join("");
 }
@@ -4333,7 +4346,7 @@ function rlLerFiltros(){
   if(per.startsWith("s")){const y=+per.slice(1); safraF=y; de=`${y}-07-01`; ate=`${y+1}-06-30`; rot=`Safra ${safraLab(y)} (01/07/${y} a 30/06/${y+1})`}
   else if(per==="mes"){const h=todayISO(); de=h.slice(0,8)+"01"; ate=h.slice(0,8)+"31"; rot=`${h.slice(5,7)}/${h.slice(0,4)}`}
   else if(per==="pers"){de=v("#rl-de"); ate=v("#rl-ate"); rot=`${de?brDate(de):"início"} a ${ate?brDate(ate):"hoje"}`}
-  const F={talhao:v("#rl-talhao"),cult:v("#rl-cult"),tipo:v("#rl-tp"),sit:$("#rl-sit")?v("#rl-sit"):"",classe:v("#rl-cla"),maquina:v("#rl-maq"),titular:v("#rl-tit"),rotPer:rot};
+  const F={talhao:v("#rl-talhao"),cult:v("#rl-cult"),tipo:v("#rl-tp"),sit:$("#rl-sit")?v("#rl-sit"):"",classe:v("#rl-cla"),maquina:v("#rl-maq"),titular:v("#rl-tit"),nfsit:v("#rl-nfsit"),nfforn:v("#rl-nfforn"),nfdest:v("#rl-nfdest"),rotPer:rot};
   F.dentro=d=>!!d&&(!de||d>=de)&&(!ate||d<=ate);
   F.dentroR=r=>safraF!=null?safraReg(r)===safraF:F.dentro(r.data); // lançamento da lavoura: pela safra a que pertence (manejo antes do plantio entra na safra do plantio)
   F.talhaoOk=r=>!F.talhao||(r.talhoes||[]).includes(F.talhao);
@@ -4347,7 +4360,7 @@ function rlDescFiltros(def,F){
   if(def.filtros.includes("periodo")) p.push("Período: "+F.rotPer);
   if(F.talhao) p.push("Talhão: "+F.talhao); if(F.cult) p.push("Cultura: "+F.cult);
   if(F.tipo) p.push("Tipo: "+TIPOS[F.tipo].label); if(def.filtros.includes("situacao")) p.push("Situação: "+(F.sit==="programada"?"programadas":F.sit==="executada"?"executadas":"todas"));
-  if(F.classe) p.push("Classe: "+F.classe); if(F.maquina) p.push("Máquina: "+nomeMaq(F.maquina)); if(F.titular) p.push("Titular: "+titNome(F.titular));
+  if(F.classe) p.push("Classe: "+F.classe); if(F.maquina) p.push("Máquina: "+nomeMaq(F.maquina)); if(F.titular) p.push("Titular: "+titNome(F.titular)); if(F.nfsit) p.push("Situação: "+({lancada:"lançadas",falta:"falta lançar",ignorada:"ignoradas",cancelada:"canceladas"}[F.nfsit])); if(F.nfforn) p.push("Fornecedor: "+F.nfforn); if(F.nfdest) p.push("Em nome de: "+F.nfdest);
   return p.join(" · ");
 }
 function rlGerar(){
@@ -4773,6 +4786,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="layout.js"></script>
 <script src="lixeira.js"></script>
 <script src="lote-notas.js"></script>
+<script src="relnotas.js"></script>
 <script src="anexos.js"></script>
 <script src="linhas.js"></script>
 <script src="form-botao.js"></script>
