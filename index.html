@@ -237,6 +237,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .es-pane{display:flex;flex-direction:column;gap:14px}
 .es-pane[hidden]{display:none}
 .ne-vazio{display:none}
+.nf-dup{display:flex;flex-direction:column;gap:6px;background:#fbe3df;border:1px solid var(--danger);border-radius:8px;padding:12px;color:#5d1a12;margin-bottom:10px}
+.nf-dup b{font-size:1.02rem}
 .pe-form,.ent-ed{display:flex;flex-direction:column;gap:8px;background:var(--sunk);border-radius:10px;padding:10px 12px;margin:6px 0}
 .pe-conv{display:flex;flex-direction:column;gap:4px}
 .pe-conv[hidden]{display:none}
@@ -1805,7 +1807,8 @@ function renderNfRev(){
   $("#nf-rev").hidden=false;
   const cab=r.manual?`<div class="nf-tit-box"><b>📝 Nota fiscal à mão</b><span class="note">Digite os dados da nota e cada produto. Tudo entra no estoque de uma vez${""} e, se quiser, vira conta a pagar no Financeiro.</span></div>`
     :r.finRef?`<div class="nf-tit-box"><b>📦 Produtos da conta do Financeiro</b><span class="note">A conta já foi lançada no Financeiro. Confira os produtos (nome, classe, unidade e quantidade) para entrarem no estoque.</span></div>`:"";
-  $("#nf-rev").innerHTML=`<div class="nf-box">${cab}
+  const dupl=!r.refaz&&!r.finRef&&!r.manual?nfNoEstoque(r.fin?.chave||null,r.numero,r.origem):[];
+  $("#nf-rev").innerHTML=`<div class="nf-box">${dupl.length?nfDupBox(dupl):""}${cab}
     <div class="grid2">
       <div class="field"><label for="nf-data">Data</label><input type="date" id="nf-data" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(r.data||"")?r.data:todayISO())}"></div>
       <div class="field"><label for="nf-num">Nota fiscal nº</label><input id="nf-num" inputmode="numeric" value="${esc(r.numero||"")}"></div>
@@ -1949,6 +1952,19 @@ window.nfDoFinanceiro=function(d){ // Financeiro → conta salva com "Lançar ta
   if(!nfDados.itens.length) nfDados.itens=[{}];
   renderNfRev(); nfSt("Conta lançada no Financeiro. Agora confira os produtos e toque em Lançar.");
 };
+/* nota já lançada no estoque? (mesma chave, ou mesmo número + fornecedor) */
+function nfNoEstoque(chave,nf,origem){
+  const K=window.finLig?.nfKey, k=nf&&origem&&K?K(nf,origem):"", out=[];
+  for(const e of estoque) (e.entradas||[]).forEach((x,i)=>{if((chave&&x.chave===chave)||(k&&x.nf&&x.origem&&K(x.nf,x.origem)===k)) out.push({e,x,i})});
+  return out;
+}
+function nfDupBox(d){
+  const ps=[...new Map(d.map(t=>[t.e.id,t])).values()];
+  return `<div class="nf-dup" id="nf-dup"><b>⚠️ Esta nota já foi lançada no estoque${d[0].x.data?" em "+brDate(d[0].x.data):""}</b>
+    <span>${ps.map(t=>`${esc(t.e.comercial)} (${num(t.x.quantidade)} ${esc(t.e.unidade==="emb"?"emb.":t.e.unidade)})`).join(", ")}. Lançar de novo soma os produtos duas vezes no estoque.</span>
+    <span class="row" style="gap:8px;flex-wrap:wrap">${ps.slice(0,3).map(t=>`<button type="button" class="btn ghost fn-mini" onclick="esAbrir('${t.e.id}')">Ver ${esc(t.e.comercial)}</button>`).join("")}</span>
+    <label class="nf-chk"><input type="checkbox" id="nf-dupok"> É outra nota (ou quero lançar de novo mesmo assim)</label></div>`;
+}
 async function nfLancar(){
   if(!db){nfSt("Sem conexão com o banco de dados.");return}
   const data=$("#nf-data").value||todayISO(), nf=$("#nf-num").value.trim(), origem=$("#nf-orig").value.trim(), man=!!nfDados?.manual;
@@ -1961,6 +1977,9 @@ async function nfLancar(){
     if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
   if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
+  if(!nfDados?.refaz&&!nfDados?.finRef){const d=nfNoEstoque(nfDados?.fin?.chave||null,nf,origem);
+    if(d.length&&!$("#nf-dupok")?.checked){ if(!$("#nf-dup")) $("#nf-rev .nf-box").insertAdjacentHTML("afterbegin",nfDupBox(d)); $("#nf-dup").scrollIntoView({block:"center",behavior:"smooth"});
+      nfSt("Esta nota já está no estoque. Se for outra nota, marque a caixa no aviso vermelho e toque em Lançar de novo."); return}}
   let parcs=null;
   if(man&&$("#nf-fin").checked){
     parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value)}));

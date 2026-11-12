@@ -541,7 +541,7 @@ function dividir(){
   parcsRender(Array.from({length:n},(_,i)=>({venc:addMes(v0,i),valor:total>0?(i===n-1?+(total-cada*(n-1)).toFixed(2):cada):null})));
 }
 function fnReset(){
-  fnAnx.limpar(); fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
+  fnAnx.limpar(); delete $("#fn-salvar").dataset.dup; fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
   ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em","#fn-juros","#fn-contrato"].forEach(s=>$(s).value="");
   $("#fn-rec").checked=false; if($("#fn-est")) $("#fn-est").checked=false; destinoRender(); delete $("#fn-conta").dataset.ok;
   $("#fn-data").value=hoje(); $("#fn-tdata").value=hoje(); $("#fn-forma").value="prazo";
@@ -609,6 +609,9 @@ async function salvarLanc(ev){
   if(fnOrigem) base.origem=fnOrigem; if(fnChave) base.chave=fnChave;
   if(base.categoria==="financ"){const j=parseNum($("#fn-juros").value); base.juros=j>=0?+j.toFixed(2):null} else base.juros=null;
   const pago=fnSit==="pago"?{status:"pago",pagoEm:$("#fn-pago-em").value||parcs[0].venc,contaId:$("#fn-conta").value||null}:{status:"aberto"};
+  if(!fnEdit&&fnNat==="pagar"&&(fnChave||base.nf)){ // mesma nota já lançada: avisa e só salva no 2º toque
+    const ja=jaLancada(fnChave,base.nf,base.pessoa), k=fnChave||nfKey(base.nf,base.pessoa);
+    if(ja&&$("#fn-salvar").dataset.dup!==k){$("#fn-salvar").dataset.dup=k; flash("#fn-toast",`⚠️ A NF ${base.nf||""} já está no Financeiro (${ja.descricao}${ja.vencimento?", vence "+brDate(ja.vencimento):""}). Se for outra nota, toque em Salvar de novo.`); return}}
   $("#fn-salvar").disabled=true;
   try{
     if(fnEdit){

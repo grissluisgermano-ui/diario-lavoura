@@ -38,7 +38,7 @@ function montar(){
     let n=(chave&&byCh.get(chave))||null; const k=kDe(nf,emit);
     if(!n&&k) n=byK.get(k)||null;
     if(!n){n={chave:"",numero:"",data:"",emit:"",razao:"",dest:"",total:0,xml:false,email:false,ignorada:false,cancelada:false,retirada:false,contrato:"",tpNF:"",
-      est:false,vEst:0,prods:[],prodIds:[],fin:false,parcs:[],natureza:""}; lista.push(n)}
+      est:false,vEst:0,prods:[],prodIds:[],ents:[],fin:false,parcs:[],natureza:""}; lista.push(n)}
     if(chave&&!n.chave){n.chave=chave; byCh.set(chave,n)}
     if(k&&!byK.has(k)) byK.set(k,n);
     if(nf&&!n.numero) n.numero=nfDig(nf);
@@ -65,12 +65,12 @@ function montar(){
   }
   // 3) entradas do estoque
   for(const p of (typeof estoque!=="undefined"?estoque:[])){
-    for(const x of p.entradas||[]){
+    for(const [i,x] of (p.entradas||[]).entries()){
       if(!x.chave&&!nfDig(x.nf)&&!x.finId) continue;
       let n=x.finId&&porFin.get(x.finId);
       if(n){if(x.chave&&!n.chave){n.chave=x.chave; byCh.set(x.chave,n)}}
       else n=pega(x.chave||"",x.nf,x.origem);
-      n.est=true; n.vEst+=Number(x.valorTotal)||0; n.data||=x.data||""; n.emit||=x.origem||"";
+      n.est=true; n.ents.push({e:p,x,i}); n.vEst+=Number(x.valorTotal)||0; n.data||=x.data||""; n.emit||=x.origem||"";
       if(x.retirada) n.retirada=true; if(x.contrato) n.contrato||=x.contrato;
       if(!n.prodIds.includes(p.id)){n.prodIds.push(p.id); n.prods.push(p.comercial)}
     }
@@ -88,6 +88,17 @@ function montar(){
     n.venceEm=ab.map(l=>l.vencimento).filter(Boolean).sort()[0]||"";
     n.venda=n.natureza==="receber";
     n.onde=n.est&&n.fin?"Estoque e Financeiro":n.est?"Estoque":n.fin?"Financeiro":"";
+    // lançada em dobro: mesma entrada (produto, quantidade, valor, embalagem) ou mesma parcela (vencimento, valor) mais de uma vez
+    const vistoE=new Map(), repE=[];
+    for(const t of n.ents){const k=[t.e.id,t.x.quantidade,t.x.valorTotal,t.x.emb?JSON.stringify(t.x.emb):"",t.x.lote||""].join("|"); const a=vistoE.get(k); if(a){repE.push(t); a.n++} else vistoE.set(k,{t,n:1})}
+    const vistoF=new Map(), repF=[];
+    for(const l of n.parcs.slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")))){const k=[l.vencimento,Number(l.valor).toFixed(2),l.natureza].join("|"); if(vistoF.has(k)) repF.push(l); else vistoF.set(k,l)}
+    n.repE=repE; n.repF=repF; n.repetida=repE.length+repF.length>0;
+    if(n.repetida){ // o valor da nota não conta a repetição
+      n.vEst-=repE.reduce((s,t)=>s+(Number(t.x.valorTotal)||0),0); n.vFin-=repF.reduce((s,l)=>s+(Number(l.valor)||0),0);
+      if(!n.total) n.valor=n.vFin||n.vEst;
+      const ab2=n.parcs.filter(l=>l.status!=="pago"&&!repF.includes(l)); n.aberto=ab2.reduce((s,l)=>s+(Number(l.valor)||0),0);
+    }
     n.busca=normN([n.numero,n.emit,n.razao,n.dest,n.contrato,...n.prods,...n.parcs.flatMap(l=>[l.descricao,...(l.itens||[]).map(i=>i.desc)])].join(" "));
   }
   return lista.sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.numero||0)-(+a.numero||0));
@@ -102,7 +113,7 @@ window.rnOpcoes=()=>{const ls=montar(); return {forn:[...new Set(ls.map(n=>n.emi
 window.rnRelatorio=function(F){
   const ls=montar().filter(n=>F.dentro(n.data)&&(!F.nfsit||n.sit===F.nfsit)&&(!F.nfforn||n.emit===F.nfforn)&&(!F.nfdest||n.dest===F.nfdest))
     .sort((a,b)=>String(a.data).localeCompare(String(b.data)));
-  const linhas=ls.map(n=>[n.data,n.numero,n.emit,n.dest,n.valor,SIT[n.sit]+(n.retirada?" (retirada do contrato)":"")+(n.venda?" (venda)":""),n.onde||"–",pagTxt(n)||(n.retirada?"Já paga no contrato":""),n.prods.join(", "),n.chave]);
+  const linhas=ls.map(n=>[n.data,n.numero,n.emit,n.dest,n.valor,SIT[n.sit]+(n.repetida?" (lançada em dobro)":"")+(n.retirada?" (retirada do contrato)":"")+(n.venda?" (venda)":""),n.onde||"–",pagTxt(n)||(n.retirada?"Já paga no contrato":""),n.prods.join(", "),n.chave]);
   const soma=f=>ls.filter(f).reduce((s,n)=>s+n.valor,0), cont=f=>ls.filter(f).length;
   const resumo=[["Notas",String(ls.length)],["Valor total",br(soma(()=>1))]];
   for(const k of ["lancada","falta","ignorada","cancelada"]) if(cont(n=>n.sit===k)) resumo.push([SIT[k],`${cont(n=>n.sit===k)} · ${br(soma(n=>n.sit===k))}`]);
@@ -128,7 +139,7 @@ function periodo(){
 function filtra(ls){
   const P=periodo(), q=normN(st.q);
   return ls.filter(n=>(!P.de||(n.data&&n.data>=P.de&&n.data<=P.ate))&&(!st.sit||n.sit===st.sit)&&(!st.forn||n.emit===st.forn)&&(!st.dest||n.dest===st.dest)
-    &&(!st.onde||(st.onde==="est"?n.est&&!n.fin:st.onde==="fin"?n.fin&&!n.est:st.onde==="ambos"?n.est&&n.fin:st.onde==="ret"?n.retirada:st.onde==="aberto"?n.pag==="aberto"||n.pag==="parcial":true))
+    &&(!st.onde||(st.onde==="est"?n.est&&!n.fin:st.onde==="fin"?n.fin&&!n.est:st.onde==="ambos"?n.est&&n.fin:st.onde==="ret"?n.retirada:st.onde==="aberto"?n.pag==="aberto"||n.pag==="parcial":st.onde==="rep"?n.repetida:true))
     &&(!q||q.split(" ").every(w=>n.busca.includes(w))));
 }
 const sel=(id,lab,opts,v)=>`<div class="field"><label for="${id}">${lab}</label><select id="${id}">${opts.map(([k,l])=>`<option value="${e(k)}"${k===v?" selected":""}>${e(l)}</option>`).join("")}</select></div>`;
@@ -136,9 +147,14 @@ const chaveN=n=>n.chave||n.numero+"|"+n.emit;
 function linha(n){
   const ab=st.abertos.has(chaveN(n));
   const sel_=n.sit==="cancelada"?`<span class="pill venc">Cancelada</span>`:n.sit==="falta"?`<span class="pill rn-falta">Falta lançar</span>`:n.sit==="ignorada"?`<span class="pill rn-ign">Ignorada</span>`:"";
-  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.venda?`<span class="rn-tag">Venda</span>`:""].join("");
+  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.venda?`<span class="rn-tag">Venda</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
   const pg=n.pag?`<span class="rn-pag rn-${n.pag}">${e(pagTxt(n))}</span>`:"";
   const det=ab?`<div class="rn-det">
+      ${n.repetida?`<div class="rn-repbox"><b>⚠️ Esta nota foi lançada mais de uma vez</b>
+        ${n.repE.length?`<span>No estoque, entrou de novo: ${n.repE.map(t=>`${e(t.e.comercial)} ${String(t.x.quantidade).replace(".",",")} ${e(t.e.unidade==="emb"?"emb.":t.e.unidade)}`).join(", ")}</span>`:""}
+        ${n.repF.length?`<span>No Financeiro, parcela${n.repF.length>1?"s":""} repetida${n.repF.length>1?"s":""}: ${n.repF.map(l=>`${dt(l.vencimento)} ${br(l.valor)}${l.status==="pago"?" (paga)":""}`).join(", ")}</span>`:""}
+        <button type="button" class="btn rn-tirar" data-rntira="${e(chaveN(n))}">Tirar a repetição (deixar só uma vez)</button>
+        <span class="note">O que sair fica 30 dias na Lixeira (Histórico) e pode voltar.</span></div>`:""}
       ${n.razao&&normN(n.razao)!==normN(n.emit)?`<div><span>Razão social</span><b>${e(n.razao)}</b></div>`:""}
       ${n.prods.length?`<div><span>Produtos no estoque</span><b>${n.prods.map(e).join(", ")}</b></div>`:""}
       ${n.parcs.length?`<div><span>Parcelas</span><b>${n.parcs.slice().sort((a,b)=>String(a.vencimento).localeCompare(String(b.vencimento))).map(l=>`${dt(l.vencimento)} ${br(l.valor)} ${l.status==="pago"?"✓":"(aberta)"}`).join(" · ")}</b></div>`:""}
@@ -173,16 +189,18 @@ function render(){
   const aberto=val.reduce((s,n)=>s+(n.venda?0:n.aberto),0);
   // grupos por mês
   const grupos=[]; for(const n of fs){const am=(n.data||"").slice(0,7); let g=grupos[grupos.length-1]; if(!g||g.am!==am){g={am,ns:[]}; grupos.push(g)} g.ns.push(n)}
+  const reps=ls.filter(n=>n.repetida);
   const foco=document.activeElement?.id;
   box.innerHTML=`<div class="rn-filtros">
       ${sel("rn-per","Período",[["mes0","Este mês"],["mes1","Mês passado"],["mesx","Escolher o mês…"],...safras.map(y=>["s"+y,"Safra "+sLab(y)]),...anos.map(a=>["a"+a,"Ano de "+a]),["tudo","Todas as datas"]],st.per)}
       ${st.per==="mesx"?`<div class="field"><label for="rn-mes">Mês</label><input type="month" id="rn-mes" value="${e(st.mes||h.slice(0,7))}"></div>`:""}
       ${sel("rn-sit","Situação",[["","Todas"],["lancada","Lançadas"],["falta","Recebidas, falta lançar"],["ignorada","Ignoradas"],["cancelada","Canceladas"]],st.sit)}
-      ${sel("rn-onde","Onde entrou",[["","Tudo"],["ambos","Estoque e Financeiro"],["est","Só no estoque"],["fin","Só no Financeiro"],["ret","Retiradas do contrato"],["aberto","Com conta em aberto"]],st.onde)}
+      ${sel("rn-onde","Onde entrou",[["","Tudo"],["ambos","Estoque e Financeiro"],["est","Só no estoque"],["fin","Só no Financeiro"],["ret","Retiradas do contrato"],["aberto","Com conta em aberto"],["rep","Lançadas em dobro"]],st.onde)}
       ${sel("rn-forn","Fornecedor",[["","Todos"],...forn.map(x=>[x,x])],st.forn)}
       ${sel("rn-dest","Nota em nome de",[["","Todos"],...dests.map(x=>[x,x])],st.dest)}
       <div class="field rn-busca"><label for="rn-q">Buscar</label><input type="search" id="rn-q" placeholder="Número da NF, produto, contrato…" value="${e(st.q)}"></div>
     </div>
+    ${reps.length&&st.onde!=="rep"?`<button type="button" class="rn-aviso" data-rnrep="1">⚠️ ${reps.length} nota${reps.length>1?"s":""} lançada${reps.length>1?"s":""} em dobro: ${reps.slice(0,3).map(n=>"NF "+e(n.numero)).join(", ")}${reps.length>3?"…":""} <b>Ver</b></button>`:""}
     <div class="rn-res">
       <div class="rn-tot"><span>${e(P.rot)}</span><b>${fs.length} nota${fs.length===1?"":"s"} · ${br(tot)}</b>${aberto>0?`<small>Em aberto no Financeiro: ${br(aberto)}</small>`:""}</div>
       <div class="rn-chips">${["lancada","falta","ignorada","cancelada"].filter(k=>c(k).length).map(k=>`<button type="button" class="rn-chip rn-c-${k}${st.sit===k?" on":""}" data-rnsit="${k}"><b>${c(k).length}</b> ${(c(k).length===1?SIT1:SITN)[k]}<small>${br(cv(k))}</small></button>`).join("")}</div>
@@ -198,18 +216,36 @@ function render(){
   box.querySelectorAll("[data-rnab]").forEach(b=>b.onclick=()=>{const i=b.dataset.rnab; st.abertos.has(i)?st.abertos.delete(i):st.abertos.add(i); render()});
   box.querySelectorAll("[data-rnsit]").forEach(b=>b.onclick=()=>{st.sit=st.sit===b.dataset.rnsit?"":b.dataset.rnsit; st.abertos.clear(); guarda(); render()});
   box.querySelectorAll("[data-rnforn]").forEach(b=>b.onclick=()=>{st.forn=b.dataset.rnforn; st.abertos.clear(); guarda(); render()});
+  box.querySelectorAll("[data-rnrep]").forEach(b=>b.onclick=()=>{st.onde="rep"; st.per="tudo"; st.sit=""; st.forn=""; st.dest=""; st.q=""; st.abertos=new Set(reps.map(chaveN)); guarda(); render()});
+  box.querySelectorAll("[data-rntira]").forEach(b=>b.onclick=()=>{
+    if(!b.dataset.ok){b.dataset.ok="1"; b.textContent="Confirmar: tirar a repetição"; return}
+    const n=ls.find(x=>chaveN(x)===b.dataset.rntira); if(n){b.disabled=true; tirarRep(n).then(()=>{window.ponte?.aviso?.(`NF ${n.numero}: repetição tirada.`); render()}).catch(err=>{console.error(err); b.disabled=false; b.textContent="Não consegui. Tente de novo."})}});
   box.querySelectorAll("[data-rnper]").forEach(b=>b.onclick=()=>{st.per=b.dataset.rnper; guarda(); render()});
   box.querySelectorAll("[data-rnfin]").forEach(b=>b.onclick=()=>window.finEditar?.(b.dataset.rnfin));
   box.querySelectorAll("[data-rnes]").forEach(b=>b.onclick=()=>window.esAbrir?.(b.dataset.rnes));
   box.querySelector("#rn-xlsx").onclick=baixarXlsx;
   box.querySelector("#rn-pdf").onclick=paraRelatorios;
 }
+/* tira as entradas/parcelas repetidas (ficam juntas na Lixeira) */
+async function tirarRep(n){
+  const p=window.ponte, lote="rep"+Date.now().toString(36); if(p) p.lote=lote;
+  try{
+    const porProd=new Map(); for(const t of n.repE){const a=porProd.get(t.e.id)||{e:t.e,is:new Set()}; a.is.add(t.i); porProd.set(t.e.id,a)}
+    for(const {e:pr,is} of porProd.values()){
+      const {id,...doc}=pr, fora=(pr.entradas||[]).filter((_,k)=>is.has(k));
+      doc.entradas=(pr.entradas||[]).filter((_,k)=>!is.has(k));
+      await window.ponte?.lixeira?.guardar?.({colecao:"estoque",docId:id,dados:{...doc,entradas:pr.entradas||[]},entradas:fora});
+      await db.collection("estoque").doc(id).set(doc);
+    }
+    for(const l of n.repF) await db.collection("fin_lanc").doc(l.id).delete();
+  }finally{if(p&&p.lote===lote) p.lote=null}
+}
 async function baixarXlsx(){
   const s=$("#rn-st"), P=periodo();
   if(typeof XLSX==="undefined"){s.textContent="Não consegui carregar o gerador de planilha. Verifique a internet."; return}
   if(typeof downloads==="undefined"||!downloads){s.textContent="Download indisponível nesta visualização."; return}
   const rows=ultimo.slice().sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(n=>({"Data":dt(n.data),"NF":n.numero,"Fornecedor":n.emit,"Razão social":n.razao,"Em nome de":n.dest,"Valor (R$)":+n.valor.toFixed(2),
-    "Situação":SIT[n.sit],"Onde entrou":n.onde,"Retirada do contrato":n.retirada?"sim":"","Contrato":n.contrato,"Pagamento":pagTxt(n),"Em aberto (R$)":n.aberto?+n.aberto.toFixed(2):"","Produtos":n.prods.join(", "),"Chave":n.chave}));
+    "Situação":SIT[n.sit]+(n.repetida?" (lançada em dobro)":""),"Onde entrou":n.onde,"Retirada do contrato":n.retirada?"sim":"","Contrato":n.contrato,"Pagamento":pagTxt(n),"Em aberto (R$)":n.aberto?+n.aberto.toFixed(2):"","Produtos":n.prods.join(", "),"Chave":n.chave}));
   const wb=XLSX.utils.book_new(), ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"Sem notas":""}]);
   ws["!cols"]=Object.keys(rows[0]||{a:1}).map(k=>({wch:Math.min(50,Math.max(10,k.length+2,...rows.slice(0,200).map(r=>String(r[k]??"").length)))}));
   XLSX.utils.book_append_sheet(wb,ws,"Notas");
