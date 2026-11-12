@@ -1,5 +1,5 @@
 /* DANFE: tela por cima do app. A folha é sempre branca com texto preto (é a imagem de um documento impresso). */
-#danfe-ov{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;
+#danfe-ov{position:fixed;inset:0;z-index:9600;background:var(--bg);display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html.dn-aberta,html.dn-aberta body{overflow:hidden}
 .dn-bar-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--hd-bg);color:var(--hd-ink);
