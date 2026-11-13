@@ -1781,6 +1781,10 @@ const NF_UN=["L","kg","sc","un"];
 let nfNpOcupado=false;
 const nfUn=u=>{const x=String(u||"").trim().toLowerCase(); return /^(l|lt|lts|litros?)$/.test(x)?"L":/^(kg|kgs|quilos?)$/.test(x)?"kg":/^(sc|sacos?|sacas?)$/.test(x)?"sc":x?"un":""};
 const nfF2=v=>v!=null&&v!==""&&Number.isFinite(+v)?Number(v).toFixed(2).replace(".",","):"";
+function nfContratos(){ // contratos já usados (Financeiro, descontos dos contratos, entradas do estoque)
+  const cs=[...(window.finLig?.lanc?.()||[]).map(l=>l.contrato),...Object.keys(window.finConfig?.()?.contratos||{}),...estoque.flatMap(e=>(e.entradas||[]).map(x=>x.contrato))];
+  return [...new Set(cs.filter(Boolean).map(String))].sort().reverse().slice(0,80);
+}
 function nfLer(){ // guarda o que está digitado antes de redesenhar
   const r=nfDados; if(!r||$("#nf-rev").hidden) return;
   const g=id=>document.getElementById(id);
@@ -1788,7 +1792,7 @@ function nfLer(){ // guarda o que está digitado antes de redesenhar
   r.itens=[...$("#nf-rev").querySelectorAll(".nf-it")].map((b,i)=>({...r.itens[i],nomeComercial:b.querySelector(".nf-nome").value,generico:b.querySelector(".nf-gen").value,classe:b.querySelector(".nf-cla").value,
     unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
     .map(it=>({...it,quantidade:Number.isFinite(it.quantidade)?it.quantidade:null,vu:Number.isFinite(it.vu)?it.vu:null,valorTotal:Number.isFinite(it.valorTotal)?it.valorTotal:null}));
-  if(r.manual){r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
+  if(r.manual){r.contrato=(g("nf-ctr")?.value||"").trim(); r.retirada=!!g("nf-retm")?.checked; r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
 }
 const nfTotal=()=>[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).reduce((t,b)=>{const v=parseNum(b.querySelector(".nf-v").value); return t+(v>0?v:0)},0);
 const nfMais=(iso,m)=>{const d=new Date(iso+"T12:00:00"); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10)};
@@ -1816,7 +1820,9 @@ function renderNfRev(){
       <div class="field"><label for="nf-data">Data</label><input type="date" id="nf-data" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(r.data||"")?r.data:todayISO())}"></div>
       <div class="field"><label for="nf-num">Nota fiscal nº</label><input id="nf-num" inputmode="numeric" value="${esc(r.numero||"")}"></div>
       <div class="field"${r.manual?"":` style="grid-column:1/-1"`}><label for="nf-orig">Origem / fornecedor</label><input id="nf-orig" list="dl-orig" value="${esc(r.origem||"")}" placeholder="Ex.: Coamo, Casarão"></div>
-      ${r.manual?`<div class="field"><label for="nf-tit">Nota em nome de <small class="note">(opcional)</small></label><input id="nf-tit" list="dl-nf-tit" value="${esc(r.titular||"")}"><datalist id="dl-nf-tit">${[...new Set((window.finTitulares?.()||[]))].map(t=>`<option value="${esc(t)}">`).join("")}</datalist></div>`:""}
+      ${r.manual?`<div class="field"><label for="nf-tit">Nota em nome de <small class="note">(opcional)</small></label><input id="nf-tit" list="dl-nf-tit" value="${esc(r.titular||"")}"><datalist id="dl-nf-tit">${[...new Set((window.finTitulares?.()||[]))].map(t=>`<option value="${esc(t)}">`).join("")}</datalist></div>
+      <div class="field" style="grid-column:1/-1"><label for="nf-ctr">Contrato de fornecimento de insumos <small class="note">(opcional)</small></label><input id="nf-ctr" list="dl-nf-ctr" value="${esc(r.contrato||"")}" placeholder="Ex.: 84870 ou Pedido 3754"><datalist id="dl-nf-ctr">${nfContratos().map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
+      <label class="nf-chk nf-retm" style="grid-column:1/-1"><input type="checkbox" id="nf-retm" ${r.retirada?"checked":""}> <span>📦 Retirada de produto <b>já pago no contrato</b> (fica no depósito da cooperativa): entra só no estoque, sem conta a pagar</span></label>`:""}
     </div>
     ${r.itens.map((it,i)=>{const ex=prodEstoque(it.nomeComercial||""), u=ex?.unidade||nfUn(it.unidade)||"L";return `<div class="nf-it" data-i="${i}">
       <div class="row" style="justify-content:space-between"><label class="nf-chk"><input type="checkbox" class="nf-ok" ${it.ok===false?"":"checked"}> ${r.manual?`Produto ${i+1}`:"Lançar"}</label><span class="row" style="gap:10px"><span class="pill ${ex?"ok":"prox"}">${ex?"Já no estoque":it.nomeComercial?"Produto novo":"—"}</span>${r.manual&&r.itens.length>1?`<button type="button" class="rm nf-rm" aria-label="Tirar produto ${i+1}">×</button>`:""}</span></div>
@@ -1836,8 +1842,8 @@ function renderNfRev(){
     </div>`}).join("")}
     ${r.manual?`<button type="button" class="btn ghost" id="nf-add">+ Adicionar outro produto</button>`:""}
     <p class="note">Princípio ativo e classe vêm do seu estoque ou da lista oficial do AGROFIT (MAPA)${r.manual||r.finRef?"":"; a conversão de embalagens, da nota"}. Confira no rótulo.</p>
-    ${r.manual?`<div class="nf-finbox">
-      <label class="nf-chk fn-nfopt"><input type="checkbox" id="nf-fin" ${r.finOn===false?"":"checked"}> Lançar também no Financeiro (contas a pagar)</label>
+    ${r.manual?`<div class="nf-finbox" ${r.retirada?"hidden":""}>
+      <label class="nf-chk fn-nfopt"><input type="checkbox" id="nf-fin" ${r.finOn===false||r.retirada?"":"checked"}> Lançar também no Financeiro (contas a pagar)</label>
       <div id="nf-finpar" ${r.finOn===false?"hidden":""}>
         <div class="row" style="justify-content:space-between"><span class="lbl">Vencimentos</span><span class="row" style="gap:6px">Parcelas <input id="nf-np" inputmode="numeric" value="${(r.parcs||[]).length||1}" aria-label="Número de parcelas" style="width:56px"></span></div>
         <div id="nf-parcs">${nfParcsHtml()}</div>
@@ -1881,6 +1887,7 @@ function renderNfRev(){
     $("#nf-add").onclick=()=>{nfLer(); r.itens.push({}); renderNfRev(); const ns=box$.querySelectorAll(".nf-nome"); ns[ns.length-1]?.focus()};
     box$.querySelectorAll(".nf-rm").forEach(b=>b.onclick=()=>{nfLer(); r.itens.splice(+b.closest(".nf-it").dataset.i,1); renderNfRev()});
     $("#nf-fin").onchange=e=>{$("#nf-finpar").hidden=!e.target.checked};
+    const rm=$("#nf-retm"); if(rm) rm.onchange=()=>{const fb=$("#nf-rev .nf-finbox"); fb.hidden=rm.checked; $("#nf-fin").checked=!rm.checked; $("#nf-finpar").hidden=rm.checked};
     $("#nf-np").onchange=()=>{const n=Math.max(1,Math.min(24,parseInt($("#nf-np").value)||1)); if(n===(r.parcs||[]).length||nfNpOcupado) return; nfNpOcupado=true; setTimeout(()=>{nfNpOcupado=false; nfMudaParcelas(n)},0)};
     const nfMudaParcelas=n=>{nfLer(); const d0=$("#nf-data").value||todayISO(), ps=r.parcs||[];
       r.parcs=Array.from({length:n},(_,k)=>ps[k]?{...ps[k],mexeu:false}:{venc:n===1?d0:nfMais(d0,k+1),valor:null}); if(n>1&&ps.length===1&&ps[0].venc===d0) r.parcs.forEach((p,k)=>p.venc=nfMais(d0,k+1));
@@ -1984,7 +1991,7 @@ async function nfLancar(){
     if(d.length&&!$("#nf-dupok")?.checked){ if(!$("#nf-dup")) $("#nf-rev .nf-box").insertAdjacentHTML("afterbegin",nfDupBox(d)); $("#nf-dup").scrollIntoView({block:"center",behavior:"smooth"});
       nfSt("Esta nota já está no estoque. Se for outra nota, marque a caixa no aviso vermelho e toque em Lançar de novo."); return}}
   let parcs=null;
-  if(man&&$("#nf-fin").checked){
+  if(man&&$("#nf-fin").checked&&!$("#nf-retm")?.checked){
     parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value)}));
     if(parcs.some(p=>!p.venc)){nfSt("Informe a data de vencimento de todas as parcelas.");return}
     if(parcs.some(p=>!(p.valor>0))){nfSt("Informe o valor de todas as parcelas (ou desmarque o Financeiro).");return}
@@ -1998,7 +2005,8 @@ async function nfLancar(){
     for(const it of itens){const k=it.nome.toLowerCase()+(it.emb?"#"+embChave(it.emb)+"#"+(it.info?.lote||""):""); const g=grupos.get(k); if(g){g.q+=it.q; g.v=(g.v||0)+(it.v||0)} else grupos.set(k,{...it})}
     const porProd=new Map(); // várias entradas do mesmo produto (embalagens diferentes) numa gravação só
     for(const it of grupos.values()){
-      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(nfDados?.fin?.retirada&&!$("#nf-fin")?.checked) entrada.retirada=true; if(anx.length) entrada.anexos=anx;
+      const entrada={data,quantidade:it.q,valorTotal:it.v>0?it.v:null}; if(origem) entrada.origem=origem; if(nf) entrada.nf=nf; if(nfDados?.fin?.chave) entrada.chave=nfDados.fin.chave; if(nfDados?.fin?.contrato) entrada.contrato=nfDados.fin.contrato; if(nfDados?.fin?.retirada&&!$("#nf-fin")?.checked) entrada.retirada=true;
+      if(nfDados?.manual){const c=($("#nf-ctr")?.value||"").trim(); if(c) entrada.contrato=c; if($("#nf-retm")?.checked) entrada.retirada=true} if(anx.length) entrada.anexos=anx;
       if(nfDados?.finRef){entrada.doFinanceiro=true; if(typeof nfDados.finRef==="string") entrada.finId=nfDados.finRef; if(nfDados.chave) entrada.chave=nfDados.chave}
       if(it.emb) entrada.emb=it.emb; if(it.emb&&it.info) Object.assign(entrada,it.info); // lote, germinação, peso da embalagem
       const k=it.nome.toLowerCase(), pp=porProd.get(k)||{it,ents:[]}; pp.ents.push(entrada); if(it.emb) pp.emb=true; porProd.set(k,pp);
@@ -2025,7 +2033,7 @@ async function nfLancar(){
     if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
     else if(parcs){
       const tot=itens.reduce((t,i)=>t+(i.v>0?i.v:0),0), unica=parcs.length===1&&parcs[0].venc===data;
-      const f={chave:null,numero:nf,emit:origem,dest:($("#nf-tit")?.value||"").trim(),total:tot,data,dups:unica?[]:parcs,contrato:"",
+      const f={chave:null,numero:nf,emit:origem,dest:($("#nf-tit")?.value||"").trim(),total:tot,data,dups:unica?[]:parcs,contrato:($("#nf-ctr")?.value||"").trim(),
         itens:itens.map(i=>({desc:i.emb&&i.emb.tipo!=="kg"?`${i.nome} — ${embRot(i.emb,2)}`:i.nome,qtd:i.q,un:i.emb?(i.emb.tipo==="kg"?"kg":i.emb.tipo==="bag"?"bag":"sc"):i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null}))};
       if(unica) f.total=parcs[0].valor;
       try{fin=await window.finDaNota(f,{data,nf,origem,itens,anexos:anx})||" Esta nota já estava no Financeiro."}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
