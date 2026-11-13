@@ -48,7 +48,8 @@ function montar(){
   for(const d of window.danfeColecao?.()||[]){
     if(!d.xml) continue; const x=doXml(d);
     const n=pega(d.id,x?.numero||d.numero,x?.emit||d.emit);
-    n.xml=true; n.email||=d.origem==="email"; n.ignorada||=!!d.ignorada; n.cancelada||=!!d.cancelada;
+    n.xml=true; n.nfeDoc=d; for(const a of d.anexos||[]) if(a?.id&&!n.anexos.some(b=>b.id===a.id)) n.anexos.push(a);
+    n.email||=d.origem==="email"; n.ignorada||=!!d.ignorada; n.cancelada||=!!d.cancelada;
     n.data||=x?.data||d.data||""; n.emit||=x?.emit||d.emit||""; n.razao||=x?.emitRazao||""; n.dest||=x?.dest||bonito(d.dest)||"";
     n.total||=x?.total||+d.total||0; n.contrato||=x?.contrato||""; n.tpNF||=x?.tpNF||"";
     if(x?.retirada) n.xRet=true;
@@ -169,7 +170,10 @@ function linha(n){
       ${n.contrato?`<div><span>Contrato</span><b>${e(n.contrato)}</b></div>`:""}
       ${n.est&&n.fin&&n.total&&Math.abs(n.vEst-n.total)>1&&n.vEst>0?`<div><span>Valor no estoque</span><b>${br(n.vEst)}</b></div>`:""}
       ${n.chave?`<div><span>Chave</span><b class="mono rn-ch">${e(n.chave)}</b></div>`:""}
-      ${n.anexos.length?`<div><span>Foto ou PDF da nota</span><b class="anx-links">${window.anxLinks?.(n.anexos)||""}</b></div>`:""}
+      <div class="rn-anx"><span>Foto ou PDF da nota</span>
+        ${n.anexos.length?`<div class="rn-anx-l">${n.anexos.map(a=>`<span class="rn-anx-it">${window.anxLinks?.([a])||""}<button type="button" class="rn-anx-rm" data-rnanxrm="${e(chaveN(n))}" data-id="${e(a.id)}" aria-label="Tirar este anexo">×</button></span>`).join("")}</div>`:""}
+        <label class="btn ghost fn-mini rn-anx-add">📎 ${n.anexos.length?"Anexar outro":"Anexar foto ou PDF da nota"}<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-rnanx="${e(chaveN(n))}"></label>
+        <small class="note rn-anx-st" data-st="${e(chaveN(n))}" role="status"></small></div>
       <div class="rn-acoes">${n.xml?`<button type="button" class="btn ghost fn-mini" data-danfe="${e(n.chave)}">DANFE</button>`:""}${n.parcs[0]?`<button type="button" class="btn ghost fn-mini" data-rnfin="${e(n.parcs[0].id)}">Abrir a conta</button>`:""}${n.prodIds[0]?`<button type="button" class="btn ghost fn-mini" data-rnes="${e(n.prodIds[0])}">Ver no estoque</button>`:""}${n.sit==="falta"||n.sit==="ignorada"?`<button type="button" class="btn fn-mini" data-rnv="lancar">Ir para as notas a lançar</button>`:""}</div>
     </div>`:"";
   return `<article class="rn-nota rn-s-${n.sit}">
@@ -231,10 +235,31 @@ function render(){
     if(!b.dataset.ok){b.dataset.ok="1"; b.textContent="Confirmar: tirar a repetição"; return}
     const n=ls.find(x=>chaveN(x)===b.dataset.rntira); if(n){b.disabled=true; tirarRep(n).then(()=>{window.ponte?.aviso?.(`NF ${n.numero}: repetição tirada.`,true); render()}).catch(err=>{console.error(err); b.disabled=false; b.textContent="Não consegui. Tente de novo."})}});
   box.querySelectorAll("[data-rnper]").forEach(b=>b.onclick=()=>{st.per=b.dataset.rnper; guarda(); render()});
+  box.querySelectorAll("[data-rnanx]").forEach(inp=>inp.onchange=async()=>{
+    const n=ls.find(x=>chaveN(x)===inp.dataset.rnanx), fs=[...inp.files]; inp.value=""; if(!n||!fs.length) return;
+    const st=box.querySelector(`[data-st="${CSS.escape(inp.dataset.rnanx)}"]`), novos=[];
+    for(const f of fs){st&&(st.textContent=`Enviando ${f.name}…`); try{novos.push(await window.anxEnviar(f))}catch(err){st&&(st.textContent=window.anxErro?.(err,f)||"Não foi possível enviar.")}}
+    if(!novos.length) return;
+    try{await gravaAnexos(n,[...n.anexos,...novos]); window.ponte?.aviso?.(`NF ${n.numero}: ${novos.length} anexo${novos.length>1?"s":""} guardado${novos.length>1?"s":""}.`,true); render()}
+    catch(err){console.error(err); st&&(st.textContent="Não foi possível guardar. Tente de novo.")}
+  });
+  box.querySelectorAll("[data-rnanxrm]").forEach(b=>b.onclick=async()=>{
+    if(!b.dataset.ok){b.dataset.ok="1"; b.textContent="Tirar?"; b.classList.add("ok"); return}
+    const n=ls.find(x=>chaveN(x)===b.dataset.rnanxrm); if(!n) return;
+    try{await gravaAnexos(n,n.anexos.filter(a=>a.id!==b.dataset.id)); render()}catch(err){console.error(err)}
+  });
   box.querySelectorAll("[data-rnfin]").forEach(b=>b.onclick=()=>window.finEditar?.(b.dataset.rnfin));
   box.querySelectorAll("[data-rnes]").forEach(b=>b.onclick=()=>window.esAbrir?.(b.dataset.rnes));
   box.querySelector("#rn-xlsx").onclick=baixarXlsx;
   box.querySelector("#rn-pdf").onclick=paraRelatorios;
+}
+/* guarda a lista de anexos em todos os lugares da nota: entradas do estoque, parcelas do Financeiro e, sem nenhum dos dois, a nota recebida (nfe) */
+async function gravaAnexos(n,lista){
+  const limpa=lista.map(a=>({id:a.id,nome:a.nome,tipo:a.tipo,mime:a.mime||"",tam:a.tam||0,em:a.em||new Date().toISOString()}));
+  const porProd=new Map(); for(const t of n.ents){const a=porProd.get(t.e.id)||{e:t.e,is:new Set()}; a.is.add(t.i); porProd.set(t.e.id,a)}
+  for(const {e:pr,is} of porProd.values()){const {id,...doc}=pr; doc.entradas=(pr.entradas||[]).map((x,k)=>is.has(k)?{...x,anexos:limpa}:x); await db.collection("estoque").doc(id).set(doc)}
+  for(const l of n.parcs){const {id,...doc}=l; await db.collection("fin_lanc").doc(id).set({...doc,anexos:limpa})}
+  if(n.nfeDoc&&(!n.ents.length&&!n.parcs.length||n.nfeDoc.anexos)){const {id,...doc}=n.nfeDoc; await db.collection("nfe").doc(id).set({...doc,anexos:limpa})}
 }
 /* tira as entradas/parcelas repetidas (ficam juntas na Lixeira) */
 async function tirarRep(n){

@@ -48,6 +48,7 @@
     }catch(e){ov.hidden=true; ov.innerHTML=""; return false}
   }
   window.anxVerPdf=verPdf;
+  window.anxEnviar=envia; window.anxErro=(err,f)=>err?.code==="too_large"&&!ehFoto(f)?`"${f.name}" passa de 10 MB.`:(ERR_FOTO[err?.code]||`Não foi possível enviar "${f.name}".`);
 
   // links pequenos para mostrar nos cartões/linhas: 📎 nome
   window.anxLinks=(lista)=>(lista||[]).map(a=>`<button type="button" class="link anx-link" data-anx="${esc(JSON.stringify({id:a.id,tipo:a.tipo,nome:a.nome}))}">📎 ${esc(ext(a)==="FOTO"?"Foto da nota":a.nome)}</button>`).join("");

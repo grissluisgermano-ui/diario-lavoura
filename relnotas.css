@@ -55,3 +55,9 @@
 .rn-tot .rn-cv{color:var(--ink);font-weight:600}
 .rn-fisc{display:block;font-size:.72rem;font-weight:400;color:var(--muted);text-align:right}
 .rn-s-lancada .rn-v:has(.rn-fisc){color:var(--muted)}
+.rn-det>div.rn-anx{display:flex;flex-direction:column;gap:6px}
+.rn-anx-l{display:flex;flex-wrap:wrap;gap:6px 14px}
+.rn-anx-it{display:inline-flex;align-items:center;gap:2px}
+.rn-anx-rm{border:0;background:none;color:var(--muted);font-size:1.05rem;min-width:32px;min-height:32px;cursor:pointer}
+.rn-anx-rm.ok{color:var(--danger);font-size:.8rem;font-weight:600}
+.rn-anx-add{align-self:flex-start;text-transform:none;letter-spacing:0;font-size:.9rem}
