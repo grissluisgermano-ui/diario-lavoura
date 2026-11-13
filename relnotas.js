@@ -52,6 +52,9 @@ function montar(){
     n.data||=x?.data||d.data||""; n.emit||=x?.emit||d.emit||""; n.razao||=x?.emitRazao||""; n.dest||=x?.dest||bonito(d.dest)||"";
     n.total||=x?.total||+d.total||0; n.contrato||=x?.contrato||""; n.tpNF||=x?.tpNF||"";
     if(x?.retirada) n.xRet=true;
+    const vg=x?.tpNF==="0"?window.vgLe?.(d.xml):null;
+    if(vg?.tipo==="venda") n.venda=true; if(vg?.tipo==="remessa") n.remessa=true; if(vg?.tipo==="devolucao") n.devol=true;
+    if(d.registrada) n.registrada=true;
   }
   // 2) contas do Financeiro
   const lanc=(L()?.lanc?.()||[]).filter(l=>l.natureza!=="transf"&&(l.chave||nfDig(l.nf)));
@@ -63,6 +66,9 @@ function montar(){
     if(l.contrato) n.contrato||=l.contrato;
     porFin.set(l.id,n); if(l.grupo) porFin.set(l.grupo,n);
   }
+  // 2b) vendas de grãos lançadas pela nota (graos-nota.js)
+  for(const m of (typeof grMovs==="function"?grMovs():[])){ if(!m.chave) continue;
+    const n=pega(m.chave,m.nf,m.local); n.grao=true; n.venda=true; n.graoTxt=`${String(m.sacas).replace(".",",")} sc de ${m.cultura}`; n.data||=m.data; n.emit||=m.local||"" }
   // 3) entradas do estoque
   for(const p of (typeof estoque!=="undefined"?estoque:[])){
     for(const [i,x] of (p.entradas||[]).entries()){
@@ -79,7 +85,7 @@ function montar(){
     n.vFin=n.parcs.reduce((s,l)=>s+(Number(l.valor)||0),0);
     n.valor=n.total||n.vFin||n.vEst;
     n.emit=n.emit||"Fornecedor não informado";
-    n.lancada=n.est||n.fin;
+    n.lancada=n.est||n.fin||n.grao||n.registrada;
     n.sit=n.cancelada?"cancelada":n.lancada?"lancada":n.ignorada?"ignorada":"falta";
     if(!n.lancada&&n.xRet) n.retirada=true;
     const ab=n.parcs.filter(l=>l.status!=="pago");
@@ -87,7 +93,7 @@ function montar(){
     n.pag=!n.fin?"":ab.length===0?"pago":ab.length===n.parcs.length?"aberto":"parcial";
     n.venceEm=ab.map(l=>l.vencimento).filter(Boolean).sort()[0]||"";
     n.venda=n.natureza==="receber";
-    n.onde=n.est&&n.fin?"Estoque e Financeiro":n.est?"Estoque":n.fin?"Financeiro":"";
+    n.onde=[n.est?"Estoque":"",n.grao?"Grãos":"",n.fin?"Financeiro":"",n.registrada?"Guardada (entrega no depósito)":""].filter(Boolean).join(" e ");
     // lançada em dobro: mesma entrada (produto, quantidade, valor, embalagem) ou mesma parcela (vencimento, valor) mais de uma vez
     const vistoE=new Map(), repE=[];
     for(const t of n.ents){const k=[t.e.id,t.x.quantidade,t.x.valorTotal,t.x.emb?JSON.stringify(t.x.emb):"",t.x.lote||""].join("|"); const a=vistoE.get(k); if(a){repE.push(t); a.n++} else vistoE.set(k,{t,n:1})}
@@ -139,7 +145,7 @@ function periodo(){
 function filtra(ls){
   const P=periodo(), q=normN(st.q);
   return ls.filter(n=>(!P.de||(n.data&&n.data>=P.de&&n.data<=P.ate))&&(!st.sit||n.sit===st.sit)&&(!st.forn||n.emit===st.forn)&&(!st.dest||n.dest===st.dest)
-    &&(!st.onde||(st.onde==="est"?n.est&&!n.fin:st.onde==="fin"?n.fin&&!n.est:st.onde==="ambos"?n.est&&n.fin:st.onde==="ret"?n.retirada:st.onde==="aberto"?n.pag==="aberto"||n.pag==="parcial":st.onde==="rep"?n.repetida:true))
+    &&(!st.onde||(st.onde==="est"?n.est&&!n.fin:st.onde==="fin"?n.fin&&!n.est:st.onde==="ambos"?n.est&&n.fin:st.onde==="ret"?n.retirada:st.onde==="aberto"?n.pag==="aberto"||n.pag==="parcial":st.onde==="rep"?n.repetida:st.onde==="graos"?n.grao||n.remessa||(n.venda&&!n.fin&&!n.est):true))
     &&(!q||q.split(" ").every(w=>n.busca.includes(w))));
 }
 const sel=(id,lab,opts,v)=>`<div class="field"><label for="${id}">${lab}</label><select id="${id}">${opts.map(([k,l])=>`<option value="${e(k)}"${k===v?" selected":""}>${e(l)}</option>`).join("")}</select></div>`;
@@ -147,7 +153,7 @@ const chaveN=n=>n.chave||n.numero+"|"+n.emit;
 function linha(n){
   const ab=st.abertos.has(chaveN(n));
   const sel_=n.sit==="cancelada"?`<span class="pill venc">Cancelada</span>`:n.sit==="falta"?`<span class="pill rn-falta">Falta lançar</span>`:n.sit==="ignorada"?`<span class="pill rn-ign">Ignorada</span>`:"";
-  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.venda?`<span class="rn-tag">Venda</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
+  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.grao?`<span class="rn-tag rn-est">🌾 Grãos: venda de ${e(n.graoTxt)}</span>`:n.venda?`<span class="rn-tag">Venda</span>`:"",n.remessa?`<span class="rn-tag">📦 Entrega no depósito (não é venda)</span>`:"",n.devol?`<span class="rn-tag">↩️ Devolução</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
   const pg=n.pag?`<span class="rn-pag rn-${n.pag}">${e(pagTxt(n))}</span>`:"";
   const det=ab?`<div class="rn-det">
       ${n.repetida?`<div class="rn-repbox"><b>⚠️ Esta nota foi lançada mais de uma vez</b>
@@ -166,7 +172,7 @@ function linha(n){
   return `<article class="rn-nota rn-s-${n.sit}">
     <button type="button" class="rn-lin" data-rnab="${e(chaveN(n))}" aria-expanded="${ab}">
       <span class="rn-a"><b>NF ${e(n.numero||"s/ nº")} · ${e(n.emit)}</b><small>${e(dt(n.data))}${n.dest?" · em nome de "+e(n.dest):""}</small></span>
-      <span class="rn-v mono">${br(n.valor)}</span>
+      <span class="rn-v mono">${br(n.valor)}${n.remessa?`<small class="rn-fisc">só fiscal</small>`:""}</span>
     </button>
     <div class="rn-tags">${sel_}${onde}${pg}</div>
     ${det}
@@ -181,8 +187,9 @@ function render(){
   const forn=[...new Set(ls.map(n=>n.emit))].sort((a,b)=>a.localeCompare(b,"pt-BR")), dests=[...new Set(ls.map(n=>n.dest).filter(Boolean))].sort();
   if(st.forn&&!forn.includes(st.forn)) st.forn=""; if(st.dest&&!dests.includes(st.dest)) st.dest="";
   const fs=filtra(ls); ultimo=fs; const P=periodo();
-  const val=fs.filter(n=>n.sit!=="cancelada"), tot=val.reduce((s,n)=>s+n.valor,0);
-  const c=k=>fs.filter(n=>n.sit===k), cv=k=>c(k).reduce((s,n)=>s+n.valor,0);
+  const val=fs.filter(n=>n.sit!=="cancelada"&&!n.remessa), tot=val.reduce((s,n)=>s+n.valor,0);
+  const totV=val.filter(n=>n.venda).reduce((s,n)=>s+n.valor,0), totC=tot-totV;
+  const c=k=>fs.filter(n=>n.sit===k), cv=k=>c(k).filter(n=>!n.remessa).reduce((s,n)=>s+n.valor,0);
   const porD={}; for(const n of val){const k=n.dest||"Não informado"; porD[k]=(porD[k]||0)+n.valor}
   const porF={}; for(const n of val){(porF[n.emit]??={n:0,v:0}); porF[n.emit].n++; porF[n.emit].v+=n.valor}
   const topF=Object.entries(porF).sort((a,b)=>b[1].v-a[1].v);
@@ -195,20 +202,20 @@ function render(){
       ${sel("rn-per","Período",[["mes0","Este mês"],["mes1","Mês passado"],["mesx","Escolher o mês…"],...safras.map(y=>["s"+y,"Safra "+sLab(y)]),...anos.map(a=>["a"+a,"Ano de "+a]),["tudo","Todas as datas"]],st.per)}
       ${st.per==="mesx"?`<div class="field"><label for="rn-mes">Mês</label><input type="month" id="rn-mes" value="${e(st.mes||h.slice(0,7))}"></div>`:""}
       ${sel("rn-sit","Situação",[["","Todas"],["lancada","Lançadas"],["falta","Recebidas, falta lançar"],["ignorada","Ignoradas"],["cancelada","Canceladas"]],st.sit)}
-      ${sel("rn-onde","Onde entrou",[["","Tudo"],["ambos","Estoque e Financeiro"],["est","Só no estoque"],["fin","Só no Financeiro"],["ret","Retiradas do contrato"],["aberto","Com conta em aberto"],["rep","Lançadas em dobro"]],st.onde)}
+      ${sel("rn-onde","Onde entrou",[["","Tudo"],["ambos","Estoque e Financeiro"],["est","Só no estoque"],["fin","Só no Financeiro"],["ret","Retiradas do contrato"],["aberto","Com conta em aberto"],["graos","Notas de grãos (venda / depósito)"],["rep","Lançadas em dobro"]],st.onde)}
       ${sel("rn-forn","Fornecedor",[["","Todos"],...forn.map(x=>[x,x])],st.forn)}
       ${sel("rn-dest","Nota em nome de",[["","Todos"],...dests.map(x=>[x,x])],st.dest)}
       <div class="field rn-busca"><label for="rn-q">Buscar</label><input type="search" id="rn-q" placeholder="Número da NF, produto, contrato…" value="${e(st.q)}"></div>
     </div>
     ${reps.length&&st.onde!=="rep"?`<button type="button" class="rn-aviso" data-rnrep="1">⚠️ ${reps.length} nota${reps.length>1?"s":""} lançada${reps.length>1?"s":""} em dobro: ${reps.slice(0,3).map(n=>"NF "+e(n.numero)).join(", ")}${reps.length>3?"…":""} <b>Ver</b></button>`:""}
     <div class="rn-res">
-      <div class="rn-tot"><span>${e(P.rot)}</span><b>${fs.length} nota${fs.length===1?"":"s"} · ${br(tot)}</b>${aberto>0?`<small>Em aberto no Financeiro: ${br(aberto)}</small>`:""}</div>
+      <div class="rn-tot"><span>${e(P.rot)}</span><b>${fs.length} nota${fs.length===1?"":"s"}${totV?"":" · "+br(tot)}</b>${totV?`<small class="rn-cv">${totC?`Compras ${br(totC)} · `:""}Vendas ${br(totV)}</small>`:""}${aberto>0?`<small>Em aberto no Financeiro: ${br(aberto)}</small>`:""}</div>
       <div class="rn-chips">${["lancada","falta","ignorada","cancelada"].filter(k=>c(k).length).map(k=>`<button type="button" class="rn-chip rn-c-${k}${st.sit===k?" on":""}" data-rnsit="${k}"><b>${c(k).length}</b> ${(c(k).length===1?SIT1:SITN)[k]}<small>${br(cv(k))}</small></button>`).join("")}</div>
       ${Object.keys(porD).length>1||st.dest?`<div class="rn-dests">${Object.entries(porD).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div><span>${k==="Não informado"?"Sem nome na nota":"Em nome de "+e(k)}</span><b>${br(v)}</b></div>`).join("")}</div>`:""}
       ${topF.length>1?`<details class="rn-forn"><summary>Por fornecedor (${topF.length})</summary>${topF.map(([k,x])=>`<button type="button" class="rn-fl" data-rnforn="${e(k)}"><span>${e(k)}</span><span>${x.n} nota${x.n===1?"":"s"}</span><b class="mono">${br(x.v)}</b></button>`).join("")}</details>`:""}
       <div class="rn-bt"><button type="button" class="btn ghost fn-mini" id="rn-xlsx">Baixar Excel</button><button type="button" class="btn ghost fn-mini" id="rn-pdf">PDF para imprimir</button><span class="note" id="rn-st" role="status"></span></div>
     </div>
-    ${fs.length?grupos.map(g=>`<h4 class="rn-mes"><span>${e(mesTxt(g.am))}</span><span>${g.ns.length} · ${br(g.ns.filter(n=>n.sit!=="cancelada").reduce((s,n)=>s+n.valor,0))}</span></h4>${g.ns.map(linha).join("")}`).join(""):`<div class="empty">Nenhuma nota com esses filtros.${st.per!=="tudo"?`<br><button type="button" class="link" data-rnper="tudo">Ver todas as datas</button>`:""}</div>`}`;
+    ${fs.length?grupos.map(g=>`<h4 class="rn-mes"><span>${e(mesTxt(g.am))}</span><span>${g.ns.length} · ${br(g.ns.filter(n=>n.sit!=="cancelada"&&!n.remessa).reduce((s,n)=>s+n.valor,0))}</span></h4>${g.ns.map(linha).join("")}`).join(""):`<div class="empty">Nenhuma nota com esses filtros.${st.per!=="tudo"?`<br><button type="button" class="link" data-rnper="tudo">Ver todas as datas</button>`:""}</div>`}`;
   if(foco==="rn-q"){const q=$("#rn-q"); q.focus(); q.setSelectionRange(q.value.length,q.value.length)}
   const ch=(id,k)=>box.querySelector(id)?.addEventListener("change",ev=>{st[k]=ev.target.value; st.abertos.clear(); guarda(); render()});
   ch("#rn-per","per"); ch("#rn-mes","mes"); ch("#rn-sit","sit"); ch("#rn-onde","onde"); ch("#rn-forn","forn"); ch("#rn-dest","dest");
@@ -219,7 +226,7 @@ function render(){
   box.querySelectorAll("[data-rnrep]").forEach(b=>b.onclick=()=>{st.onde="rep"; st.per="tudo"; st.sit=""; st.forn=""; st.dest=""; st.q=""; st.abertos=new Set(reps.map(chaveN)); guarda(); render()});
   box.querySelectorAll("[data-rntira]").forEach(b=>b.onclick=()=>{
     if(!b.dataset.ok){b.dataset.ok="1"; b.textContent="Confirmar: tirar a repetição"; return}
-    const n=ls.find(x=>chaveN(x)===b.dataset.rntira); if(n){b.disabled=true; tirarRep(n).then(()=>{window.ponte?.aviso?.(`NF ${n.numero}: repetição tirada.`); render()}).catch(err=>{console.error(err); b.disabled=false; b.textContent="Não consegui. Tente de novo."})}});
+    const n=ls.find(x=>chaveN(x)===b.dataset.rntira); if(n){b.disabled=true; tirarRep(n).then(()=>{window.ponte?.aviso?.(`NF ${n.numero}: repetição tirada.`,true); render()}).catch(err=>{console.error(err); b.disabled=false; b.textContent="Não consegui. Tente de novo."})}});
   box.querySelectorAll("[data-rnper]").forEach(b=>b.onclick=()=>{st.per=b.dataset.rnper; guarda(); render()});
   box.querySelectorAll("[data-rnfin]").forEach(b=>b.onclick=()=>window.finEditar?.(b.dataset.rnfin));
   box.querySelectorAll("[data-rnes]").forEach(b=>b.onclick=()=>window.esAbrir?.(b.dataset.rnes));

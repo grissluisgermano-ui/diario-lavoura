@@ -20,7 +20,7 @@ const CAT_PADRAO={
     ["maoobra","Salários, ordenados e comissões","custo"],["prolabore","Pró-labore","custo"],["medtrab","Medicina do trabalho","custo"],
     ["arrendamento","Arrendamento","custo"],["servicos","Serviços terceirizados (frete, colheita…)","custo"],["impostos","Impostos (Funrural, FGTS, DARF, ITR…)","custo"],
     ["impveiculo","Imposto de veículo","custo"],["seguro","Seguros","custo"],["energia","Luz","custo"],["comunicacao","Comunicação (telefone, internet)","custo"],
-    ["outras_d","Despesas diversas","custo"],["financ","Financiamentos (parcela — informe os juros)","financ"],["consorcio","Consórcio","invest"],
+    ["outras_d","Despesas diversas","custo"],["financ","Financiamentos (parcela — informe os juros)","financ"],["consorcio","Consórcio","invest"],["capital","Cota capital da cooperativa (retenção na venda)","invest"],
     ["investimento","Aquisição de máquinas e implementos","invest"],["familia_pai","Finanças Nestor Griss","familia"],["emprestimo","Empréstimos (família)","familia"],
     ["animais","Animais (pecuária)","pecuaria"]],
   receber:[["graos","Venda agrícola (grãos)","receita"],["outras_r","Outras receitas","receita"],["financ_r","Financiamento recebido (custeio)","naoreceita"],
@@ -28,7 +28,7 @@ const CAT_PADRAO={
 const PAPEIS={pagar:{custo:"Custo da lavoura",invest:"Investimento (fora do custo)",financ:"Financiamento: só os juros são custo",familia:"Contas com a família (fora do custo)",pecuaria:"Pecuária (separada da lavoura)"},
   receber:{receita:"Receita da lavoura",naoreceita:"Não é receita (empréstimo)",familia:"Contas com a família",pecuaria:"Pecuária"}};
 const CURTO={defensivos:"Defensivos",fertilizantes:"Fertilizantes",sementes:"Sementes",insumos:"Insumos",combustivel:"Combustível",manutencao:"Manutenção",benfeitorias:"Benfeitorias",
-  maoobra:"Salários e comissões",prolabore:"Pró-labore",medtrab:"Medicina do trabalho",arrendamento:"Arrendamento",servicos:"Serviços",impostos:"Impostos",impveiculo:"Imposto de veículo",
+  maoobra:"Salários e comissões",prolabore:"Pró-labore",medtrab:"Medicina do trabalho",arrendamento:"Arrendamento",servicos:"Serviços",impostos:"Impostos",capital:"Cota capital",impveiculo:"Imposto de veículo",
   seguro:"Seguros",energia:"Luz",comunicacao:"Telefone e internet",outras_d:"Despesas diversas",financ:"Juros de financiamentos",consorcio:"Consórcio",investimento:"Máquinas e implementos",
   familia_pai:"Finanças Nestor Griss",emprestimo:"Empréstimos",animais:"Animais",graos:"Venda de grãos",outras_r:"Outras receitas",financ_r:"Financiamento recebido",familia_r:"Recebido da família",animais_r:"Venda de animais"};
 const INSUMO_CATS=new Set(["defensivos","fertilizantes","sementes","insumos"]);

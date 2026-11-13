@@ -57,10 +57,15 @@ function prepara(am,lista,titulo){
     let x=null, fin=null, tp="1";
     try{const doc=new DOMParser().parseFromString(d.xml,"application/xml"); x=lerXml(d.xml); fin=window.finDadosXml(doc); tp=doc.getElementsByTagNameNS("*","tpNF")[0]?.textContent?.trim()||"1"}catch{}
     if(!x||!fin){notas.push({d,erro:"não consegui ler o XML",ok:false});continue}
+    // venda de grãos (fixação de preço) ou entrega no depósito: vai para Grãos/Financeiro (graos-nota.js), não para o estoque
+    const vg=tp==="0"?window.vgLe?.(d.xml):null;
+    if(vg&&(vg.tipo==="venda"||vg.tipo==="remessa")){const ja=window.vgJaLancada?.(vg);
+      notas.push({d,x,fin,grao:vg,rm:vg.tipo==="remessa"?window.vgRomaneio?.(vg):null,ok:!d.cancelada&&!ja,aviso:d.cancelada?"nota cancelada":ja?"já lançada":"",itens:[],temSem:false,finJa:false}); continue}
     const temSem=x.itens.some(it=>/SEMENTE|\bSTE\b/i.test(it.descricao)||classeDe(it.descricao)==="Semente");
-    const aviso=d.cancelada?"nota cancelada":tp==="0"?"nota de entrada emitida pelo fornecedor (ex.: compra de grãos)":noEstoque(fin.chave)?"já está no estoque":
+    const vgD=tp==="0"?window.vgLe?.(d.xml):null;
+    const aviso=d.cancelada?"nota cancelada":vgD?.tipo==="devolucao"?`devolução de compra${vgD.refNF?` (ref. NF ${vgD.refNF})`:""}: acerte a quantidade na entrada da nota original no estoque`:tp==="0"?"nota de entrada emitida pelo fornecedor (ex.: compra de grãos)":noEstoque(fin.chave)?"já está no estoque":
       temSem?"tem semente: lance esta nota sozinha (embalagens)":window.finLote?.jaLancada(fin)&&!lista?"já está no Financeiro":"";
-    const n={d,x,fin,ok:!aviso,aviso,itens:[],temSem,finJa:!!window.finLote?.jaLancada(fin)};
+    const n={d,x,fin,ok:!aviso,aviso,itens:[],temSem,finJa:!!window.finLote?.jaLancada(fin),devol:vgD?.tipo==="devolucao"};
     for(const it of x.itens){
       const k=(it.descricao+"|"+it.unidade).toUpperCase();
       if(!prods.has(k)){
@@ -100,7 +105,7 @@ function render(){
     <p class="note">Confira as notas e os produtos. Os que estiverem marcados em "Estoque" entram como compra na data da nota. Tudo vai também para o Financeiro.</p>
     <h3 class="sub-h">Notas (${sel.length} de ${lote.notas.length})</h3>
     <div class="nl-notas">${lote.notas.map((n,i)=>`<div class="nl-nota${n.ok?"":" off"}"><input type="checkbox" data-nln="${i}" id="nl-n${i}" ${n.ok?"checked":""} ${n.erro?"disabled":""} aria-label="Lançar a NF ${e(n.d.numero||"")}">
-      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)} · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:n.finJa?` · <span class="note">já no Financeiro: entra só no estoque</span>`:""}${n.fin?.retirada?` · <span class="ne-ret">retirada do contrato ${e(n.fin.contrato)} — só estoque</span>`:""}</small></span>
+      <span class="nl-nt" data-for="nl-n${i}"><b>NF ${e(n.d.numero||"")} · ${e(n.fin?.emit||n.d.emit||"")}</b><small>${n.d.data?n.d.data.split("-").reverse().join("/"):""} · ${br(n.fin?.total||n.d.total)}${n.grao?"":` · ${n.itens.length} ite${n.itens.length===1?"m":"ns"}`}${n.grao?` · <span class="ne-grao">${e(window.vgResumo(n.grao))}</span>${n.grao.tipo==="remessa"?(n.rm?` · <span class="note">✓ romaneio de ${n.rm.data.split("-").reverse().join("/")}</span>`:` · <span class="falta">sem romaneio parecido na Colheita</span>`):""}`:""}${n.aviso||n.erro?` · <span class="falta">${e(n.aviso||n.erro)}</span>`:n.finJa?` · <span class="note">já no Financeiro: entra só no estoque</span>`:""}${n.fin?.retirada&&!n.devol?` · <span class="ne-ret">retirada do contrato ${e(n.fin.contrato)} — só estoque</span>`:""}</small></span>
       ${n.temSem&&!n.ok&&n.x?`<button type="button" class="link" data-nlsz="${i}">Lançar sozinha</button>`:""}${n.d.arquivo?`<button type="button" class="link" data-nldn="${i}">DANFE</button>`:`<button type="button" class="link" data-danfe="${e(n.d.id)}">DANFE</button>`}</div>`).join("")}</div>
     <h3 class="sub-h">Produtos (${usados.length})</h3>
     <p class="note">Desmarque "Estoque" no que não é insumo (peças, diesel, serviços…): esses vão só para o Financeiro. O nome é o que fica no estoque; produtos iguais com nomes diferentes podem ser juntados escrevendo o mesmo nome.</p>
@@ -112,6 +117,7 @@ function render(){
           <span class="nl-pq mono">${num(p.q)} ${e(prodEstoque(p.nome)?.unidade||p.un)}</span><span class="nl-pv mono">${br(p.v)}</span></div>
         <small><span class="pill ${novo(p)?"prox":"ok"}">${novo(p)?"Produto novo":"Já no estoque"}</span>${p.gen?` <span class="note">${e(p.gen)}</span>`:""}${p.classe?` <span class="note">· ${e(p.classe)}</span>`:""}</small></div>
     </div>`).join("")}</div>
+    ${lote.notas.some(n=>n.grao)?`<p class="vg-exp"><b>Notas de grãos:</b> as de <b>venda</b> (fixação de preço) tiram as sacas do saldo da Lavoura em Grãos e entram no Financeiro como receita já recebida na conta da cooperativa, com os descontos da nota (Senar, Funrural, retenção de capital). Venda já lançada à mão nos Grãos (mesmo dia ±5, mesmas sacas) é completada, não repetida. As de <b>entrega no depósito</b> (remessa) não mexem em saldo nem dinheiro: só ficam guardadas.</p>`:""}
     <h3 class="sub-h">Financeiro</h3>
     <label class="nf-chk"><input type="checkbox" id="nl-fin" checked> Lançar também no Financeiro (uma conta a pagar por parcela)</label>
     <div class="grid2" id="nl-fin-op">
@@ -139,7 +145,7 @@ async function lancar(){
   const b=$("#nl-ok"), st=t=>$("#nl-st").textContent=t;
   if(!b.dataset.armed){b.dataset.armed="1"; b.textContent="Confirmar lançamento"; return}
   const fin=$("#nl-fin").checked, pago=$("#nl-sit").value==="pago", conta=$("#nl-conta").value;
-  if(fin&&pago&&!conta){st("Cadastre uma conta no Financeiro → Resumo primeiro."); return}
+  if(fin&&pago&&!conta&&lote.notas.some(n=>n.ok&&!n.grao)){st("Cadastre uma conta no Financeiro → Resumo primeiro."); return}
   for(const p of lote.prods.values()) if(p.est&&p.n&&!p.nome){st("Há produto sem nome."); return}
   b.disabled=true; $("#nl-volta").disabled=true;
   const notas=lote.notas.filter(n=>n.ok);
@@ -164,15 +170,22 @@ async function lancar(){
       st(`Estoque: ${++i} de ${porProd.size} produtos…`);
     }
     // XML de notas vindas de arquivo fica guardado (DANFE e "Refazer pela nota")
-    for(const n of notas) if(n.d.arquivo&&n.fin.chave) try{await db.collection("nfe").doc(n.fin.chave).set({xml:n.d.xml,numero:n.fin.numero,emit:n.fin.emit,data:n.fin.data,criadoEm:new Date().toISOString()})}catch{}
+    for(const n of notas) if(n.d.arquivo&&n.fin.chave&&!n.grao) try{await db.collection("nfe").doc(n.fin.chave).set({xml:n.d.xml,numero:n.fin.numero,emit:n.fin.emit,data:n.fin.data,criadoEm:new Date().toISOString()})}catch{}
     // 2) Financeiro: contas a pagar de cada nota
     let nf=0;
-    if(fin){ for(const n of notas){ if(n.fin.retirada) continue; // retirada do contrato: já paga
+    // notas de grãos (venda / entrega no depósito)
+    let ng=0, nr=0;
+    for(const n of notas.filter(n=>n.grao)){
+      if(n.grao.tipo==="venda"){await window.vgLancar(n.grao,{recebido:true,conta:window.vgContaPadrao?.(n.grao.local)||"",xml:n.d.xml}); ng++}
+      else{await window.vgGuardar(n.grao,n.d.xml); nr++}
+      st(`Grãos: ${ng+nr} de ${notas.filter(n=>n.grao).length} notas…`);
+    }
+    if(fin){ for(const n of notas){ if(n.fin.retirada||n.grao) continue; // retirada do contrato: já paga; grãos: já feito acima
       const itens=n.itens.map(({k,it})=>{const p=lote.prods.get(k); return {nome:p.est?p.nome:it.descricao,classe:p.est?p.classe:classeDe(it.descricao),v:it.valorTotal}});
       await window.finLote.lancarNota(n.fin,{pago,conta,itens}); st(`Financeiro: ${++nf} de ${notas.length} notas…`) }
       if(pago) window.finLote.lembraConta(conta) }
     const el=$("#nl-tela .ct-corpo");
-    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${porProd.size} produto${porProd.size===1?"":"s"} no estoque${fin?` e ${nf} no Financeiro`:""}${notas.some(n=>n.fin.retirada)?` (${notas.filter(n=>n.fin.retirada).length} de retirada de contrato: só no estoque)`:""}.</p>
+    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${[porProd.size?`${porProd.size} produto${porProd.size===1?"":"s"} no estoque`:"",fin&&nf?`${nf} no Financeiro`:"",ng?`${ng} venda${ng===1?"":"s"} de grãos`:"",nr?`${nr} entrega${nr===1?"":"s"} no depósito guardada${nr===1?"":"s"}`:""].filter(Boolean).join(" · ")}${notas.some(n=>n.fin.retirada)?` (${notas.filter(n=>n.fin.retirada).length} de retirada de contrato: só no estoque)`:""}.</p>
       <div class="row"><button type="button" class="btn" id="nl-fim">Voltar às notas</button></div>`;
     $("#nl-volta").disabled=false; $("#nl-fim").onclick=fechar;
   }catch(err){

@@ -1,0 +1,31 @@
+/* Venda de grãos / entrega no depósito pela nota (graos-nota.js) */
+.vg-ov{position:fixed;inset:0;z-index:9400;background:rgba(20,28,18,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:0}
+.vg-ov[hidden]{display:none}
+body.vg-aberto{overflow:hidden}
+.vg-box{background:var(--bg);width:100%;min-height:100%;padding:0 16px 24px;display:flex;flex-direction:column;gap:12px}
+@media(min-width:760px){.vg-ov{padding:40px 16px}.vg-box{max-width:640px;min-height:0;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.25)}}
+.vg-cab{position:sticky;top:0;background:var(--bg);display:flex;justify-content:space-between;align-items:center;padding:14px 0 10px;border-bottom:1px solid var(--line);font-family:var(--f-display);font-size:1.25rem;font-weight:700;z-index:1}
+.vg-x{border:0;background:none;font-size:1.3rem;cursor:pointer;color:var(--muted);min-width:44px;min-height:44px}
+.vg-nota{display:flex;flex-direction:column;gap:2px}
+.vg-nota small{color:var(--muted)}
+.vg-nota .link{align-self:flex-start;padding:4px 0}
+.vg-num{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:560px){.vg-num{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.vg-num>div,.vg-contas{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.vg-num span{display:block;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.vg-num b{font-size:1.05rem}
+.vg-contas{display:flex;flex-direction:column;gap:6px}
+.vg-contas>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.vg-contas b{font-family:var(--f-mono,monospace);white-space:nowrap}
+.vg-contas small{color:var(--muted)}
+.vg-desc{color:#8a3b12}
+.vg-liq{border-top:1px solid var(--line);padding-top:6px;font-weight:700}
+.vg-liq b{color:var(--accent)}
+.vg-rec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
+.vg-rec .field{margin:0}
+.vg-exp{background:var(--surface);border-left:4px solid var(--accent);padding:10px 12px;border-radius:6px;margin:0;font-size:.95rem}
+.vg-ok{color:var(--accent);font-weight:600;margin:0}
+.vg-av{background:#fff4e0;border:1px solid #e6c08a;color:#6b4100;padding:10px 12px;border-radius:8px;margin:0}
+.vg-mesma{background:#eef6ea;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);padding:10px 12px;border-radius:8px}
+.vg-bt{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ne-grao{color:var(--accent);font-weight:600}

@@ -139,7 +139,9 @@ if(typeof col!=="undefined"&&col) window.danfeInicia();
 /* ---------- Notas recebidas por e-mail (o script do Google grava em nfe/{chave} com origem "email") ---------- */
 function lancada(chave){
   if((typeof estoque!=="undefined"?estoque:[]).some(p=>(p.entradas||[]).some(x=>x.chave===chave))) return true;
-  return (window.finColecoes?.().fin_lanc||[]).some(l=>l.chave===chave);
+  if((window.finColecoes?.().fin_lanc||[]).some(l=>l.chave===chave)) return true;
+  if(nfeDocs.some(d=>d.id===chave&&d.registrada)) return true; // entrega de grãos no depósito guardada
+  return typeof grMovs==="function"&&grMovs().some(m=>m.chave===chave); // venda de grãos pela nota
 }
 const pendentesTodas=()=>nfeDocs.filter(d=>d.origem==="email"&&!d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
 /* notas com mais de 90 dias vão para "Notas antigas" (lançadas por mês, em lote-notas.js) e não contam na bolinha */
@@ -151,7 +153,7 @@ const arquivo=d=>new File([d.xml],`NFe${d.id}.xml`,{type:"text/xml"});
 function resumoNota(d){
   let fin=null; try{fin=window.finDadosXml?.(new DOMParser().parseFromString(d.xml,"application/xml"))}catch{}
   return {emit:fin?.emit||d.emit||"Fornecedor",razao:fin?.emitRazao||"",retirada:!!fin?.retirada,contrato:fin?.contrato||"",dest:fin?.dest||d.dest||"",total:fin?.total||d.total||0,parc:fin?.dups?.length||1,itens:fin?.itens?.length||0,
-    venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:""};
+    venc:fin?.dups?.length?fin.dups.map(x=>x.venc).sort()[0]:"",vg:window.vgLe?.(d.xml)||null};
 }
 const ignoradas=()=>nfeDocs.filter(d=>d.origem==="email"&&d.ignorada&&!lancada(d.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
 /* a ponte guarda uma cópia na Lixeira (Histórico) por 30 dias; fica um "marcador" sem o XML para o script do Gmail não trazer a nota de novo */
@@ -189,11 +191,12 @@ window.nePintar=function(){
     <p class="note">Chegaram com o XML anexado. Lance no estoque (entra também no Financeiro) ou só no Financeiro, quando não for produto de estoque.</p>
     ${ps.slice(0,30).map(d=>{const r=resumoNota(d); return `<article class="ne-nota${d.cancelada?" ne-canc":""}">
       <div class="rec-top"><b>NF ${e(d.numero||"")} · ${e(r.emit)}</b><span class="mono">${br(r.total)}</span></div>
-      <div class="rec-campos"><span>${d.data?dt(d.data):""}</span>${r.razao&&r.razao.toLowerCase().replace(/\W/g,"")!==String(r.emit).toLowerCase().replace(/\W/g,"")?`<span>${e(r.razao)}</span>`:""}${r.dest?`<span>Em nome de <b>${e(r.dest)}</b></span>`:""}<span>${r.itens} ite${r.itens===1?"m":"ns"}</span>${r.retirada?`<span class="ne-ret">📦 Retirada do contrato ${e(r.contrato)} · já paga</span>`:`<span>${r.parc} parcela${r.parc===1?"":"s"}${r.venc?` · vence ${dt(r.venc)}`:""}</span>`}${d.cancelada?`<span class="pill venc">Nota cancelada</span>`:""}</div>
-      <div class="rec-actions">${d.cancelada?"":`<button type="button" class="btn fn-mini" data-nee="${d.id}">Lançar no estoque</button><button type="button" class="btn ghost fn-mini" data-nef="${d.id}">Só no Financeiro</button>`}<button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link" data-nei="${d.id}">Ignorar</button><button type="button" class="link danger" data-nex="${d.id}">Excluir</button></div>
+      <div class="rec-campos"><span>${d.data?dt(d.data):""}</span>${r.razao&&r.razao.toLowerCase().replace(/\W/g,"")!==String(r.emit).toLowerCase().replace(/\W/g,"")?`<span>${e(r.razao)}</span>`:""}${r.dest?`<span>Em nome de <b>${e(r.dest)}</b></span>`:""}${r.vg?`<span class="ne-grao">${e(window.vgResumo(r.vg))}</span>`:`<span>${r.itens} ite${r.itens===1?"m":"ns"}</span>`}${r.retirada?`<span class="ne-ret">📦 Retirada do contrato ${e(r.contrato)} · já paga</span>`:`<span>${r.parc} parcela${r.parc===1?"":"s"}${r.venc?` · vence ${dt(r.venc)}`:""}</span>`}${d.cancelada?`<span class="pill venc">Nota cancelada</span>`:""}</div>
+      <div class="rec-actions">${d.cancelada?"":r.vg&&r.vg.tipo!=="devolucao"?`<button type="button" class="btn fn-mini" data-nevg="${d.id}">${r.vg.tipo==="venda"?"🌾 Lançar venda de grãos":"📦 Conferir e guardar"}</button>`:`<button type="button" class="btn fn-mini" data-nee="${d.id}">Lançar no estoque</button><button type="button" class="btn ghost fn-mini" data-nef="${d.id}">Só no Financeiro</button>`}<button type="button" class="link" data-danfe="${d.id}">DANFE</button><button type="button" class="link" data-nei="${d.id}">Ignorar</button><button type="button" class="link danger" data-nex="${d.id}">Excluir</button></div>
     </article>`}).join("")}${ps.length>30?`<p class="note">Mostrando 30 de ${ps.length}.</p>`:""}`;
   const doc=id=>nfeDocs.find(x=>x.id===id);
   box.querySelectorAll("[data-nee]").forEach(b=>b.onclick=()=>{show("estoque"); window.nfImportarArquivo?.(arquivo(doc(b.dataset.nee))); setTimeout(()=>document.getElementById("nf-rev")?.scrollIntoView({block:"start",behavior:"smooth"}),300)});
+  box.querySelectorAll("[data-nevg]").forEach(b=>b.onclick=()=>window.vgAbrir?.(doc(b.dataset.nevg).xml));
   box.querySelectorAll("[data-nef]").forEach(b=>b.onclick=()=>{show("fin_contas"); window.finImportarXml?.(arquivo(doc(b.dataset.nef)))});
   box.querySelectorAll("[data-nei]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: ignorar",async()=>{const {id,...d}=doc(b.dataset.nei); await db.collection("nfe").doc(id).set({...d,ignorada:true})}));
   box.querySelectorAll("[data-nex]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar exclusão",()=>excluirNota(b.dataset.nex)));
