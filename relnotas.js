@@ -38,7 +38,7 @@ function montar(){
     let n=(chave&&byCh.get(chave))||null; const k=kDe(nf,emit);
     if(!n&&k) n=byK.get(k)||null;
     if(!n){n={chave:"",numero:"",data:"",emit:"",razao:"",dest:"",total:0,xml:false,email:false,ignorada:false,cancelada:false,retirada:false,contrato:"",tpNF:"",
-      est:false,vEst:0,prods:[],prodIds:[],ents:[],fin:false,parcs:[],natureza:""}; lista.push(n)}
+      est:false,vEst:0,prods:[],prodIds:[],ents:[],fin:false,parcs:[],natureza:"",anexos:[]}; lista.push(n)}
     if(chave&&!n.chave){n.chave=chave; byCh.set(chave,n)}
     if(k&&!byK.has(k)) byK.set(k,n);
     if(nf&&!n.numero) n.numero=nfDig(nf);
@@ -81,7 +81,9 @@ function montar(){
       if(!n.prodIds.includes(p.id)){n.prodIds.push(p.id); n.prods.push(p.comercial)}
     }
   }
+  const anx=(n,ls)=>{for(const a of ls||[]) if(a?.id&&!n.anexos.some(b=>b.id===a.id)) n.anexos.push(a)};
   for(const n of lista){
+    for(const t of n.ents) anx(n,t.x.anexos); for(const l of n.parcs) anx(n,l.anexos);
     n.vFin=n.parcs.reduce((s,l)=>s+(Number(l.valor)||0),0);
     n.valor=n.total||n.vFin||n.vEst;
     n.emit=n.emit||"Fornecedor não informado";
@@ -153,7 +155,7 @@ const chaveN=n=>n.chave||n.numero+"|"+n.emit;
 function linha(n){
   const ab=st.abertos.has(chaveN(n));
   const sel_=n.sit==="cancelada"?`<span class="pill venc">Cancelada</span>`:n.sit==="falta"?`<span class="pill rn-falta">Falta lançar</span>`:n.sit==="ignorada"?`<span class="pill rn-ign">Ignorada</span>`:"";
-  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.grao?`<span class="rn-tag rn-est">🌾 Grãos: venda de ${e(n.graoTxt)}</span>`:n.venda?`<span class="rn-tag">Venda</span>`:"",n.remessa?`<span class="rn-tag">📦 Entrega no depósito (não é venda)</span>`:"",n.devol?`<span class="rn-tag">↩️ Devolução</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
+  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.grao?`<span class="rn-tag rn-est">🌾 Grãos: venda de ${e(n.graoTxt)}</span>`:n.venda?`<span class="rn-tag">Venda</span>`:"",n.remessa?`<span class="rn-tag">📦 Entrega no depósito (não é venda)</span>`:"",n.devol?`<span class="rn-tag">↩️ Devolução</span>`:"",n.anexos.length?`<span class="rn-tag">📎 ${n.anexos.length} anexo${n.anexos.length>1?"s":""}</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
   const pg=n.pag?`<span class="rn-pag rn-${n.pag}">${e(pagTxt(n))}</span>`:"";
   const det=ab?`<div class="rn-det">
       ${n.repetida?`<div class="rn-repbox"><b>⚠️ Esta nota foi lançada mais de uma vez</b>
@@ -167,6 +169,7 @@ function linha(n){
       ${n.contrato?`<div><span>Contrato</span><b>${e(n.contrato)}</b></div>`:""}
       ${n.est&&n.fin&&n.total&&Math.abs(n.vEst-n.total)>1&&n.vEst>0?`<div><span>Valor no estoque</span><b>${br(n.vEst)}</b></div>`:""}
       ${n.chave?`<div><span>Chave</span><b class="mono rn-ch">${e(n.chave)}</b></div>`:""}
+      ${n.anexos.length?`<div><span>Foto ou PDF da nota</span><b class="anx-links">${window.anxLinks?.(n.anexos)||""}</b></div>`:""}
       <div class="rn-acoes">${n.xml?`<button type="button" class="btn ghost fn-mini" data-danfe="${e(n.chave)}">DANFE</button>`:""}${n.parcs[0]?`<button type="button" class="btn ghost fn-mini" data-rnfin="${e(n.parcs[0].id)}">Abrir a conta</button>`:""}${n.prodIds[0]?`<button type="button" class="btn ghost fn-mini" data-rnes="${e(n.prodIds[0])}">Ver no estoque</button>`:""}${n.sit==="falta"||n.sit==="ignorada"?`<button type="button" class="btn fn-mini" data-rnv="lancar">Ir para as notas a lançar</button>`:""}</div>
     </div>`:"";
   return `<article class="rn-nota rn-s-${n.sit}">
