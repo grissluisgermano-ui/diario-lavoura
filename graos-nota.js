@@ -55,17 +55,25 @@ function le(xml){
       r.precoSc=sc60?pn(sc60):(r.sacas?v/r.sacas:0);
       const sf=(N(p0.ad+" "+cpl).match(/SAFRA\s*:?\s*(\d{4})\s*\/\s*(\d{4})/)||[]); if(sf[1]) r.safra=+sf[1];
       r.bruto=r.total||v;
-      // descontos retidos (Coamo: "RETENÇÃO PARA AUMENTO DE CAPITAL COAMO : 45,81_CONTRIBUIÇÃO SENAR : 9,16 …")
+      // descontos retidos no texto da nota — cada empresa escreve de um jeito:
+      // Coamo "CONTRIBUIÇÃO SENAR : 9,16" · Casarão "… SENAR: 0,2%. R$ 48,07" (o valor é o último "R$" do trecho, nunca a %)
       r.descontos=[];
-      for(const parte of CPL.split(/[_\n|;]+/)){
-        const m=parte.match(/^\s*(.*?(CAPITAL|PREVIDENCIARIA|FUNRURAL|SENAR|GILRAT|\bRAT\b|INSS)[^:]*?)\s*:\s*R?\$?\s*([\d.]+,\d{2})\s*$/); if(!m) continue;
-        const val=pn(m[3]); if(!(val>0)) continue;
-        const k=/CAPITAL/.test(m[1])?"capital":"impostos";
-        const nome=k==="capital"?"Retenção para aumento de capital":/SENAR/.test(m[1])?"Contribuição Senar":/RAT/.test(m[1])?"Contribuição RAT":"Contribuição previdenciária rural (Funrural)";
+      for(const p0 of CPL.split(/[_\n|;]+|\s-\s/)){ const parte=p0.replace(/BASE[^:=]*[:=]\s*[\d.,]+-?/g,"");
+        const m=parte.match(/CAPITAL|PREVIDENCIARIA|FUNRURAL|SENAR|GILRAT|\bRAT\b|\bINSS\b/); if(!m) continue;
+        if(/APROX|IBPT|LIQUIDO|TOTAL/.test(parte)) continue;
+        const rs=[...parte.matchAll(/R\$\s*([\d.]+,\d{2})(?!\s*%)/g)], cl=parte.match(/:\s*([\d.]+,\d{2})\s*$/);
+        const val=rs.length?pn(rs[rs.length-1][1]):cl?pn(cl[1]):0; if(!(val>0)) continue;
+        const k=/CAPITAL/.test(parte)?"capital":"impostos";
+        const nome=k==="capital"?"Retenção para aumento de capital":/SENAR/.test(parte)?"Contribuição Senar":/GILRAT|\bRAT\b/.test(parte)?"Contribuição RAT":"Contribuição previdenciária rural (Funrural)";
         r.descontos.push({k,nome,valor:val});
       }
+      // líquido: o que a nota diz ("LIQUIDO A PAGAR"), senão o líquido da fatura (cobr/fat/vLiq), senão bruto − descontos
       const liq=(CPL.match(/LIQUIDO A (?:PAGAR|RECEBER)\s*:?\s*R?\$?\s*([\d.]+,\d{2})/)||[])[1];
-      r.liquido=liq?pn(liq):r.bruto-r.descontos.reduce((s,d)=>s+d.valor,0);
+      const vLiq=Number(g("vLiq"))||0, somaD=r.descontos.reduce((s,d)=>s+d.valor,0);
+      r.liquido=liq?pn(liq):vLiq>0&&vLiq<=r.bruto?vLiq:r.bruto-somaD;
+      // desconto que a nota não explicou (ex.: líquido da fatura menor que bruto − descontos lidos): entra como imposto retido
+      const resto=Math.round((r.bruto-somaD-r.liquido)*100)/100;
+      if(resto>0.05) r.descontos.push({k:"impostos",nome:somaD?"Outros descontos da nota":"Descontos retidos (Funrural/Senar)",valor:resto});
       r.refNF=((CPL.match(/NOTA FISCAL DE ENTRADA NRO\/SERIE\/DATA\s*:\s*([\d.]+)/)||[])[1]||"").replace(/\./g,"");
       const imp=CPL.match(/IMPUREZA\s*:?\s*([\d.,]+%[^_]*)/); if(imp) r.impureza=imp[1].trim();
       const mot=CPL.match(/MOTORISTA\s*:\s*([A-Z ]+?)\s+(RG|CPF|_|$)/); if(mot) r.motorista=mot[1].trim();
