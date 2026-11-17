@@ -211,6 +211,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rom .r-local{grid-column:1/3}
 .rom .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:42px;font-size:1.1rem;cursor:pointer}
 .rom .r-sc{text-align:right;font-family:var(--f-mono)}
+.rom .r-q{display:flex;gap:4px;min-width:0}.rom .r-q .r-sc{flex:1;min-width:0;padding-left:8px;padding-right:8px}.rom .r-un{width:auto;flex:0 0 auto;padding-left:6px;padding-right:4px}
+.rom .r-eq{grid-column:1/-1;font-size:.85rem}.rom .r-eq:empty{display:none}
 .roms-total{font-size:.92rem;font-variant-numeric:tabular-nums}
 .roms-total:empty{display:none}
 .roms-total b{font-family:var(--f-mono);font-weight:500}
@@ -2560,7 +2562,7 @@ function recCard(r,extra="",acoesExtra=""){
       ${periodoTxt(r)?`<div class="rec-periodo">Período: <b>${periodoTxt(r)}</b></div>`:""}
       <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas,r.data))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
-      ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc</span></li>`).join("")}</ul>`:""}
+      ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc${x.un==="kg"&&x.kg?` <small class="note">(${num(x.kg)} kg)</small>`:""}</span></li>`).join("")}</ul>`:""}
       ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}${(p.embs||[]).length?`<span class="p-embs">${esc(embsTxt(p))}</span>`:""}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
       ${r.descricao?`<p class="rec-desc">${esc(r.descricao)}</p>`:""}
       ${(r.fotos||[]).length?`<div class="rec-fotos">${r.fotos.map((id,i)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${i+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${i+1}"></button>`).join("")}</div>`:""}
@@ -3361,11 +3363,12 @@ const scFmt=n=>num(n)+" sc";
 function romRow(r={}){
   return `<div class="rom">
     <input class="r-num" inputmode="numeric" placeholder="Nº romaneio" value="${esc(r.numero||"")}" aria-label="Número do romaneio">
-    <input class="r-sc" inputmode="decimal" placeholder="Sacas" value="${r.sacas!=null?esc(String(r.sacas).replace(".",",")):""}" aria-label="Sacas de 60 kg">
+    <span class="r-q"><input class="r-sc" inputmode="decimal" placeholder="${r.un==="kg"?"Kg":"Sacas"}" value="${r.un==="kg"&&r.kg!=null?esc(String(r.kg).replace(".",",")):r.sacas!=null?esc(String(r.sacas).replace(".",",")):""}" aria-label="Quantidade entregue"><select class="r-un" aria-label="Unidade: sacas ou kg"><option value="sc">sc</option><option value="kg" ${r.un==="kg"?"selected":""}>kg</option></select></span>
     <button type="button" class="rm" aria-label="Remover romaneio">×</button>
     <input class="r-data" type="date" value="${esc(r.data||$("#f-data").value||todayISO())}" aria-label="Data da entrega">
     <input class="r-hora" type="time" value="${esc(r.hora||"")}" aria-label="Hora da entrega">
     <input class="r-local" list="dl-dep" placeholder="Local de entrega (Coamo, C.Vale…)" value="${esc(r.local||ultimoDeposito())}" aria-label="Local de entrega">
+    <small class="r-eq note" aria-live="polite">${r.un==="kg"&&r.kg>0?`${num(r.kg)} kg = <b>${num(r.sacas)} sc</b> de 60 kg`:""}</small>
   </div>`;
 }
 function ultimoDeposito(){const rs=[...document.querySelectorAll("#roms .r-local")].map(i=>i.value.trim()).filter(Boolean);return rs[rs.length-1]||""}
@@ -3379,10 +3382,11 @@ function renderRoms(list){
 function readRoms(strict){
   const out=[];
   for(const el of document.querySelectorAll("#roms .rom")){
-    const r={numero:el.querySelector(".r-num").value.trim(),sacas:horNum(el.querySelector(".r-sc").value),data:el.querySelector(".r-data").value,hora:el.querySelector(".r-hora").value,local:el.querySelector(".r-local").value.trim()};
+    const q=horNum(el.querySelector(".r-sc").value), emKg=el.querySelector(".r-un")?.value==="kg";
+    const r={numero:el.querySelector(".r-num").value.trim(),sacas:q==null?null:emKg?Math.round(q/60*100)/100:q,...(emKg&&q!=null?{kg:q,un:"kg"}:{}),data:el.querySelector(".r-data").value,hora:el.querySelector(".r-hora").value,local:el.querySelector(".r-local").value.trim()};
     if(!r.numero&&r.sacas==null&&!el.querySelector(".r-local").value.trim()) continue;
     if(strict){
-      if(!(r.sacas>0)){flash(`Informe as sacas do romaneio ${r.numero||out.length+1}.`);return null}
+      if(!(r.sacas>0)){flash(`Informe as sacas ou os kg do romaneio ${r.numero||out.length+1}.`);return null}
       if(!r.local){flash(`Informe o local de entrega do romaneio ${r.numero||out.length+1}.`);return null}
     }
     if(r.sacas>0) out.push(r);
@@ -3396,6 +3400,11 @@ function romsTotal(){
 }
 $("#add-rom").onclick=()=>{$("#roms").insertAdjacentHTML("beforeend",romRow());$("#roms").lastElementChild.querySelector(".r-num").focus()};
 $("#roms").addEventListener("input",romsTotal);
+function romEq(el){const q=horNum(el.querySelector(".r-sc").value), kg=el.querySelector(".r-un").value==="kg", eq=el.querySelector(".r-eq");
+  el.querySelector(".r-sc").placeholder=kg?"Kg":"Sacas";
+  eq.innerHTML=kg&&q>0?`${num(q)} kg = <b>${num(Math.round(q/60*100)/100)} sc</b> de 60 kg`:""}
+$("#roms").addEventListener("input",e=>{const el=e.target.closest(".rom"); if(el) romEq(el)});
+$("#roms").addEventListener("change",e=>{if(!e.target.matches(".r-un")) return; const el=e.target.closest(".rom"); romEq(el); romsTotal()});
 $("#roms").addEventListener("click",e=>{const b=e.target.closest(".rm");if(!b)return;const r=b.closest(".rom");
   if($("#roms").children.length>1) r.remove(); else r.querySelectorAll(".r-num,.r-sc,.r-hora").forEach(i=>i.value=""); romsTotal()});
 $("#areas").addEventListener("input",()=>{if(TIPOS[tipo].roms) romsTotal()});
@@ -3734,7 +3743,7 @@ function planilhaBackup(){
   add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas,r.data),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
     "Safra":r.tipo!=="chuva"?safraLab(safraReg(r)):"","Cultura":culturaReg(r),"Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
     "Produtos":(r.campos?.produtos||[]).map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; "),"Custo/ha (R$)":r.custoHa??"","Custo total (R$)":r.custoTotal??"",
-    "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc`).join("; "),
+    "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc${x.un==="kg"&&x.kg?` (${x.kg} kg)`:""}`).join("; "),
     "Sacas entregues":(r.romaneios||[]).reduce((s,x)=>s+(Number(x.sacas)||0),0)||"","Descrição":r.descricao||"","Fotos":(r.fotos||[]).length||"","Lançado por":quem(r.criadoPor),"Editado por":quem(r.editadoPor)})));
   add("Chuvas",regs.filter(r=>r.tipo==="chuva").map(r=>({"Data":dt(r.data),"Safra":safraLab(safraDe(r.data)),"Chuva (mm)":Number(r.campos?.mm)||0,"Eventos":(r.campos?.eventos||[]).join(", "),"Descrição":r.descricao||""})));
   add("Estoque",estoque.map(e=>{const s=resumoProd(e); if(s.emb) return {"Nome comercial":e.comercial,"Nome genérico":e.generico||"","Classe":e.classe||"","Unidade":"por embalagem","Entradas":embSaldoTxt(e),"Usado":"","Saldo":embTotTxt(s.grupos),"Custo médio (R$)":"","Valor do saldo (R$)":+s.valorSaldo.toFixed(2)};
