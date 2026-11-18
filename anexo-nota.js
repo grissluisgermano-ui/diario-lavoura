@@ -55,12 +55,12 @@
   document.addEventListener("click",ev=>{const b=ev.target.closest("[data-anx]"); if(!b) return; ev.preventDefault(); try{abre(JSON.parse(b.dataset.anx))}catch{}});
 
   // campo de anexos dentro de um formulário: anxCampo(elemento) → {get, set, limpar, ocupado}
-  window.anxCampo=function(el){
+  window.anxCampo=function(el,op={}){
     let lista=[], enviando=0, msg="";
     const pinta=()=>{
       el.innerHTML=`<div class="anx">
         ${lista.map((a,i)=>`<div class="anx-it"><span class="ax-ext">${ext(a)}</span><button type="button" class="anx-nm" data-i="${i}">${esc(a.nome)}</button><button type="button" class="rm" data-rm="${i}" aria-label="Tirar ${esc(a.nome)}">×</button></div>`).join("")}
-        <label class="btn ghost anx-add">📎 ${lista.length?"Adicionar outro":"Anexar foto ou PDF da nota"}<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden></label>
+        <label class="btn ghost anx-add">📎 ${lista.length?"Adicionar outro":(op.rotulo||"Anexar foto ou PDF da nota")}<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden></label>
         <span class="note anx-st" role="status">${enviando?`Enviando ${enviando} arquivo${enviando>1?"s":""}…`:esc(msg)}</span>
       </div>`;
       el.querySelector("input").onchange=async e=>{

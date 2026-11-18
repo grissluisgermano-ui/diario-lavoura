@@ -213,6 +213,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rom .r-sc{text-align:right;font-family:var(--f-mono)}
 .rom .r-q{display:flex;gap:4px;min-width:0}.rom .r-q .r-sc{flex:1;min-width:0;padding-left:8px;padding-right:8px}.rom .r-un{width:auto;flex:0 0 auto;padding-left:6px;padding-right:4px}
 .rom .r-eq{grid-column:1/-1;font-size:.85rem}.rom .r-eq:empty{display:none}
+.rom .r-cls,.rom .r-anx{grid-column:1/-1}
+.rom .anx-add{text-transform:none;letter-spacing:0;font-size:.95rem}
+.rom .r-cls>summary{cursor:pointer;font-weight:600;font-size:.92rem;padding:6px 0;color:var(--accent)}
+.rom .r-bf{margin:6px 0 8px}
+.rom .r-dt{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:6px 8px;align-items:center}
+.rom .r-dt>span:not(.r-dn){font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.rom .r-dn{font-size:.92rem}
+.rom .r-g,.rom .r-d,.rom .r-bruto{text-align:right;font-family:var(--f-mono)}
+.rom .r-liq{margin-top:8px;font-size:.92rem;background:var(--bg);border-radius:6px;padding:8px 10px}.rom .r-liq:empty{display:none}
+.rom .r-sc.calc{background:var(--bg);color:var(--accent);font-weight:600}
+.rec-prods li:has(.rom-cls),.rec-prods li:has(.anx-links){flex-wrap:wrap}
+.rom-cls{display:block;flex-basis:100%;font-size:.82rem;color:var(--muted);margin-top:2px;white-space:normal}
+.rec-prods li .anx-links{flex-basis:100%;font-family:inherit;white-space:normal}
 .roms-total{font-size:.92rem;font-variant-numeric:tabular-nums}
 .roms-total:empty{display:none}
 .roms-total b{font-family:var(--f-mono);font-weight:500}
@@ -2490,6 +2503,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
     campos.produtos=c.ps; body.custoHa=c.custoHa; body.custoTotal=c.custoTotal; body.semCusto=c.semCusto; if(c.custoHaLiq!=null){body.custoHaLiq=c.custoHaLiq;body.custoTotalLiq=c.custoTotalLiq}else{delete body.custoHaLiq;delete body.custoTotalLiq}
   }
   if(tipo!=="chuva"){body.situacao=situacao; const old=editing?registros.find(x=>x.id===editing):null; if(old?.dataProgramada) body.dataProgramada=old.dataProgramada; if(situacao==="executada"&&ehProg(old||{})) {body.dataProgramada=old.data; body.executadoEm=new Date().toISOString()}}
+  if(TIPOS[tipo].roms&&situacao!=="programada"&&[...document.querySelectorAll("#roms .rom")].some(el=>romAnx.get(el)?.ocupado())){flash("Aguarde a foto do romaneio terminar de enviar.");return}
   if(TIPOS[tipo].roms&&situacao!=="programada"){const rs=readRoms(true); if(rs===null) return; body.romaneios=rs; const old=editing?registros.find(x=>x.id===editing):null; body.divisao=old?.divisao||divisaoAtual()}
   body.fotos=fotosForm.filter(f=>f.id).map(f=>f.id);
   $("#salvar").disabled=true;
@@ -2562,7 +2576,7 @@ function recCard(r,extra="",acoesExtra=""){
       ${periodoTxt(r)?`<div class="rec-periodo">Período: <b>${periodoTxt(r)}</b></div>`:""}
       <div class="rec-talhoes">${esc(talhoesTxt(r.talhoes,r.areas,r.data))}${r.dataProgramada&&r.dataProgramada!==r.data?` · programada para ${brDate(r.dataProgramada)}`:""}</div>
       ${cs.length?`<div class="rec-campos">${cs.map(c=>`<span>${esc(c.k)}: <b>${esc(c.v)}</b></span>`).join("")}</div>`:""}
-      ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc${x.un==="kg"&&x.kg?` <small class="note">(${num(x.kg)} kg)</small>`:""}</span></li>`).join("")}</ul>`:""}
+      ${(r.romaneios||[]).length?`<ul class="rec-prods">${r.romaneios.map(x=>`<li><span>Romaneio ${esc(x.numero||"s/nº")} · ${x.data?brDate(x.data).slice(0,5):""}${x.hora?" "+esc(x.hora):""} · ${esc(x.local||"")}</span><span>${num(x.sacas)} sc${x.un==="kg"&&x.kg?` <small class="note">(${num(x.kg)} kg)</small>`:""}</span>${romClsTxt(x)?`<small class="rom-cls">${esc(romClsTxt(x))}</small>`:""}${x.anexos?.length?`<span class="anx-links">${anxLinks(x.anexos)}</span>`:""}</li>`).join("")}</ul>`:""}
       ${(r.campos?.produtos||[]).length?`<ul class="rec-prods">${r.campos.produtos.map(p=>`<li><span>${esc(p.nome)}${(p.embs||[]).length?`<span class="p-embs">${esc(embsTxt(p))}</span>`:""}</span><span>${esc(doseTxt(p))}${p.custoHa!=null?`<small>${brl(p.custoHa)}/ha</small>`:""}</span></li>`).join("")}${r.custoHa!=null?`<li class="cst"><span>${prog?"Custo previsto":"Custo da aplicação"}</span><span>${brl(r.custoHa)}/ha<small>${brl(r.custoTotal)} total${r.semCusto?` · ${r.semCusto} sem preço`:""}</small>${r.custoHaLiq!=null?`<small class="liq">com desconto ${brl(r.custoHaLiq)}/ha · ${brl(r.custoTotalLiq)}</small>`:""}</span></li>`:""}</ul>`:""}
       ${r.descricao?`<p class="rec-desc">${esc(r.descricao)}</p>`:""}
       ${(r.fotos||[]).length?`<div class="rec-fotos">${r.fotos.map((id,i)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${i+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${i+1}"></button>`).join("")}</div>`:""}
@@ -3369,21 +3383,60 @@ function romRow(r={}){
     <input class="r-hora" type="time" value="${esc(r.hora||"")}" aria-label="Hora da entrega">
     <input class="r-local" list="dl-dep" placeholder="Local de entrega (Coamo, C.Vale…)" value="${esc(r.local||ultimoDeposito())}" aria-label="Local de entrega">
     <small class="r-eq note" aria-live="polite">${r.un==="kg"&&r.kg>0?`${num(r.kg)} kg = <b>${num(r.sacas)} sc</b> de 60 kg`:""}</small>
+    <details class="r-cls"${r.bruto>0?" open":""}><summary>Peso bruto e descontos (classificação)</summary>
+      <div class="field r-bf"><label>Peso bruto (kg)</label><input class="r-bruto" inputmode="decimal" placeholder="Ex.: 32.400" value="${r.bruto>0?esc(String(r.bruto).replace(".",",")):""}"></div>
+      <div class="r-dt"><span></span><span>Grau (%)</span><span>Desconto (kg)</span>
+      ${ROM_DEF.map(([k,l])=>{const d=r.descontos?.[k]||{}; return `<span class="r-dn">${l}</span><input class="r-g" data-k="${k}" inputmode="decimal" aria-label="${l}: grau (%)" value="${d.grau!=null?esc(String(d.grau).replace(".",",")):""}"><input class="r-d" data-k="${k}" inputmode="decimal" aria-label="${l}: desconto (kg)" value="${d.kg!=null?esc(String(d.kg).replace(".",",")):""}">`}).join("")}</div>
+      <div class="r-liq" aria-live="polite"></div>
+    </details>
+    <div class="r-anx"></div>
   </div>`;
+}
+function romClsTxt(x){ // "Bruto 32.400 kg · Impureza 1,2% (380 kg) · Umidade 14,5% (420 kg) · descontos 800 kg · líquido 31.600 kg"
+  const ds=Object.entries(x.descontos||{}).filter(([,d])=>d&&(d.grau!=null||d.kg!=null)).map(([k,d])=>`${(ROM_DEF.find(r=>r[0]===k)||[0,k])[1]}${d.grau!=null?" "+num(d.grau)+"%":""}${d.kg!=null?` (${num(d.kg)} kg)`:""}`);
+  if(!(x.bruto>0)&&!ds.length) return "";
+  return [x.bruto>0?`Bruto ${num(x.bruto)} kg`:"",...ds,x.bruto>0?`descontos ${num(x.descTot||0)} kg · líquido ${num(x.kg)} kg`:""].filter(Boolean).join(" · ");
+}
+const ROM_DEF=[["impureza","Impureza"],["umidade","Umidade"],["brotados","Brotados"],["triguilho","Triguilho"],["ardidos","Ardidos"],["avariados","Avariados"],["outros","Outros defeitos"]];
+const romAnx=new WeakMap();
+function romIni(el,r={}){ // foto/PDF do romaneio + cálculo do líquido
+  const a=anxCampo(el.querySelector(".r-anx"),{rotulo:"Foto ou PDF do romaneio"}); a.set(r.anexos||[]); romAnx.set(el,a); romCalc(el);
+}
+function romCls(el){ // lê bruto e descontos; devolve null se não tem peso bruto
+  const bruto=horNum(el.querySelector(".r-bruto").value);
+  const descontos={}; let tot=0;
+  for(const [k] of ROM_DEF){const g=horNum(el.querySelector(`.r-g[data-k="${k}"]`).value), d=horNum(el.querySelector(`.r-d[data-k="${k}"]`).value);
+    if(g!=null||d!=null){descontos[k]={...(g!=null?{grau:g}:{}),...(d!=null?{kg:d}:{})}; tot+=d||0}}
+  if(!(bruto>0)) return Object.keys(descontos).length?{bruto:null,descontos,descTot:tot}:null;
+  const liq=Math.max(0,bruto-tot);
+  return {bruto,descontos,descTot:tot,liquido:liq,sacas:Math.round(liq/60*100)/100};
+}
+function romCalc(el){
+  const c=romCls(el), q=el.querySelector(".r-sc"), un=el.querySelector(".r-un"), box=el.querySelector(".r-liq");
+  if(c?.bruto>0){
+    q.value=String(Math.round(c.liquido*100)/100).replace(".",","); un.value="kg"; q.readOnly=true; un.disabled=true; q.classList.add("calc");
+    box.innerHTML=`Peso bruto <b>${num(c.bruto)} kg</b> − descontos <b>${num(c.descTot)} kg</b>${c.bruto?` (${num(c.descTot/c.bruto*100)}%)`:""} = <b>peso líquido ${num(c.liquido)} kg</b> = <b>${num(c.sacas)} sc</b> de 60 kg`;
+    if(c.descTot>c.bruto) box.innerHTML+=`<br><span class="falta">Os descontos passam do peso bruto: confira.</span>`;
+  }else{
+    if(q.readOnly){q.readOnly=false; un.disabled=false; q.classList.remove("calc")}
+    box.innerHTML=c?`<span class="note">Informe o peso bruto para calcular o peso líquido.</span>`:"";
+  }
+  romEq(el);
 }
 function ultimoDeposito(){const rs=[...document.querySelectorAll("#roms .r-local")].map(i=>i.value.trim()).filter(Boolean);return rs[rs.length-1]||""}
 function renderRoms(list){
   const box=$("#roms-box");
   if(!TIPOS[tipo].roms){box.hidden=true;$("#roms").innerHTML="";return}
   box.hidden=false; $("#roms").innerHTML=""; 
-  for(const r of ((list&&list.length)?list:[{}])) $("#roms").insertAdjacentHTML("beforeend",romRow(r));
+  for(const r of ((list&&list.length)?list:[{}])){$("#roms").insertAdjacentHTML("beforeend",romRow(r)); romIni($("#roms").lastElementChild,r)}
   romsTotal();
 }
 function readRoms(strict){
   const out=[];
   for(const el of document.querySelectorAll("#roms .rom")){
-    const q=horNum(el.querySelector(".r-sc").value), emKg=el.querySelector(".r-un")?.value==="kg";
-    const r={numero:el.querySelector(".r-num").value.trim(),sacas:q==null?null:emKg?Math.round(q/60*100)/100:q,...(emKg&&q!=null?{kg:q,un:"kg"}:{}),data:el.querySelector(".r-data").value,hora:el.querySelector(".r-hora").value,local:el.querySelector(".r-local").value.trim()};
+    const q=horNum(el.querySelector(".r-sc").value), emKg=el.querySelector(".r-un")?.value==="kg", cls=romCls(el), anx=romAnx.get(el)?.get()||[];
+    const r={numero:el.querySelector(".r-num").value.trim(),sacas:q==null?null:emKg?Math.round(q/60*100)/100:q,...(emKg&&q!=null?{kg:q,un:"kg"}:{}),
+      ...(cls?.bruto>0?{bruto:cls.bruto,descontos:cls.descontos,descTot:Math.round(cls.descTot*100)/100}:cls?{descontos:cls.descontos}:{}),...(anx.length?{anexos:anx}:{}),data:el.querySelector(".r-data").value,hora:el.querySelector(".r-hora").value,local:el.querySelector(".r-local").value.trim()};
     if(!r.numero&&r.sacas==null&&!el.querySelector(".r-local").value.trim()) continue;
     if(strict){
       if(!(r.sacas>0)){flash(`Informe as sacas ou os kg do romaneio ${r.numero||out.length+1}.`);return null}
@@ -3398,15 +3451,15 @@ function romsTotal(){
   const area=TALHOES.map(t=>t.n).filter(n=>talhoesSel.has(n)).reduce((s,n)=>s+(areasSel[n]>0?areasSel[n]:haDe(n)),0);
   $("#roms-total").innerHTML=rs.length?`Total entregue: <b>${scFmt(tot)}</b> em ${rs.length} romaneio${rs.length>1?"s":""}${area>0?` · <b>${num(tot/area)} sc/ha</b> em ${num(area)} ha colhidos`:""}`:"";
 }
-$("#add-rom").onclick=()=>{$("#roms").insertAdjacentHTML("beforeend",romRow());$("#roms").lastElementChild.querySelector(".r-num").focus()};
+$("#add-rom").onclick=()=>{$("#roms").insertAdjacentHTML("beforeend",romRow());romIni($("#roms").lastElementChild);$("#roms").lastElementChild.querySelector(".r-num").focus()};
 $("#roms").addEventListener("input",romsTotal);
 function romEq(el){const q=horNum(el.querySelector(".r-sc").value), kg=el.querySelector(".r-un").value==="kg", eq=el.querySelector(".r-eq");
   el.querySelector(".r-sc").placeholder=kg?"Kg":"Sacas";
   eq.innerHTML=kg&&q>0?`${num(q)} kg = <b>${num(Math.round(q/60*100)/100)} sc</b> de 60 kg`:""}
-$("#roms").addEventListener("input",e=>{const el=e.target.closest(".rom"); if(el) romEq(el)});
+$("#roms").addEventListener("input",e=>{const el=e.target.closest(".rom"); if(!el) return; if(e.target.matches(".r-bruto,.r-g,.r-d")){romCalc(el); romsTotal()} else romEq(el)});
 $("#roms").addEventListener("change",e=>{if(!e.target.matches(".r-un")) return; const el=e.target.closest(".rom"); romEq(el); romsTotal()});
 $("#roms").addEventListener("click",e=>{const b=e.target.closest(".rm");if(!b)return;const r=b.closest(".rom");
-  if($("#roms").children.length>1) r.remove(); else r.querySelectorAll(".r-num,.r-sc,.r-hora").forEach(i=>i.value=""); romsTotal()});
+  if($("#roms").children.length>1) r.remove(); else {r.querySelectorAll(".r-num,.r-sc,.r-hora,.r-bruto,.r-g,.r-d").forEach(i=>i.value=""); romAnx.get(r)?.limpar(); romCalc(r)} romsTotal()});
 $("#areas").addEventListener("input",()=>{if(TIPOS[tipo].roms) romsTotal()});
 $("#talhoes").addEventListener("click",()=>setTimeout(()=>{if(TIPOS[tipo].roms) romsTotal()}));
 
@@ -3545,7 +3598,7 @@ const GR_MODOS={venda:"Venda",retirada:"Retirada / consumo",transferencia:"Trans
 function grMovs(){
   const m=[];
   for(const r of registros) if(r.tipo==="colheita"&&!ehProg(r)) for(const rm of r.romaneios||[])
-    m.push({tipo:"romaneio",data:rm.data||r.data,hora:rm.hora,numero:rm.numero,cultura:normCult(r.campos?.cultura),local:rm.local,sacas:Number(rm.sacas)||0,divisao:r.divisao,talhoes:r.talhoes,areas:r.areas,regId:r.id,criadoPor:r.criadoPor,editadoPor:r.editadoPor,editadoEm:r.editadoEm});
+    m.push({tipo:"romaneio",data:rm.data||r.data,hora:rm.hora,numero:rm.numero,kg:rm.kg,un:rm.un,bruto:rm.bruto,descontos:rm.descontos,descTot:rm.descTot,anexos:rm.anexos,cultura:normCult(r.campos?.cultura),local:rm.local,sacas:Number(rm.sacas)||0,divisao:r.divisao,talhoes:r.talhoes,areas:r.areas,regId:r.id,criadoPor:r.criadoPor,editadoPor:r.editadoPor,editadoEm:r.editadoEm});
   for(const g of graos) m.push({...g,cultura:normCult(g.cultura)});
   return m.sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||b.criadoEm||"").localeCompare(String(a.hora||a.criadoEm||"")));
 }
@@ -3620,7 +3673,7 @@ function renderGraos(){
   $("#gr-lista").innerHTML=vis.length?vis.map(m=>`<article class="rec" style="--c:var(${m.tipo==="romaneio"?"--t-colheita":m.tipo==="venda"?"--accent":"--muted"})">
       <div class="rec-top"><span class="rec-tipo">${m.tipo==="romaneio"?`Romaneio${m.numero?" nº "+esc(m.numero):""}`:GR_MODOS[m.tipo]}</span><span class="rec-talhoes mono">${brDate(m.data)}${m.hora?" · "+esc(m.hora):""}</span></div>
       <div class="rec-top"><span>${esc(m.cultura)} · ${esc(m.local||"Sem local")}${m.tipo==="transferencia"?` → ${esc(m.destino)}`:""}</span><span class="mov-q ${sinal(m)==="+"?"in":"out"}">${sinal(m)}${scFmt(m.sacas)}</span></div>
-      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas,m.data))}</b></span>`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
+      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas,m.data))}</b></span>${romClsTxt(m)?`<span>${esc(romClsTxt(m))}</span>`:""}${m.anexos?.length?`<span class="anx-links">${anxLinks(m.anexos)}</span>`:""}`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
       ${m.obs?`<p class="rec-desc">${esc(m.obs)}</p>`:""}
       ${assinatura(m)}
       <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">Excluir</button>`}</div>
@@ -3743,7 +3796,7 @@ function planilhaBackup(){
   add("Registros",regs.filter(r=>r.tipo!=="chuva").map(r=>({"Data":dt(r.data),"Até":r.dataFim?dt(r.dataFim):"","Tipo":TIPOS[r.tipo]?.label||r.tipo,"Situação":ehProg(r)?"Programada":"Executada","Atividade":r.nome||"","Talhões":talhoesTxt(r.talhoes,r.areas,r.data),"Área (ha)":r.tipo!=="chuva"?areaTotal(r):"",
     "Safra":r.tipo!=="chuva"?safraLab(safraReg(r)):"","Cultura":culturaReg(r),"Detalhes":linhaCampos(r).filter(c=>!["Área","Cultura"].includes(c.k)).map(c=>`${c.k}: ${c.v}`).join("; "),
     "Produtos":(r.campos?.produtos||[]).map(p=>prodTxt(p)+(p.custoHa!=null?` (${brl(p.custoHa)}/ha)`:"")).join("; "),"Custo/ha (R$)":r.custoHa??"","Custo total (R$)":r.custoTotal??"",
-    "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc${x.un==="kg"&&x.kg?` (${x.kg} kg)`:""}`).join("; "),
+    "Romaneios":(r.romaneios||[]).map(x=>`nº ${x.numero||"-"} ${dt(x.data)} ${x.hora||""} ${x.local||""} ${x.sacas} sc${x.un==="kg"&&x.kg?` (${x.kg} kg)`:""}${romClsTxt(x)?` [${romClsTxt(x)}]`:""}`).join("; "),
     "Sacas entregues":(r.romaneios||[]).reduce((s,x)=>s+(Number(x.sacas)||0),0)||"","Descrição":r.descricao||"","Fotos":(r.fotos||[]).length||"","Lançado por":quem(r.criadoPor),"Editado por":quem(r.editadoPor)})));
   add("Chuvas",regs.filter(r=>r.tipo==="chuva").map(r=>({"Data":dt(r.data),"Safra":safraLab(safraDe(r.data)),"Chuva (mm)":Number(r.campos?.mm)||0,"Eventos":(r.campos?.eventos||[]).join(", "),"Descrição":r.descricao||""})));
   add("Estoque",estoque.map(e=>{const s=resumoProd(e); if(s.emb) return {"Nome comercial":e.comercial,"Nome genérico":e.generico||"","Classe":e.classe||"","Unidade":"por embalagem","Entradas":embSaldoTxt(e),"Usado":"","Saldo":embTotTxt(s.grupos),"Custo médio (R$)":"","Valor do saldo (R$)":+s.valorSaldo.toFixed(2)};
@@ -3754,6 +3807,9 @@ function planilhaBackup(){
   add("Grãos saldos",Object.entries(stt).flatMap(([c,ts])=>Object.entries(ts).flatMap(([t,ls])=>Object.entries(ls).map(([l,v])=>({"Cultura":c,"Titular":titNome(t),"Local":l,"Sacas":+v.toFixed(2),"Toneladas":+(v*0.06).toFixed(3)})))));
   add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome(m.para||"pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
     "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas,m.data):"","Observação":m.obs||""})));
+  add("Romaneios",registros.filter(r=>r.tipo==="colheita"&&r.situacao!=="programada").flatMap(r=>(r.romaneios||[]).map(x=>{const o={"Data":dt(x.data||r.data),"Hora":x.hora||"","Nº romaneio":x.numero||"","Cultura":r.campos?.cultura||"","Local":x.local||"","Talhões":talhoesTxt(r.talhoes,r.areas,r.data),"Peso bruto (kg)":x.bruto??""};
+    for(const [k,l] of ROM_DEF){o[l+" grau (%)"]=x.descontos?.[k]?.grau??""; o[l+" desconto (kg)"]=x.descontos?.[k]?.kg??""}
+    return {...o,"Total descontos (kg)":x.bruto>0?x.descTot??"":"","Peso líquido (kg)":x.kg??(x.sacas!=null?Math.round(x.sacas*60):""),"Sacas (60 kg)":x.sacas,"Fotos/PDF":(x.anexos||[]).length||""}})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
   add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Fabricante":m.fabricante||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
   add("Manutenções",[...manut].reverse().map(x=>({"Data":dt(x.data),"Máquina":nomeMaq(x.maquinaId),"Serviços":(x.servicos||[]).join(", "),"Horímetro":x.horimetro??"","Peças e serviços":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Oficina":x.oficina||"","Próxima":proxTxt(x),"Descrição":x.descricao||""})));
