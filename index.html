@@ -217,9 +217,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rom .anx-add{text-transform:none;letter-spacing:0;font-size:.95rem}
 .rom .r-cls>summary{cursor:pointer;font-weight:600;font-size:.92rem;padding:6px 0;color:var(--accent)}
 .rom .r-bf{margin:6px 0 8px}
-.rom .r-dt{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:6px 8px;align-items:center}
-.rom .r-dt>span:not(.r-dn){font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
-.rom .r-dn{font-size:.92rem}
+.rom .r-dt{display:grid;grid-template-columns:minmax(0,1.15fr) repeat(3,minmax(0,1fr));gap:6px 6px;align-items:center}
+.rom .r-dt input{padding-left:6px;padding-right:6px;min-width:0}
+.rom .r-i{text-align:center}
+.rom .r-d.calc{background:var(--bg);color:var(--accent);font-weight:600}
+.rom .r-dt>span:not(.r-dn){font-size:.68rem;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);line-height:1.15}
+.rom .r-dn{font-size:.88rem;overflow-wrap:anywhere}
 .rom .r-g,.rom .r-d,.rom .r-bruto{text-align:right;font-family:var(--f-mono)}
 .rom .r-liq{margin-top:8px;font-size:.92rem;background:var(--bg);border-radius:6px;padding:8px 10px}.rom .r-liq:empty{display:none}
 .rom .r-sc.calc{background:var(--bg);color:var(--accent);font-weight:600}
@@ -3385,15 +3388,16 @@ function romRow(r={}){
     <small class="r-eq note" aria-live="polite">${r.un==="kg"&&r.kg>0?`${num(r.kg)} kg = <b>${num(r.sacas)} sc</b> de 60 kg`:""}</small>
     <details class="r-cls"${r.bruto>0?" open":""}><summary>Peso bruto e descontos (classificação)</summary>
       <div class="field r-bf"><label>Peso bruto (kg)</label><input class="r-bruto" inputmode="decimal" placeholder="Ex.: 32.400" value="${r.bruto>0?esc(String(r.bruto).replace(".",",")):""}"></div>
-      <div class="r-dt"><span></span><span>Grau (%)</span><span>Desconto (kg)</span>
-      ${ROM_DEF.map(([k,l])=>{const d=r.descontos?.[k]||{}; return `<span class="r-dn">${l}</span><input class="r-g" data-k="${k}" inputmode="decimal" aria-label="${l}: grau (%)" value="${d.grau!=null?esc(String(d.grau).replace(".",",")):""}"><input class="r-d" data-k="${k}" inputmode="decimal" aria-label="${l}: desconto (kg)" value="${d.kg!=null?esc(String(d.kg).replace(".",",")):""}">`}).join("")}</div>
+      <div class="r-dt"><span></span><span>Informação</span><span>Grau (%)</span><span>Desconto (kg)</span>
+      ${ROM_DEF.map(([k,l])=>{const d=r.descontos?.[k]||{}; return `<span class="r-dn">${l}</span><input class="r-i" data-k="${k}" aria-label="${l}: informação (ex.: umidade medida)" value="${esc(d.info??"")}"><input class="r-g" data-k="${k}" inputmode="decimal" aria-label="${l}: grau de desconto (%)" value="${d.grau!=null?esc(String(d.grau).replace(".",",")):""}"><input class="r-d" data-k="${k}" inputmode="decimal" aria-label="${l}: desconto (kg), calculado pelo grau" value="${d.kg!=null?esc(String(d.kg).replace(".",",")):""}"${d.man?' data-man="1"':""}>`}).join("")}</div>
+      <small class="note">O desconto em kg é calculado sozinho: peso bruto × grau %. Se o romaneio trouxer outro valor, é só corrigir o kg.</small>
       <div class="r-liq" aria-live="polite"></div>
     </details>
     <div class="r-anx"></div>
   </div>`;
 }
 function romClsTxt(x){ // "Bruto 32.400 kg · Impureza 1,2% (380 kg) · Umidade 14,5% (420 kg) · descontos 800 kg · líquido 31.600 kg"
-  const ds=Object.entries(x.descontos||{}).filter(([,d])=>d&&(d.grau!=null||d.kg!=null)).map(([k,d])=>`${(ROM_DEF.find(r=>r[0]===k)||[0,k])[1]}${d.grau!=null?" "+num(d.grau)+"%":""}${d.kg!=null?` (${num(d.kg)} kg)`:""}`);
+  const ds=Object.entries(x.descontos||{}).filter(([,d])=>d&&(d.info||d.grau!=null||d.kg!=null)).map(([k,d])=>`${(ROM_DEF.find(r=>r[0]===k)||[0,k])[1]}${d.info?" "+d.info:""}${d.grau!=null?`${d.info?" →":""} ${num(d.grau)}%`:""}${d.kg!=null?` (${num(d.kg)} kg)`:""}`);
   if(!(x.bruto>0)&&!ds.length) return "";
   return [x.bruto>0?`Bruto ${num(x.bruto)} kg`:"",...ds,x.bruto>0?`descontos ${num(x.descTot||0)} kg · líquido ${num(x.kg)} kg`:""].filter(Boolean).join(" · ");
 }
@@ -3405,11 +3409,17 @@ function romIni(el,r={}){ // foto/PDF do romaneio + cálculo do líquido
 function romCls(el){ // lê bruto e descontos; devolve null se não tem peso bruto
   const bruto=horNum(el.querySelector(".r-bruto").value);
   const descontos={}; let tot=0;
-  for(const [k] of ROM_DEF){const g=horNum(el.querySelector(`.r-g[data-k="${k}"]`).value), d=horNum(el.querySelector(`.r-d[data-k="${k}"]`).value);
-    if(g!=null||d!=null){descontos[k]={...(g!=null?{grau:g}:{}),...(d!=null?{kg:d}:{})}; tot+=d||0}}
+  for(const [k] of ROM_DEF){const inf=el.querySelector(`.r-i[data-k="${k}"]`).value.trim(), g=horNum(el.querySelector(`.r-g[data-k="${k}"]`).value), dEl=el.querySelector(`.r-d[data-k="${k}"]`), d=horNum(dEl.value);
+    if(inf||g!=null||d!=null){descontos[k]={...(inf?{info:inf}:{}),...(g!=null?{grau:g}:{}),...(d!=null?{kg:d}:{}),...(dEl.dataset.man&&d!=null?{man:true}:{})}; tot+=d||0}}
   if(!(bruto>0)) return Object.keys(descontos).length?{bruto:null,descontos,descTot:tot}:null;
   const liq=Math.max(0,bruto-tot);
   return {bruto,descontos,descTot:tot,liquido:liq,sacas:Math.round(liq/60*100)/100};
+}
+function romAuto(el){ // desconto (kg) = peso bruto × grau % (menos o que foi corrigido à mão)
+  const bruto=horNum(el.querySelector(".r-bruto").value);
+  for(const [k] of ROM_DEF){const g=horNum(el.querySelector(`.r-g[data-k="${k}"]`).value), dEl=el.querySelector(`.r-d[data-k="${k}"]`);
+    if(dEl.dataset.man) continue;
+    dEl.value=bruto>0&&g!=null?String(Math.round(bruto*g/100)).replace(".",","):""; dEl.classList.toggle("calc",bruto>0&&g!=null)}
 }
 function romCalc(el){
   const c=romCls(el), q=el.querySelector(".r-sc"), un=el.querySelector(".r-un"), box=el.querySelector(".r-liq");
@@ -3456,10 +3466,12 @@ $("#roms").addEventListener("input",romsTotal);
 function romEq(el){const q=horNum(el.querySelector(".r-sc").value), kg=el.querySelector(".r-un").value==="kg", eq=el.querySelector(".r-eq");
   el.querySelector(".r-sc").placeholder=kg?"Kg":"Sacas";
   eq.innerHTML=kg&&q>0?`${num(q)} kg = <b>${num(Math.round(q/60*100)/100)} sc</b> de 60 kg`:""}
-$("#roms").addEventListener("input",e=>{const el=e.target.closest(".rom"); if(!el) return; if(e.target.matches(".r-bruto,.r-g,.r-d")){romCalc(el); romsTotal()} else romEq(el)});
+$("#roms").addEventListener("input",e=>{const el=e.target.closest(".rom"); if(!el) return;
+  if(e.target.matches(".r-d")){if(e.target.value.trim()) e.target.dataset.man="1"; else delete e.target.dataset.man; e.target.classList.remove("calc")}
+  if(e.target.matches(".r-bruto,.r-g,.r-d")){if(!e.target.matches(".r-d")) romAuto(el); romCalc(el); romsTotal()} else if(e.target.matches(".r-i")){} else romEq(el)});
 $("#roms").addEventListener("change",e=>{if(!e.target.matches(".r-un")) return; const el=e.target.closest(".rom"); romEq(el); romsTotal()});
 $("#roms").addEventListener("click",e=>{const b=e.target.closest(".rm");if(!b)return;const r=b.closest(".rom");
-  if($("#roms").children.length>1) r.remove(); else {r.querySelectorAll(".r-num,.r-sc,.r-hora,.r-bruto,.r-g,.r-d").forEach(i=>i.value=""); romAnx.get(r)?.limpar(); romCalc(r)} romsTotal()});
+  if($("#roms").children.length>1) r.remove(); else {r.querySelectorAll(".r-num,.r-sc,.r-hora,.r-bruto,.r-i,.r-g,.r-d").forEach(i=>{i.value=""; delete i.dataset.man}); romAnx.get(r)?.limpar(); romCalc(r)} romsTotal()});
 $("#areas").addEventListener("input",()=>{if(TIPOS[tipo].roms) romsTotal()});
 $("#talhoes").addEventListener("click",()=>setTimeout(()=>{if(TIPOS[tipo].roms) romsTotal()}));
 
@@ -3808,7 +3820,7 @@ function planilhaBackup(){
   add("Grãos extrato",[...grMovs()].reverse().map(m=>({"Data":dt(m.data),"Hora":m.hora||"","Tipo":m.tipo==="romaneio"?"Romaneio":GR_MODOS[m.tipo],"Nº romaneio":m.numero||"","Cultura":m.cultura,"Titular":m.tipo==="romaneio"?Object.entries(divisaoDe(m)).filter(([,v])=>v).map(([t,v])=>`${titNome(t)} ${num(m.sacas*v/100)}`).join("; "):m.tipo==="arrendamento"?`Lavoura → ${titNome(m.para||"pai")}`:titNome(m.titular||"lavoura"),"Local":m.local||"","Destino":m.destino||"",
     "Sacas":m.tipo==="romaneio"||m.tipo==="inicial"?m.sacas:-m.sacas,"Valor (R$)":m.valorTotal??"","Contrato":m.contrato||"","Talhões":m.tipo==="romaneio"?talhoesTxt(m.talhoes,m.areas,m.data):"","Observação":m.obs||""})));
   add("Romaneios",registros.filter(r=>r.tipo==="colheita"&&r.situacao!=="programada").flatMap(r=>(r.romaneios||[]).map(x=>{const o={"Data":dt(x.data||r.data),"Hora":x.hora||"","Nº romaneio":x.numero||"","Cultura":r.campos?.cultura||"","Local":x.local||"","Talhões":talhoesTxt(r.talhoes,r.areas,r.data),"Peso bruto (kg)":x.bruto??""};
-    for(const [k,l] of ROM_DEF){o[l+" grau (%)"]=x.descontos?.[k]?.grau??""; o[l+" desconto (kg)"]=x.descontos?.[k]?.kg??""}
+    for(const [k,l] of ROM_DEF){o[l+" informação"]=x.descontos?.[k]?.info??""; o[l+" grau (%)"]=x.descontos?.[k]?.grau??""; o[l+" desconto (kg)"]=x.descontos?.[k]?.kg??""}
     return {...o,"Total descontos (kg)":x.bruto>0?x.descTot??"":"","Peso líquido (kg)":x.kg??(x.sacas!=null?Math.round(x.sacas*60):""),"Sacas (60 kg)":x.sacas,"Fotos/PDF":(x.anexos||[]).length||""}})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
   add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Fabricante":m.fabricante||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
