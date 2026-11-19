@@ -90,6 +90,7 @@ const liqPrev=l=>{const p=pctLanc(l); return +((Number(l.valor)||0)*(1-p)).toFix
 const vp=l=>l.status==="pago"?(Number(l.valorPago??l.valor)||0):(pctLanc(l)?liqPrev(l):(Number(l.valor)||0));
 window.finDescContrato=(c,classe,desc)=>{const k=contratoCfg(c); return k?(Number((k.desc||{})[clsDesc(classeCat(classe,desc||""))])||0)/100:0};
 window.finContratoDaChave=ch=>ch?fnLanc.find(l=>l.chave===ch&&l.contrato)?.contrato||"":"";
+const MAQS=()=>(typeof maquinas!=="undefined"?maquinas:[]), BFS=()=>(typeof benf!=="undefined"?benf:[]);
 const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const f2=v=>Number.isFinite(v)?v.toFixed(2).replace(".",","):"";
@@ -457,7 +458,14 @@ function estVis(){ // "Lançar também no estoque": só conta a pagar nova que n
   const l=$("#fn-est-l"); if(!l) return; const esc_=fnNat!=="pagar"||!!fnEdit||/^est\|/.test(fnOrigem||"");
   l.hidden=esc_; if(esc_) $("#fn-est").checked=false; $("#fn-est-n").hidden=!$("#fn-est").checked;
 }
-function jurosVis(){$("#fn-juros-box").hidden=$("#fn-cat").value!=="financ"}
+function jurosVis(){$("#fn-juros-box").hidden=$("#fn-cat").value!=="financ"; maqVis()}
+/* máquina / benfeitoria da conta (categoria Manutenção / Benfeitorias): vale para os itens que não têm a sua */
+function maqVis(v){
+  const c=$("#fn-cat").value, liga=/^(mq|bf)\|/.test(fnOrigem||""), fill=(sel,lista,ph)=>{const cur=v?.[sel]??$(sel).value; $(sel).innerHTML=`<option value="">${ph}</option>`+lista.map(x=>`<option value="${x.id}">${esc(x.nome)}</option>`).join(""); if([...$(sel).options].some(o=>o.value===cur)) $(sel).value=cur};
+  fill("#fn-maq",MAQS(),"— escolha a máquina —"); fill("#fn-bf",BFS(),"— escolha a benfeitoria —");
+  $("#fn-maq-box").hidden=liga||fnNat!=="pagar"||c!=="manutencao"||!MAQS().length; $("#fn-bf-box").hidden=liga||fnNat!=="pagar"||c!=="benfeitorias"||!BFS().length;
+}
+const maqConta=()=>({maquinaId:!$("#fn-maq-box").hidden&&$("#fn-maq").value||null,benfId:!$("#fn-bf-box").hidden&&$("#fn-bf").value||null});
 function fnSetSit(s){
   fnSit=s;
   const r=fnNat==="receber";
@@ -517,7 +525,6 @@ function itensRender(list){
   $("#fn-itens").querySelectorAll(".fn-item2").forEach(itDestLiga);
 }
 /* Para onde vai cada item: categoria própria (ex.: mata-bicheira → Animais; peça → Manutenção) e a máquina ou benfeitoria */
-const MAQS=()=>(typeof maquinas!=="undefined"?maquinas:[]), BFS=()=>(typeof benf!=="undefined"?benf:[]);
 function itDestHtml(i,{estoque,tira}={}){
   const c=i.cat||"";
   return `<div class="fi-l3">
@@ -567,7 +574,7 @@ function dividir(){
 function fnReset(){
   fnAnx.limpar(); delete $("#fn-salvar").dataset.dup; fnEdit=null; fnOrigem=null; fnChave=null; fnXmlTxt=null; fnSit="aberto"; document.querySelector("#fn-np").closest(".fn-parc").hidden=false;
   ["#fn-desc","#fn-pessoa","#fn-nf","#fn-tit","#fn-obs","#fn-tval","#fn-tdesc","#fn-pago-em","#fn-juros","#fn-contrato"].forEach(s=>$(s).value="");
-  $("#fn-rec").checked=false; if($("#fn-est")) $("#fn-est").checked=false; destinoRender(); delete $("#fn-conta").dataset.ok;
+  $("#fn-rec").checked=false; if($("#fn-est")) $("#fn-est").checked=false; destinoRender(); delete $("#fn-conta").dataset.ok; delete $("#fn-salvar").dataset.semmaq; $("#fn-maq").value=""; $("#fn-bf").value="";
   $("#fn-data").value=hoje(); $("#fn-tdata").value=hoje(); $("#fn-forma").value="prazo";
   $("#fn-form-tit").textContent="Novo lançamento"; $("#fn-cancel").hidden=true; $("#fn-origem").hidden=true;
   itensRender([]); parcsRender([{venc:hoje(),valor:null}]);
@@ -582,7 +589,7 @@ function formDePendencia(p){
   $("#fn-forma").value=p.natureza==="receber"?"avista":"prazo";
   itensRender(p.itens.length>1||p.natureza!=="receber"?p.itens:[]);
   parcsRender([{venc:p.data,valor:p.valor}]);
-  if(p.cultura) destinoRender({cultura:p.cultura});
+  if(p.cultura) destinoRender({cultura:p.cultura}); maqVis();
   origemTxt(`Vindo de <b>${esc(p.fonte)}</b> (${brDate(p.data)}). Ajuste o vencimento, as parcelas e a forma, e salve.`);
   $("#fn-form").scrollIntoView({block:"start",behavior:"smooth"});
 }
@@ -596,6 +603,8 @@ function formEditar(l){
     $("#fn-desc").value=l.descricao||""; $("#fn-pessoa").value=l.pessoa||""; $("#fn-cat").value=l.categoria||""; $("#fn-data").value=l.competencia||l.vencimento;
     $("#fn-forma").value=l.forma||"prazo"; $("#fn-nf").value=l.nf||""; $("#fn-tit").value=l.titular||""; $("#fn-juros").value=l.juros!=null?f2(Number(l.juros)):""; jurosVis();
     $("#fn-contrato").value=l.contrato||""; destinoRender(l);
+    {const fid=l.grupo||l.id, mq=(typeof manut!=="undefined"?manut:[]).find(x=>x.finId===fid), bf=(typeof bfServ!=="undefined"?bfServ:[]).find(x=>x.finId===fid);
+     maqVis({"#fn-maq":l.maquinaId||mq?.maquinaId||"","#fn-bf":l.benfId||bf?.benfId||""})}
     itensRender(l.itens||[]); parcsRender([{venc:l.vencimento,valor:l.valor}]); fnAnx.set(l.anexos||[]);
     if(l.status==="pago"){$("#fn-pago-em").value=l.pagoEm||""; opcoesConta("#fn-conta",l.contaId||"","Sem conta (só histórico)")}
     fnSetSit(fnSit);
@@ -625,11 +634,14 @@ async function salvarLanc(ev){
   const descricao=$("#fn-desc").value.trim(), parcs=parcsLer();
   if(!descricao){flash("#fn-toast","Escreva a descrição.");$("#fn-desc").focus();return}
   if(fnAnx.ocupado()){flash("#fn-toast","Aguarde o anexo terminar de enviar.");return}
+  {const mc=maqConta(), its=itensLer(), cat=$("#fn-cat").value;
+   const falta=fnNat==="pagar"&&!/^(mq|bf)\|/.test(fnOrigem||"")&&((cat==="manutencao"&&MAQS().length&&!mc.maquinaId&&!its.some(i=>i.maquinaId))||(cat==="benfeitorias"&&BFS().length&&!mc.benfId&&!its.some(i=>i.benfId)));
+   if(falta&&$("#fn-salvar").dataset.semmaq!=="1"){$("#fn-salvar").dataset.semmaq="1"; flash("#fn-toast",`Escolha a ${cat==="manutencao"?"máquina":"benfeitoria"} para o gasto aparecer no histórico dela. Ou toque em Salvar de novo para salvar sem.`); ($(cat==="manutencao"?"#fn-maq":"#fn-bf")).focus(); return}}
   for(const p of parcs){ if(!p.venc){flash("#fn-toast","Informe a data de todas as parcelas.");return} if(!(p.valor>0)){flash("#fn-toast","Informe o valor de todas as parcelas.");return} }
   if(fnSit==="pago"&&!$("#fn-conta").value&&!fnEdit&&fnContas.length&&!$("#fn-conta").dataset.ok){$("#fn-conta").dataset.ok="1";flash("#fn-toast","Sem conta, não mexe no saldo. Toque em salvar de novo para confirmar, ou escolha a conta.");return}
   const comp=$("#fn-data").value||parcs[0].venc;
   const base={natureza:fnNat,descricao,pessoa:$("#fn-pessoa").value.trim(),categoria:$("#fn-cat").value,forma:$("#fn-forma").value,competencia:comp,
-    nf:$("#fn-nf").value.trim(),titular:$("#fn-tit").value.trim(),itens:itensLer(),anexos:fnAnx.get(),obs,contrato:$("#fn-contrato").value.trim().replace(/^contrato\s*/i,""),...destinoLer()};
+    nf:$("#fn-nf").value.trim(),titular:$("#fn-tit").value.trim(),itens:itensLer(),anexos:fnAnx.get(),obs,maquinaId:maqConta().maquinaId,benfId:maqConta().benfId,contrato:$("#fn-contrato").value.trim().replace(/^contrato\s*/i,""),...destinoLer()};
   if(fnOrigem) base.origem=fnOrigem; if(fnChave) base.chave=fnChave;
   if(base.categoria==="financ"){const j=parseNum($("#fn-juros").value); base.juros=j>=0?+j.toFixed(2):null} else base.juros=null;
   const pago=fnSit==="pago"?{status:"pago",pagoEm:$("#fn-pago-em").value||parcs[0].venc,contaId:$("#fn-conta").value||null}:{status:"aberto"};
@@ -644,7 +656,8 @@ async function salvarLanc(ev){
       if(pago.status!=="pago"){delete body.pagoEm; delete body.contaId; delete body.valorPago}
       else if(o.status==="pago"&&o.valorPago!=null) body.valorPago=o.valorPago;
       await db.collection("fin_lanc").doc(fnEdit).set(body); flash("#fn-toast","Lançamento atualizado.");
-      if(body.natureza==="pagar"&&!/^(mq|bf)\|/.test(body.origem||"")) await criaServicos(body.itens,{data:body.competencia,fornecedor:body.pessoa,nf:body.nf,chave:body.chave,finId:body.grupo||fnEdit,catConta:body.categoria});
+      if(body.natureza==="pagar"&&!/^(mq|bf)\|/.test(body.origem||"")) await criaServicos(body.itens,{data:body.competencia,fornecedor:body.pessoa,nf:body.nf,chave:body.chave,finId:body.grupo||fnEdit,catConta:body.categoria,maquinaId:body.maquinaId,benfId:body.benfId,desc:body.descricao,
+        total:body.grupo?fnLanc.filter(x=>x.grupo===body.grupo).reduce((t,x)=>t+(x.id===fnEdit?Number(body.valor):Number(x.valor))||0,0):Number(body.valor)});
     }else{
       const grupo=parcs.length>1?rid():null;
       if($("#fn-rec").checked&&parcs.length===1){
@@ -661,7 +674,7 @@ async function salvarLanc(ev){
         const rf=await db.collection("fin_lanc").add(b); if(!primeiro) primeiro=rf?.id||null;
       }
       if(fnXmlTxt) window.danfeGuardar?.(fnXmlTxt);
-      let sv=""; if(fnNat==="pagar"&&!/^(mq|bf)\|/.test(fnOrigem||"")) sv=await criaServicos(base.itens,{data:comp,fornecedor:base.pessoa,nf:base.nf,chave:base.chave,finId:grupo||primeiro,catConta:base.categoria});
+      let sv=""; if(fnNat==="pagar"&&!/^(mq|bf)\|/.test(fnOrigem||"")) sv=await criaServicos(base.itens,{data:comp,fornecedor:base.pessoa,nf:base.nf,chave:base.chave,finId:grupo||primeiro,catConta:base.categoria,maquinaId:base.maquinaId,benfId:base.benfId,desc:descricao,total:parcs.reduce((t,p)=>t+p.valor,0)});
       flash("#fn-toast",(parcs.length>1?`${parcs.length} parcelas lançadas.`:"Lançamento salvo.")+sv);
       if(fnNat==="pagar"&&$("#fn-est")?.checked&&window.nfDoFinanceiro){
         const its=base.itens.filter(i=>i.desc);
@@ -676,21 +689,27 @@ async function salvarLanc(ev){
 
 /* Itens com máquina ou benfeitoria viram uma manutenção (Máquinas) / um serviço (Benfeitorias) ligado à conta (finId):
    aparecem no histórico da máquina e não viram pendência de novo. Não repete: uma por conta + máquina. */
-async function criaServicos(itens,{data,fornecedor,nf,chave,finId,catConta}){
+async function criaServicos(itens,{data,fornecedor,nf,chave,finId,catConta,maquinaId,benfId,desc,total}){
   const ef=i=>i.cat||catConta||"", por=new Map();
-  for(const i of itens||[]){const k=ef(i)==="manutencao"&&i.maquinaId?"mq|"+i.maquinaId:ef(i)==="benfeitorias"&&i.benfId?"bf|"+i.benfId:null; if(k){const a=por.get(k)||[]; a.push(i); por.set(k,a)}}
+  itens=(itens||[]).filter(i=>i.desc||Number(i.valor)>0);
+  if(!itens.length&&(maquinaId||benfId)&&total>0) itens=[{desc:desc||"Gasto",valor:+Number(total).toFixed(2)}]; // conta sem itens
+  itens=itens.map(i=>ef(i)==="manutencao"&&!i.maquinaId&&maquinaId?{...i,maquinaId}:ef(i)==="benfeitorias"&&!i.benfId&&benfId?{...i,benfId}:i);
+  for(const i of itens){const k=ef(i)==="manutencao"&&i.maquinaId?"mq|"+i.maquinaId:ef(i)==="benfeitorias"&&i.benfId?"bf|"+i.benfId:null; if(k){const a=por.get(k)||[]; a.push(i); por.set(k,a)}}
   let n=0;
   for(const [k,its] of por){
     const [tp,id]=k.split("|"), its2=its.map(i=>({desc:window.itTxt(i),valor:Number(i.valor)||0}));
     const comum={data:data||hoje(),itens:its2,custoTotal:+its2.reduce((t,i)=>t+i.valor,0).toFixed(2),descricao:`NF ${nf||""}${fornecedor?" — "+fornecedor:""}`.trim(),servicos:[],fotos:[],nf:nf||"",chave:chave||"",finId:finId||null,doFinanceiro:true,criadoEm:new Date().toISOString()};
-    if(tp==="mq"){ if(finId&&(typeof manut!=="undefined"?manut:[]).some(x=>x.finId===finId&&x.maquinaId===id)) continue;
+    if(tp==="mq"){ const ja=finId&&(typeof manut!=="undefined"?manut:[]).find(x=>x.finId===finId&&x.maquinaId===id);
+      if(ja){ if(Math.abs((Number(ja.custoTotal)||0)-comum.custoTotal)>0.004||JSON.stringify(ja.itens)!==JSON.stringify(comum.itens)){const {id:jid,...d}=ja; await db.collection("manutencoes").doc(jid).set({...d,itens:comum.itens,custoTotal:comum.custoTotal,data:comum.data})} continue}
       await db.collection("manutencoes").add({...comum,maquinaId:id,oficina:fornecedor||"",horimetro:null,proxData:null,proxHoras:null}); n++}
-    else{ if(finId&&(typeof bfServ!=="undefined"?bfServ:[]).some(x=>x.finId===finId&&x.benfId===id)) continue;
+    else{ const ja=finId&&(typeof bfServ!=="undefined"?bfServ:[]).find(x=>x.finId===finId&&x.benfId===id);
+      if(ja){ if(Math.abs((Number(ja.custoTotal)||0)-comum.custoTotal)>0.004||JSON.stringify(ja.itens)!==JSON.stringify(comum.itens)){const {id:jid,...d}=ja; await db.collection("servicos_benf").doc(jid).set({...d,itens:comum.itens,custoTotal:comum.custoTotal,data:comum.data})} continue}
       await db.collection("servicos_benf").add({...comum,benfId:id,responsavel:fornecedor||"",status:"concluido",proxData:null}); n++}
   }
   return n?` ${n===1?"Também registrado":"Também registrados"} em ${[...por.keys()].map(k=>k.startsWith("mq")?"Máquinas":"Benfeitorias").filter((v,i,a)=>a.indexOf(v)===i).join(" e ")}.`:"";
 }
 window.finCriaServicos=criaServicos;
+window.finAbrirLig=fid=>{const l=fnLanc.find(x=>x.id===fid)||fnLanc.find(x=>x.grupo===fid); if(l) window.finEditar(l.id); else window.ponte?.aviso?.("A conta desta manutenção não está mais no Financeiro.")};
 /* Itens de nota de RETIRADA (já pagos no contrato) que não vão para o estoque (sal para os animais, peça…):
    viram um lançamento "só de custo" — pago, sem conta e fora do caixa (semCaixa), na data da nota e na categoria do item.
    Assim entram no Resultado e nos relatórios de gasto do ano, mas não mexem no saldo nem no livro caixa (o dinheiro saiu no pagamento do contrato). */

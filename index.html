@@ -265,6 +265,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pe-junta{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--line);padding-top:8px}
 .pe-jbox{display:flex;flex-direction:column;gap:4px}.pe-jbox[hidden]{display:none}
 .pe-jn{margin:0}
+.mq-hist{margin:4px 0}.mq-hist>summary{cursor:pointer;font-weight:600;font-size:.92rem}
+.mq-h{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:baseline;border-top:1px solid var(--line);padding:6px 0;font-size:.88rem}
+.mq-h small{display:block}
+@media(max-width:520px){.mq-h{grid-template-columns:auto 1fr auto}.mq-h .link{grid-column:2/-1;justify-self:start}}
 .pe-tira{border-top:1px dashed var(--line);padding-top:8px}
 .pe-tira>summary{cursor:pointer;font-weight:600;font-size:.92rem}
 .pe-tdst .fi-l3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin:6px 0}
@@ -1203,6 +1207,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <div class="field" style="grid-column:1/-1"><label for="fn-desc">Descrição</label><input id="fn-desc" placeholder="Ex.: Adubo 02-20-20, frete da colheita, salário de outubro"></div>
         <div class="field"><label for="fn-pessoa" id="fn-pessoa-l">Fornecedor</label><input id="fn-pessoa" list="dl-fn-pessoa"><datalist id="dl-fn-pessoa"></datalist></div>
         <div class="field"><label for="fn-cat">Categoria</label><select id="fn-cat"></select></div>
+        <div class="field" id="fn-maq-box" hidden><label for="fn-maq">Máquina <small class="note">(aparece no histórico dela)</small></label><select id="fn-maq"></select></div>
+        <div class="field" id="fn-bf-box" hidden><label for="fn-bf">Benfeitoria <small class="note">(aparece no histórico dela)</small></label><select id="fn-bf"></select></div>
         <div class="field" id="fn-juros-box" hidden><label for="fn-juros">Juros desta parcela (R$)</label><input id="fn-juros" inputmode="decimal" placeholder="0,00"><small class="note">Só os juros contam como custo; o resto é amortização da dívida.</small></div>
         <div class="field"><label for="fn-data">Data da compra / venda</label><input type="date" id="fn-data"></div>
         <div class="field"><label for="fn-forma">Forma</label><select id="fn-forma"></select></div>
@@ -2052,6 +2058,8 @@ async function nfLancar(){
     emb:b.querySelector(".nf-cla").value==="Semente"&&!b.classList.contains("nf-fora")?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null, i:+b.dataset.i, ...nfDestLer(b)}));
   const fora=itens.filter(it=>it.cat&&it.cat!=="__est"), daNota=[...itens]; itens.splice(0,itens.length,...itens.filter(it=>!fora.includes(it)));
   for(const it of fora){ if(!it.nome){nfSt("Há item sem nome.");return} if(!(it.v>0)){nfSt(`Informe o valor de ${it.nome}.`);return} }
+  {const sm=fora.filter(f=>(f.cat==="manutencao"&&!f.maquinaId&&maquinas.length)||(f.cat==="benfeitorias"&&!f.benfId&&benf.length));
+   if(sm.length&&$("#nf-lancar").dataset.semmaq!=="1"){$("#nf-lancar").dataset.semmaq="1"; nfSt(`${sm.map(f=>f.nome).join(", ")}: escolha a ${sm[0].cat==="manutencao"?"máquina":"benfeitoria"} para aparecer no histórico dela. Ou toque em Lançar de novo para lançar sem.`); return}}
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return}
     if(it.emb&&it.emb.tipo!=="kg"&&!(it.emb.cont>0)){nfSt(`Informe quantas sementes (ou kg) vêm em cada ${it.emb.tipo==="bag"?"bag":"saco"} de ${it.nome}.`);return}
     if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
@@ -3073,6 +3081,15 @@ function ptLiga(cont,lista,render){
     };
   });
 }
+/* no cartão da máquina: as manutenções e peças dela (lançadas em Máquinas, numa nota ou no Financeiro) */
+const mqHistAb=new Set();
+function mqHistBox(m,bf){
+  const hs=(bf?bfServ.filter(x=>x.benfId===m.id):manut.filter(x=>x.maquinaId===m.id)).sort((a,b)=>String(b.data).localeCompare(String(a.data))); if(!hs.length) return "";
+  const todos=mqHistAb.has(m.id+"#t"), lst=todos?hs:hs.slice(0,5);
+  return `<details class="mq-hist" data-mqh="${m.id}" ${mqHistAb.has(m.id)?"open":""}><summary>${bf?"Serviços e materiais":"Manutenções e peças"} (${hs.length}) · ${brl(hs.reduce((t,x)=>t+(Number(x.custoTotal)||0),0))}</summary>
+    ${lst.map(x=>`<div class="mq-h"><span class="mono">${brDate(x.data)}</span><span>${esc([(x.servicos||[]).join(", "),(x.itens||[]).map(i=>i.desc).join(", ")||x.descricao||(bf?"Serviço":"Manutenção")].filter(Boolean).join(" — "))}<small class="note">${[x.oficina||x.responsavel,x.nf?"NF "+x.nf:"",x.finId?"lançado pela nota / Financeiro":""].filter(Boolean).map(esc).join(" · ")}</small></span><span class="mono">${brl(x.custoTotal||0)}</span>${x.finId?`<button type="button" class="link" data-mqconta="${esc(x.finId)}">Abrir a conta</button>`:`<button type="button" class="link" data-${bf?"bfed":"mqed"}="${x.id}">Editar</button>`}</div>`).join("")}
+    ${hs.length>5?`<button type="button" class="link" data-mqtodos="${m.id}">${todos?"Mostrar só as últimas 5":`Mostrar todas (${hs.length})`}</button>`:""}</details>`;
+}
 function renderMaquinas(){
   const sy=safraDe(todayISO());
   const infos=maquinas.map(m=>({m,i:infoMaq(m)}));
@@ -3099,6 +3116,7 @@ function renderMaquinas(){
         <span>Próxima manutenção <b>${i.comProx?esc(proxTxt(i.comProx)):"–"}</b></span>
         ${ptNums(m)}
       </div>
+      ${mqHistBox(m)}
       ${ptEdit==="maquinas:"+m.id?ptForm("maquinas",m):""}
       ${window.axBloco?axBloco("maquinas",m):""}
       <div class="row" style="justify-content:space-between">${i.status?`<span class="pill ${i.status}">${STATUS_TXT[i.status]}</span>`:"<span></span>"}
@@ -3108,6 +3126,10 @@ function renderMaquinas(){
   $('[data-pted="maquinas:__novo"]').hidden=ptEdit==="maquinas:__novo";
   ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc); window.axLiga?.($("#mq-cards"),"maquinas");
   $("#mq-cards").querySelectorAll("[data-mqnova]").forEach(b=>b.onclick=()=>{mqReset();$("#mq-maq").value=b.dataset.mqnova;mqSyncNova();$("#mq-form").scrollIntoView({block:"start"})});
+  $("#mq-cards").querySelectorAll(".mq-hist").forEach(d=>d.ontoggle=()=>{d.open?mqHistAb.add(d.dataset.mqh):mqHistAb.delete(d.dataset.mqh)});
+  $("#mq-cards").querySelectorAll("[data-mqtodos]").forEach(b=>b.onclick=()=>{const k=b.dataset.mqtodos+"#t"; mqHistAb.has(k)?mqHistAb.delete(k):mqHistAb.add(k); renderMaquinas()});
+  $("#mq-cards").querySelectorAll("[data-mqconta]").forEach(b=>b.onclick=()=>window.finAbrirLig?.(b.dataset.mqconta));
+  $("#mq-cards").querySelectorAll("[data-mqed]").forEach(b=>b.onclick=()=>mqEditar(b.dataset.mqed));
   $("#mq-cards").querySelectorAll("[data-mqdel]").forEach(b=>b.onclick=()=>ligOu(b,"maquina",b.dataset.mqdel,async()=>{await db.collection("maquinas").doc(b.dataset.mqdel).delete()}));
   // select do formulário
   const cur=$("#mq-maq").value;
@@ -3436,6 +3458,7 @@ function renderBenf(){
         <span>Próxima manutenção <b>${i.prox?brDate(i.prox):"–"}</b></span>
         ${ptNums(b)}
       </div>
+      ${mqHistBox(b,true)}
       ${ptEdit==="benfeitorias:"+b.id?ptForm("benfeitorias",b):""}
       ${window.axBloco?axBloco("benfeitorias",b):""}
       <div class="row" style="justify-content:space-between">${i.pend.length?`<span class="pill venc">${i.pend.length} pendente${i.pend.length>1?"s":""}</span>`:"<span></span>"}
@@ -3444,6 +3467,10 @@ function renderBenf(){
   $("#bf-novo").innerHTML=ptEdit==="benfeitorias:__novo"?ptForm("benfeitorias",{id:"__novo",local:"Sede"}):"";
   $('[data-pted="benfeitorias:__novo"]').hidden=ptEdit==="benfeitorias:__novo";
   ptLiga($("#view-benfeitorias"),()=>benf,renderBenf); ptVolta(rasc); window.axLiga?.($("#bf-cards"),"benfeitorias");
+  $("#bf-cards").querySelectorAll(".mq-hist").forEach(d=>d.ontoggle=()=>{d.open?mqHistAb.add(d.dataset.mqh):mqHistAb.delete(d.dataset.mqh)});
+  $("#bf-cards").querySelectorAll("[data-mqtodos]").forEach(b=>b.onclick=()=>{const k=b.dataset.mqtodos+"#t"; mqHistAb.has(k)?mqHistAb.delete(k):mqHistAb.add(k); renderBenf()});
+  $("#bf-cards").querySelectorAll("[data-mqconta]").forEach(b=>b.onclick=()=>window.finAbrirLig?.(b.dataset.mqconta));
+  $("#bf-cards").querySelectorAll("[data-bfed]").forEach(b=>b.onclick=()=>bfEditar(b.dataset.bfed));
   $("#bf-cards").querySelectorAll("[data-bfnovo]").forEach(b=>b.onclick=()=>{bfReset();$("#bf-item").value=b.dataset.bfnovo;bfSyncNova();$("#bf-form").scrollIntoView({block:"start"})});
   $("#bf-cards").querySelectorAll("[data-bfdel]").forEach(b=>b.onclick=()=>ligOu(b,"benf",b.dataset.bfdel,async()=>{await db.collection("benfeitorias").doc(b.dataset.bfdel).delete()}));
   const cur=$("#bf-item").value;
