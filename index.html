@@ -1414,7 +1414,7 @@ const $=s=>document.querySelector(s);
   if(typeof s==="string"&&/xml/.test(t)){const i=s.indexOf("<"); if(i>0) s=s.slice(i)} return p0.call(this,s,t)}}
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:1});
-const numP=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:3}); // saldo do estoque: mostra os mL/g que sobram
+const numP=n=>Math.abs(n)<1e-6?"0":Number(n).toLocaleString("pt-BR",{maximumFractionDigits:4}); // saldo do estoque: mostra os mL/g que sobram
 const brDate=iso=>{const[y,m,d]=iso.split("-");return `${d}/${m}/${y}`};
 const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
 
@@ -2343,7 +2343,7 @@ function renderEstoque(){
   $("#es-valor").textContent=brlC(rs.reduce((t,x)=>t+x.s.valorSaldo,0));
   $("#es-zero").textContent=rs.filter(x=>x.s.saldo<=0).length;
   // produto zerado (saldo 0, nada reservado) some da lista — volta pela busca ou por "Mostrar os zerados"
-  const zerado=({e,s})=>Math.abs(Number(s.saldo)||0)<0.005&&!esAbertos.has(e.id)&&esEdit!==e.id;
+  const zerado=({e,s})=>Math.abs(Number(s.saldo)||0)<1e-6&&!esAbertos.has(e.id)&&esEdit!==e.id;
   const achou=rs.filter(({e})=>!q||(e.comercial+" "+(e.generico||"")).toLowerCase().includes(q));
   const vis=q?achou:achou.filter(x=>!zerado(x));
   const zs=q?[]:achou.filter(zerado);
