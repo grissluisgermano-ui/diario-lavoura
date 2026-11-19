@@ -119,11 +119,14 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .prods{display:flex;flex-direction:column;gap:8px;counter-reset:p}
 .prod{display:grid;grid-template-columns:24px minmax(0,1fr) 92px 104px 112px 40px;gap:8px;align-items:center}
 .prod>small{grid-column:2/-1}
-.prod .p-totx:empty{display:none}.prod .p-totx .falta{display:inline}
+.prod .p-totx:empty{display:none}
+.p-totw{position:relative;min-width:0;display:block}
+.p-totw .p-tot{width:100%;padding-right:38px}
+.p-tun{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.85rem;pointer-events:none;white-space:nowrap}.prod .p-totx .falta{display:inline}
 .prods-dica{margin:-2px 0 4px;font-size:.82rem}
 .prod::before{counter-increment:p;content:counter(p);font-family:var(--f-mono);font-size:.8rem;color:var(--muted);text-align:right}
 .prod .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:42px;font-size:1.1rem;cursor:pointer}
-@media (max-width:540px){.prod{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px}.prod .p-nome{grid-column:2/-1}.prod::before{grid-row:1}.prod .p-dose{grid-column:2}.prod .p-un{grid-column:3}.prod .p-tot{grid-column:4}.prod .rm{grid-column:5}}
+@media (max-width:540px){.prod{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px}.prod .p-nome{grid-column:2/-1}.prod::before{grid-row:1}.prod .p-dose{grid-column:2}.prod .p-un{grid-column:3}.prod .p-totw{grid-column:4}.prod .rm{grid-column:5}}
 .rec-prods{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:.92rem}
 .rec-prods li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dotted var(--line);padding:2px 0}
 .rec-prods li span:last-child{font-family:var(--f-mono);font-size:.85rem;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -360,7 +363,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 @media (min-width:541px){.prod.emb .p-nome{grid-column:2/5}.prod.emb .rm{grid-column:6;grid-row:1}.prod.emb .p-dose{grid-column:2/3}}
 @media (max-width:540px){.prod.emb .rm{grid-column:5;grid-row:1}}
 .rec-prods li span .p-embs{display:block;font-size:.8rem;color:var(--muted);font-family:var(--f-body,inherit);white-space:normal}
-.prod.emb .p-tot{font-size:.88rem;padding-left:6px;padding-right:6px}
+.prod.emb .p-tot{font-size:.88rem;padding-left:6px}
 .nf-cont select{width:auto}
 .nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
 .nf-ret span{font-size:.88rem}
@@ -1502,7 +1505,7 @@ function prodRow(p={}){
     <span class="p-dl">Dose e quantidade de sementes usada</span>
     <input class="p-dose" inputmode="decimal" placeholder="Dose" value="${esc(d)}" aria-label="Dose">
     <select class="p-un" aria-label="Unidade">${UNIDADES.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select>
-    <input class="p-tot" inputmode="decimal" placeholder="Total (${esc(u.replace("/ha",""))})" aria-label="Quantidade total usada">
+    <span class="p-totw"><input class="p-tot" inputmode="decimal" placeholder="Total" aria-label="Quantidade total usada"><span class="p-tun" aria-hidden="true">${esc(/sem/.test(u)?"sem.":u==="mL/ha"?"L":u==="g/ha"?"kg":u.replace("/ha",""))}</span></span>
     <button type="button" class="rm" aria-label="Remover produto">×</button>
     <small class="p-saldo"></small><small class="p-custo"></small><small class="p-totx"></small></div>`;
 }
@@ -1556,7 +1559,7 @@ function prodTotais(){
     // sementes: total sempre em sementes (por metro × metros de linha por ha × área)
     // mL/ha e g/ha: o total vai em L e kg (5.000 mL → 5 L), como no estoque
     const fat=uD==="sem/m"?(espForm()?10000/espForm():0):uD==="mil sem/ha"?1000:/^(mL|g)\/ha$/.test(uD)?0.001:1, un=/sem/.test(uD)?"sementes":uD==="mL/ha"?"L":uD==="g/ha"?"kg":uD.replace("/ha","");
-    if(!tot) return; tot.placeholder=`Total (${un})`;
+    if(!tot) return; tot.placeholder="Total"; const tun=r.querySelector(".p-tun"); if(tun) tun.textContent=un==="sementes"?"sem.":un;
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
     if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
