@@ -262,6 +262,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pe-form,.ent-ed{display:flex;flex-direction:column;gap:8px;background:var(--sunk);border-radius:10px;padding:10px 12px;margin:6px 0}
 .pe-conv{display:flex;flex-direction:column;gap:4px}
 .pe-conv[hidden]{display:none}
+.pe-junta{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--line);padding-top:8px}
+.pe-jbox{display:flex;flex-direction:column;gap:4px}.pe-jbox[hidden]{display:none}
+.pe-jn{margin:0}
 .pe-conv .note{margin:0}
 #ne-box[hidden]+.ne-vazio{display:block}
 .tabs .tabs-s button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--accent)}
@@ -2170,11 +2173,66 @@ function peForm(e){
       <div class="field"><label class="pe-conv-l">Converter as entradas</label><input class="pe-fator" inputmode="decimal" value="1"></div>
       <p class="note pe-conv-n"></p>
     </div>
+    ${(()=>{if(ehEmb(e)) return ""; const os=estoque.filter(x=>x.id!==e.id&&!ehEmb(x)).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt"));
+      if(!os.length) return "";
+      const p=peParecidos(e);
+      return `<div class="pe-junta">
+      <div class="field"><label>Juntar com outro produto (mesmo produto, outra embalagem)</label><select class="pe-alvo"><option value="">Não juntar</option>${p.length?`<optgroup label="Parecidos">${p.map(x=>`<option value="${x.id}">${esc(x.comercial)} (${esc(x.unidade)})</option>`).join("")}</optgroup><optgroup label="Todos">`:""}${os.filter(x=>!p.includes(x)).map(x=>`<option value="${x.id}">${esc(x.comercial)} (${esc(x.unidade)})</option>`).join("")}${p.length?"</optgroup>":""}</select></div>
+      <div class="pe-jbox" hidden>
+        <div class="field"><label class="pe-jf-l">Quantos</label><input class="pe-jf" inputmode="decimal" value="1"></div>
+        <p class="note pe-jn"></p>
+      </div></div>`})()}
     <div class="row"><button type="button" class="btn fn-mini pe-ok">Salvar produto</button><button type="button" class="link pe-x">Cancelar</button><span class="note pe-st" role="status"></span></div>
   </div>`;
 }
+/* produtos com o mesmo começo de nome (Aureo, Aureo BD/20lts, Aureo Gl/5lts) */
+const peBase=n=>String(n||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]+/g," ").trim().split(/\s+/)[0]||"";
+function peParecidos(e){const b=peBase(e.comercial); return b.length<3?[]:estoque.filter(x=>x.id!==e.id&&!ehEmb(x)&&peBase(x.comercial)===b)}
+/* conteúdo da embalagem escrito no nome: "BD/20lts" → 20 L, "Gl 5 L" → 5 L, "sc 25kg" → 25 kg */
+function peEmbNome(nome){const m=String(nome||"").match(/(\d+(?:[.,]\d+)?)\s*(l|lt|lts|litro|litros|kg|kgs|quilos?)\b/i); return m?{q:parseNum(m[1]),u:/^k|^q/i.test(m[2])?"kg":"L"}:null}
+/* junta o produto "e" dentro de "t": entradas (× fator), atividades passam a apontar para "t", "e" vai para a Lixeira */
+async function peJuntar(e,t,f,doc){
+  const {id:tid,...td}=t;
+  td.comercial=doc.comercial; if(doc.generico) td.generico=doc.generico; else if(!td.generico&&e.generico) td.generico=e.generico; if(doc.classe) td.classe=doc.classe; else if(!td.classe&&e.classe) td.classe=e.classe;
+  td.entradas=[...(t.entradas||[]),...(e.entradas||[]).map(x=>({...x,quantidade:+((Number(x.quantidade)||0)*f).toFixed(3),juntadoDe:x.juntadoDe||e.comercial,...(f!==1?{qtdOriginal:x.qtdOriginal??x.quantidade,unOriginal:x.unOriginal||e.unidade}:{})}))];
+  await db.collection("estoque").doc(tid).set(td);
+  const ea=e.comercial.toLowerCase(), ta=t.comercial.toLowerCase();
+  const dele=p=>p.produtoId===e.id||(!p.produtoId&&String(p.nome).toLowerCase()===ea), dalvo=p=>p.produtoId===tid||(!p.produtoId&&String(p.nome).toLowerCase()===ta);
+  for(const r of registros){const ps=r.campos?.produtos||[]; if(!ps.some(p=>dele(p)||dalvo(p)&&p.nome!==td.comercial)) continue;
+    const {id:rid,...rd}=r;
+    rd.campos={...rd.campos,produtos:ps.map(p=>{
+      if(dalvo(p)) return {...p,nome:td.comercial,produtoId:tid};
+      if(!dele(p)) return p;
+      const q={...p,nome:td.comercial,produtoId:tid};
+      // dose numa unidade que só valia para o produto antigo (ex.: un/ha de bombona) → passa para a unidade do produto junto
+      if(FATOR[td.unidade]?.[p.unidade]==null&&FATOR[e.unidade]?.[p.unidade]!=null){const d=typeof p.dose==="number"?p.dose:parseNum(p.dose);
+        if(d>0){q.dose=+(d*FATOR[e.unidade][p.unidade]*f).toFixed(4); q.unidade=td.unidade+"/ha"}}
+      return q})};
+    await col.doc(rid).set(rd)}
+  await db.collection("estoque").doc(e.id).delete();
+}
 function peLiga(box){
   const e=estoque.find(x=>x.id===box.dataset.pe); if(!e) return;
+  const alvoSel=box.querySelector(".pe-alvo"), jbox=box.querySelector(".pe-jbox"), jf=box.querySelector(".pe-jf"), nomeIn=box.querySelector(".pe-nome");
+  const alvo=()=>alvoSel?.value?estoque.find(x=>x.id===alvoSel.value):null;
+  const jMostra=()=>{const t=alvo(); if(!jbox) return; jbox.hidden=!t;
+    box.querySelector(".pe-conv").hidden=true; box.querySelector(".pe-un").disabled=!!t||ehEmb(e);
+    if(!t) return;
+    const ent=(e.entradas||[]).reduce((s,x)=>s+(Number(x.quantidade)||0),0), f=parseNum(jf.value)||0;
+    box.querySelector(".pe-jf-l").textContent=t.unidade===e.unidade?`Cada 1 ${e.unidade} de "${e.comercial}" vale quantos ${t.unidade} de "${t.comercial}"? (unidade igual → 1)`:`Quantos ${t.unidade} tem cada 1 ${e.unidade} de "${e.comercial}"? (ex.: bombona de 20 L → 20)`;
+    const sT=resumoProd(t), sE=resumoProd(e), saldo=sT.saldo+sE.saldo*f;
+    box.querySelector(".pe-jn").innerHTML=f>0?`${(e.entradas||[]).length===1?"A entrada":`As ${(e.entradas||[]).length} entradas`} de <b>${esc(e.comercial)}</b> (${num(ent)} ${e.unidade}) ${(e.entradas||[]).length===1?"passa":"passam"} para <b>${esc(nomeIn.value.trim().toLowerCase()===t.comercial.toLowerCase()||!nomeIn.value.trim()?t.comercial:nomeIn.value.trim())}</b> como ${num(ent*f)} ${t.unidade}. O valor pago não muda. As atividades que usaram ${esc(e.comercial)} passam a descontar do produto junto.<br>Saldo depois de juntar: <b>${num(saldo)} ${t.unidade}</b>. <b>${esc(e.comercial)}</b> sai da lista (fica 30 dias na Lixeira).`:"Informe a conversão.";
+  };
+  if(alvoSel){
+    alvoSel.onchange=()=>{const t=alvo(); if(t){ const en=peEmbNome(e.comercial);
+        jf.value=t.unidade===e.unidade?"1":en&&en.u===t.unidade?String(en.q).replace(".",","):"1";
+        if(nomeIn.value.trim().toLowerCase()===e.comercial.toLowerCase()) nomeIn.value=t.comercial}
+      else if(nomeIn.value.trim().toLowerCase()!==e.comercial.toLowerCase()&&estoque.some(x=>x.id!==e.id&&x.comercial.toLowerCase()===nomeIn.value.trim().toLowerCase())) nomeIn.value=e.comercial;
+      jMostra()};
+    jf.oninput=jMostra;
+    nomeIn.addEventListener("input",()=>{const o=prodEstoque(nomeIn.value); if(o&&o.id!==e.id&&!ehEmb(o)&&alvoSel.value!==o.id&&[...alvoSel.options].some(x=>x.value===o.id)){alvoSel.value=o.id; alvoSel.onchange()} else jMostra()});
+    if(alvoSel.value) jMostra();
+  }
   const un=box.querySelector(".pe-un"), fat=box.querySelector(".pe-fator"), conv=box.querySelector(".pe-conv");
   const ent=(e.entradas||[]).reduce((t,x)=>t+(Number(x.quantidade)||0),0);
   const mostra=()=>{const mudou=un.value!==e.unidade; conv.hidden=!mudou||!(e.entradas||[]).length;
@@ -2187,7 +2245,15 @@ function peLiga(box){
   box.querySelector(".pe-ok").onclick=async ev=>{
     const st=t=>box.querySelector(".pe-st").textContent=t;
     const nome=box.querySelector(".pe-nome").value.trim(); if(!nome){st("Informe o nome.");return}
-    const outro=prodEstoque(nome); if(outro&&outro.id!==e.id){st("Já existe outro produto com esse nome.");return}
+    const t=alvo();
+    const outro=prodEstoque(nome); if(outro&&outro.id!==e.id&&outro.id!==t?.id){st(ehEmb(outro)||ehEmb(e)?"Já existe outro produto com esse nome.":`Já existe "${outro.comercial}". Para juntar os dois, escolha ele em "Juntar com outro produto".`);return}
+    if(t){const fj=parseNum(jf.value); if(!(fj>0)){st("Confira a conversão.");jf.focus();return}
+      if(ev.target.dataset.ok!=="1"){ev.target.dataset.ok="1"; ev.target.textContent="Toque de novo para juntar"; st(`Junta ${e.comercial} em ${nome}.`); return}
+      ev.target.disabled=true;
+      try{await peJuntar(e,t,fj,{comercial:nome.toLowerCase()===t.comercial.toLowerCase()?t.comercial:nome,generico:box.querySelector(".pe-gen").value.trim(),classe:box.querySelector(".pe-cla").value});
+        esEdit=null; esAbertos.delete(e.id); esAbertos.add(t.id); renderEstoque(); window.ponte?.aviso?.(`Produtos juntados em ${nome}.`)}
+      catch{st("Não foi possível juntar. Tente de novo."); ev.target.disabled=false}
+      return}
     const vEmb=un.value==="emb"&&!ehEmb(e);
     const f=un.value!==e.unidade&&!vEmb?(parseNum(fat.value)||1):1; if(!(f>0)){st("Confira a conversão.");return}
     ev.target.disabled=true;
@@ -2276,7 +2342,7 @@ function renderEstoque(){
     </div>`}
     ${s.usos&&!s.emb?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,Math.abs(x.quantidade)))}${x.lote||x.germ?`<small class="ent-lote">${[x.lote?"lote "+esc(x.lote):"",x.germ?"germ. "+num(x.germ)+"%":""].filter(Boolean).join(" · ")}</small>`:""}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):Number(x.valorTotal)<0?"−"+brl(-x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.devolucao?`<span class="ent-dev">↩️ Devolução${x.refNF?" da NF "+esc(x.refNF):""}</span>`:""}${x.chave&&!x.devolucao&&(e.classe==="Semente"||ehEmb(e))&&window.danfeTem?.(x.chave)?`<button type="button" class="link" data-refaz="${x.chave}">🔁 Refazer pela nota</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,Math.abs(x.quantidade)))}${x.lote||x.germ?`<small class="ent-lote">${[x.lote?"lote "+esc(x.lote):"",x.germ?"germ. "+num(x.germ)+"%":""].filter(Boolean).join(" · ")}</small>`:""}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):Number(x.valorTotal)<0?"−"+brl(-x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.juntadoDe?`<span class="ent-orig ent-junt">Veio de ${esc(x.juntadoDe)}${x.qtdOriginal!=null?` (${num(x.qtdOriginal)} ${esc(x.unOriginal||"")})`:""}</span>`:""}${x.devolucao?`<span class="ent-dev">↩️ Devolução${x.refNF?" da NF "+esc(x.refNF):""}</span>`:""}${x.chave&&!x.devolucao&&(e.classe==="Semente"||ehEmb(e))&&window.danfeTem?.(x.chave)?`<button type="button" class="link" data-refaz="${x.chave}">🔁 Refazer pela nota</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     <div class="rec-actions"><button type="button" class="link" data-entrada="${e.id}">+ Nova entrada</button><button type="button" class="link" data-edprod="${e.id}">${esEdit===e.id?"Fechar edição":"Editar produto"}</button><button type="button" class="link danger" data-delprod="${e.id}">Excluir produto</button></div>
