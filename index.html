@@ -2057,7 +2057,9 @@ async function nfLancar(){
     if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
   if(!itens.length&&!fora.length){nfSt("Nenhum produto marcado para lançar.");return}
   const finOn=$("#nf-fin")?($("#nf-fin").checked&&!$("#nf-retm")?.checked):!!nfDados?.fin;
-  if(fora.length&&!finOn&&!fora.every(f=>f.maquinaId||f.benfId)&&$("#nf-lancar").dataset.semfin!=="1"){$("#nf-lancar").dataset.semfin="1"; nfSt(`Os itens que não vão para o estoque só entram no Financeiro, e "Lançar também no Financeiro" está desmarcado: eles não serão lançados em lugar nenhum. Marque o Financeiro, ou toque em Lançar de novo para seguir assim.`); return}
+  // nota de retirada (já paga no contrato): os itens fora do estoque viram custo do ano, sem conta a pagar
+  const retNota=!finOn&&(!!$("#nf-retm")?.checked||(!!nfDados?.fin?.retirada&&!$("#nf-fin")?.checked));
+  if(fora.length&&!finOn&&!retNota&&!fora.every(f=>f.maquinaId||f.benfId)&&$("#nf-lancar").dataset.semfin!=="1"){$("#nf-lancar").dataset.semfin="1"; nfSt(`Os itens que não vão para o estoque só entram no Financeiro, e "Lançar também no Financeiro" está desmarcado: eles não serão lançados em lugar nenhum. Marque o Financeiro, ou toque em Lançar de novo para seguir assim.`); return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
   if(!nfDados?.refaz&&!nfDados?.finRef&&itens.length){const d=nfNoEstoque(nfDados?.fin?.chave||null,nf,origem);
     if(d.length&&!$("#nf-dupok")?.checked){ if(!$("#nf-dup")) $("#nf-rev .nf-box").insertAdjacentHTML("afterbegin",nfDupBox(d)); $("#nf-dup").scrollIntoView({block:"center",behavior:"smooth"});
@@ -2115,6 +2117,11 @@ async function nfLancar(){
       if(fora.length){const t={}; for(const x of f.itens){t[x.cat]=(t[x.cat]||0)+(x.valor||0)} f.categoria=Object.entries(t).sort((a,b)=>b[1]-a[1])[0]?.[0]}
       try{fin=await window.finDaNota(f,{data,nf,origem,itens:fora.length?null:itens,anexos:anx})||" Esta nota já estava no Financeiro."; finId=window.finDaNota.ultimo||null}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
     }
+    if(fora.length&&retNota) try{
+      const ctr=nfDados?.manual?($("#nf-ctr")?.value||"").trim():(nfDados?.fin?.contrato||"");
+      finId=await window.finCompetencia(fora.map(i=>({desc:i.nome,qtd:i.q>0?i.q:null,un:i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v,cat:i.cat,...(i.maquinaId?{maquinaId:i.maquinaId}:{}),...(i.benfId?{benfId:i.benfId}:{})})),
+        {data,nf,origem,chave:nfDados?.fin?.chave||null,contrato:ctr,titular:($("#nf-tit")?.value||nfDados?.fin?.dest||"").trim(),anexos:anx});
+      fin+=` Itens fora do estoque guardados como custo (já pagos no contrato${ctr?" "+ctr:""}; não mexem no caixa).`}catch{fin+=" Não consegui guardar o custo dos itens fora do estoque."}
     if(fora.some(f=>f.maquinaId||f.benfId)) try{fin+=await window.finCriaServicos(fora.map(i=>({desc:i.nome,qtd:i.q>0?i.q:null,un:i.un,valor:i.v,cat:i.cat,maquinaId:i.maquinaId,benfId:i.benfId})),{data,fornecedor:origem,nf,chave:nfDados?.fin?.chave||null,finId})}catch{}
     if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
     $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok?`${ok} ite${ok>1?"ns":"m"} lançado${ok>1?"s":""} no estoque`:"Nada no estoque"}${nf?` (NF ${nf})`:""}.${fora.length?` ${fora.length} ite${fora.length>1?"ns":"m"} fora do estoque (${[...new Set(fora.map(f=>window.finCatNome?.(f.cat)||f.cat))].join(", ")}).`:""}${fin}`);
@@ -4538,6 +4545,8 @@ const RELS=[
    return {colunas:[["Data","data"],["Produto"],["Classe"],["Quantidade","num"],["Un."],["Valor","brl"],["Preço/un.","brl"],["Origem"],["NF"]],linhas,totais:{5:linhas.reduce((s,l)=>s+(+l[5]||0),0)},resumo:Object.entries(porO).map(([k,v])=>[k,brl(v)])}}},
  {id:"nfs",nome:"Notas fiscais (lançadas e recebidas)",desc:"Uma linha por nota: data, número, fornecedor, em nome de quem, valor, onde entrou (estoque / financeiro), situação do pagamento e produtos.",filtros:["periodo","nfsit","nfforn","nfdest"],
   gerar(F){return window.rnRelatorio?window.rnRelatorio(F):{colunas:[["Nota"]],linhas:[]}}},
+ {id:"gastos",nome:"Gastos por categoria (Financeiro)",desc:"Tudo o que foi gasto no período, pela data da nota (competência), separado por categoria — ex.: quanto foi gasto com os animais no ano. Inclui o que ainda está em aberto e o que veio em nota de retirada já paga no contrato.",filtros:["periodo","fincat"],
+  gerar(F){return window.finGastosRel?window.finGastosRel(F):{colunas:[["Gasto"]],linhas:[]}}},
  {id:"chuvas",nome:"Registro pluviométrico",desc:"Chuvas e eventos climáticos do período.",filtros:["periodo"],
   gerar(F){const rs=registros.filter(r=>r.tipo==="chuva"&&F.dentro(r.data)).sort((a,b)=>a.data.localeCompare(b.data));
    const linhas=rs.map(r=>[r.data,r.campos?.mm??"",(r.campos?.eventos||[]).join(", "),r.descricao||""]);
@@ -4602,7 +4611,7 @@ function rlFiltrosHtml(def){
   const sy=safraDe(todayISO());
   const anos=[...new Set([sy,...registros.map(r=>safraReg(r))])].sort((a,b)=>b-a);
   const f={
-    periodo:`<div class="field"><label for="rl-per">Período</label><select id="rl-per">${anos.map(y=>`<option value="s${y}">Safra ${safraLab(y)}</option>`).join("")}<option value="mes">Este mês</option><option value="todas">Tudo</option><option value="pers">Escolher datas…</option></select></div>
+    periodo:`<div class="field"><label for="rl-per">Período</label><select id="rl-per">${anos.map(y=>`<option value="s${y}">Safra ${safraLab(y)}</option>`).join("")}<option value="mes">Este mês</option><option value="ano">Este ano (${todayISO().slice(0,4)})</option><option value="anoP">Ano passado (${+todayISO().slice(0,4)-1})</option><option value="todas">Tudo</option><option value="pers">Escolher datas…</option></select></div>
       <div class="field rl-datas" hidden><label for="rl-de">De</label><input type="date" id="rl-de"></div><div class="field rl-datas" hidden><label for="rl-ate">Até</label><input type="date" id="rl-ate"></div>`,
     talhao:`<div class="field"><label for="rl-talhao">Talhão</label><select id="rl-talhao"><option value="">Todos</option>${TALHOES.map(t=>`<option>${esc(t.n)}</option>`).join("")}</select></div>`,
     cultura:`<div class="field"><label for="rl-cult">Cultura</label><select id="rl-cult"><option value="">Todas</option>${[...new Set([...registros.map(regCult),...grMovs().map(m=>m.cultura)].filter(Boolean))].sort().map(c=>`<option>${esc(c)}</option>`).join("")}</select></div>`,
@@ -4613,6 +4622,7 @@ function rlFiltrosHtml(def){
     nfsit:`<div class="field"><label for="rl-nfsit">Situação da nota</label><select id="rl-nfsit"><option value="">Todas</option><option value="lancada">Lançadas</option><option value="falta">Recebidas, falta lançar</option><option value="ignorada">Ignoradas</option><option value="cancelada">Canceladas</option></select></div>`,
     nfforn:`<div class="field"><label for="rl-nfforn">Fornecedor</label><select id="rl-nfforn"><option value="">Todos</option>${(window.rnOpcoes?.().forn||[]).map(x=>`<option>${esc(x)}</option>`).join("")}</select></div>`,
     nfdest:`<div class="field"><label for="rl-nfdest">Nota em nome de</label><select id="rl-nfdest"><option value="">Todos</option>${(window.rnOpcoes?.().dest||[]).map(x=>`<option>${esc(x)}</option>`).join("")}</select></div>`,
+    fincat:`<div class="field"><label for="rl-fcat">Categoria</label><select id="rl-fcat"><option value="">Todas</option>${(window.finCatsPagar?.()||[]).map(c=>`<option value="${c.k}">${esc(c.l)}</option>`).join("")}</select></div>`,
     titular:`<div class="field"><label for="rl-tit">Titular</label><select id="rl-tit"><option value="">Todos</option>${TITS.map(t=>`<option value="${t}">${esc(titNome(t))}</option>`).join("")}</select></div>`};
   return def.filtros.map(k=>f[k]).join("");
 }
@@ -4622,8 +4632,9 @@ function rlLerFiltros(){
   let safraF=null;
   if(per.startsWith("s")){const y=+per.slice(1); safraF=y; de=`${y}-07-01`; ate=`${y+1}-06-30`; rot=`Safra ${safraLab(y)} (01/07/${y} a 30/06/${y+1})`}
   else if(per==="mes"){const h=todayISO(); de=h.slice(0,8)+"01"; ate=h.slice(0,8)+"31"; rot=`${h.slice(5,7)}/${h.slice(0,4)}`}
+  else if(per==="ano"||per==="anoP"){const y=+todayISO().slice(0,4)-(per==="anoP"?1:0); de=`${y}-01-01`; ate=`${y}-12-31`; rot=`Ano ${y}`}
   else if(per==="pers"){de=v("#rl-de"); ate=v("#rl-ate"); rot=`${de?brDate(de):"início"} a ${ate?brDate(ate):"hoje"}`}
-  const F={talhao:v("#rl-talhao"),cult:v("#rl-cult"),tipo:v("#rl-tp"),sit:$("#rl-sit")?v("#rl-sit"):"",classe:v("#rl-cla"),maquina:v("#rl-maq"),titular:v("#rl-tit"),nfsit:v("#rl-nfsit"),nfforn:v("#rl-nfforn"),nfdest:v("#rl-nfdest"),rotPer:rot};
+  const F={talhao:v("#rl-talhao"),cult:v("#rl-cult"),tipo:v("#rl-tp"),sit:$("#rl-sit")?v("#rl-sit"):"",classe:v("#rl-cla"),maquina:v("#rl-maq"),titular:v("#rl-tit"),nfsit:v("#rl-nfsit"),nfforn:v("#rl-nfforn"),nfdest:v("#rl-nfdest"),fincat:v("#rl-fcat"),rotPer:rot};
   F.dentro=d=>!!d&&(!de||d>=de)&&(!ate||d<=ate);
   F.dentroR=r=>safraF!=null?safraReg(r)===safraF:F.dentro(r.data); // lançamento da lavoura: pela safra a que pertence (manejo antes do plantio entra na safra do plantio)
   F.talhaoOk=r=>!F.talhao||(r.talhoes||[]).includes(F.talhao);
@@ -4637,6 +4648,7 @@ function rlDescFiltros(def,F){
   if(def.filtros.includes("periodo")) p.push("Período: "+F.rotPer);
   if(F.talhao) p.push("Talhão: "+F.talhao); if(F.cult) p.push("Cultura: "+F.cult);
   if(F.tipo) p.push("Tipo: "+TIPOS[F.tipo].label); if(def.filtros.includes("situacao")) p.push("Situação: "+(F.sit==="programada"?"programadas":F.sit==="executada"?"executadas":"todas"));
+  if(F.fincat) p.push("Categoria: "+(window.finCatNome?.(F.fincat)||F.fincat));
   if(F.classe) p.push("Classe: "+F.classe); if(F.maquina) p.push("Máquina: "+nomeMaq(F.maquina)); if(F.titular) p.push("Titular: "+titNome(F.titular)); if(F.nfsit) p.push("Situação: "+({lancada:"lançadas",falta:"falta lançar",ignorada:"ignoradas",cancelada:"canceladas"}[F.nfsit])); if(F.nfforn) p.push("Fornecedor: "+F.nfforn); if(F.nfdest) p.push("Em nome de: "+F.nfdest);
   return p.join(" · ");
 }

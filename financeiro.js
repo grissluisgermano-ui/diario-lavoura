@@ -372,7 +372,7 @@ function renderFluxo(s){
   const meses=Array.from({length:12},(_,i)=>addMes(h.slice(0,7)+"-01",i-5).slice(0,7));
   const M=Object.fromEntries(meses.map(m=>[m,{ent:0,sai:0,pEnt:0,pSai:0}]));
   for(const l of fnLanc){
-    if(l.natureza==="transf"||l.quitGraos) continue;
+    if(l.natureza==="transf"||l.quitGraos||l.semCaixa) continue;
     if(l.status==="pago"){const ym=(l.pagoEm||l.vencimento||"").slice(0,7); if(M[ym]) M[ym][l.natureza==="receber"?"ent":"sai"]+=vp(l)}
     else{let ym=(l.vencimento||"").slice(0,7); if(ym<ymH) ym=ymH; if(M[ym]) M[ym][l.natureza==="receber"?"pEnt":"pSai"]+=vp(l)}
   }
@@ -691,6 +691,19 @@ async function criaServicos(itens,{data,fornecedor,nf,chave,finId,catConta}){
   return n?` ${n===1?"Também registrado":"Também registrados"} em ${[...por.keys()].map(k=>k.startsWith("mq")?"Máquinas":"Benfeitorias").filter((v,i,a)=>a.indexOf(v)===i).join(" e ")}.`:"";
 }
 window.finCriaServicos=criaServicos;
+/* Itens de nota de RETIRADA (já pagos no contrato) que não vão para o estoque (sal para os animais, peça…):
+   viram um lançamento "só de custo" — pago, sem conta e fora do caixa (semCaixa), na data da nota e na categoria do item.
+   Assim entram no Resultado e nos relatórios de gasto do ano, mas não mexem no saldo nem no livro caixa (o dinheiro saiu no pagamento do contrato). */
+window.finCompetencia=async function(itens,{data,nf,origem,chave,contrato,titular,anexos}){
+  if(!db||!itens?.length) return null;
+  const t={}; for(const i of itens) t[i.cat]=(t[i.cat]||0)+(Number(i.valor)||0);
+  const cat=Object.entries(t).sort((a,b)=>b[1]-a[1])[0][0], v=+itens.reduce((s,i)=>s+(Number(i.valor)||0),0).toFixed(2);
+  const b={natureza:"pagar",descricao:`${itens.map(i=>i.desc).join(", ")}${nf?" — NF "+nf:""} (retirada do contrato${contrato?" "+contrato:""}, já pago)`,pessoa:origem||"",categoria:cat,forma:"avista",
+    competencia:data,vencimento:data,valor:v,status:"pago",pagoEm:data,contaId:null,semCaixa:true,retirada:true,contrato:contrato||"",nf:nf||"",chave:chave||null,titular:titular||"",
+    itens:itens.map(i=>({...i,cat:i.cat})),obs:"Já pago no pagamento do contrato: entra no custo, não no caixa.",criadoEm:new Date().toISOString()};
+  if(anexos?.length) b.anexos=anexos;
+  const rf=await db.collection("fin_lanc").add(b); return rf?.id||null;
+};
 window.finNovaConta=p=>{show("fin_contas"); setTimeout(()=>formDePendencia({k:null,fonte:"Estoque",itens:[],...p}),60)};
 /* tirar do estoque um produto que não é insumo (peça, produto para animais…): as entradas saem do estoque,
    a conta da nota (se já está no Financeiro) passa a ter esse item na categoria certa, e a máquina/benfeitoria ganha o registro */
@@ -708,7 +721,8 @@ window.finTiraEstoque=async function(e,{cat,maquinaId,benfId}){
         if(k>=0) Object.assign(l.itens[k],{cat,...(maquinaId?{maquinaId}:{}),...(benfId?{benfId}:{})});
         else if(!l.itens.length) l.categoria=cat;
         contasMud.set(l.id,l)}
-    } else semFin.push({x,desc,it});
+    } else if(x.retirada){const id=await window.finCompetencia([it],{data:x.data,nf:x.nf,origem:x.origem,chave:x.chave,contrato:x.contrato,anexos:x.anexos}); cs.push({id})}
+    else semFin.push({x,desc,it});
     if(maquinaId||benfId) await criaServicos([it],{data:x.data,fornecedor:x.origem,nf:x.nf,chave:x.chave,finId:cs[0]?(cs[0].grupo||cs[0].id):null,catConta:cat});
   }
   for(const l of contasMud.values()){
@@ -718,6 +732,21 @@ window.finTiraEstoque=async function(e,{cat,maquinaId,benfId}){
   return {contas:contasMud.size,semFin};
 };
 window.finCatsPagar=()=>cats("pagar");
+/* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
+window.finGastosRel=function(F){
+  const sit=l=>l.semCaixa?`Já pago no contrato${l.contrato?" "+l.contrato:""}`:l.quitGraos?"Quitada em grãos":l.status==="pago"?"Pago":"Em aberto";
+  const linhas=[], porCat={};
+  for(const l of fnLanc){ if(l.natureza!=="pagar") continue; const d=l.competencia||l.vencimento; if(!F.dentro(d)) continue;
+    const its=(l.itens||[]).filter(i=>Number(i.valor)>0), tot=its.reduce((t,i)=>t+Number(i.valor),0), v=vp(l);
+    const g={}; if(its.some(i=>i.cat&&i.cat!==l.categoria)&&tot>0){for(const i of its){const c=i.cat||l.categoria; (g[c]||=[]).push(i)}} else g[l.categoria]=its;
+    for(const [c,is] of Object.entries(g)){ if(F.fincat&&c!==F.fincat) continue;
+      const parte=tot>0&&Object.keys(g).length>1?v*is.reduce((t,i)=>t+Number(i.valor),0)/tot:v;
+      porCat[c]=(porCat[c]||0)+parte;
+      linhas.push([d,`${l.descricao||""}${l.parcela?" ("+l.parcela+")":""}${Object.keys(g).length>1?" — "+is.map(i=>i.desc).join(", "):""}`,l.pessoa||"",l.nf||"",catNome(c),sit(l),+parte.toFixed(2)])}}
+  linhas.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+  return {colunas:[["Data","data"],["Descrição"],["Fornecedor"],["NF"],["Categoria"],["Situação"],["Valor","brl"]],linhas,totais:{6:linhas.reduce((t,x)=>t+x[6],0)},
+    resumo:Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>[catNome(c),brl(v)])};
+};
 window.finClasseCat=(c,d)=>classeCat(c,d);
 window.finCatNome=k=>catNome(k);
 
@@ -1084,6 +1113,7 @@ function agAviso(){
 /* ---------- LISTA de contas a pagar e a receber ---------- */
 function situacao(l){
   const h=hoje();
+  if(l.semCaixa) return `<span class="pill ok">Já pago no contrato${l.contrato?" "+esc(l.contrato):""}</span>`;
   if(l.status==="pago") return l.quitGraos?`<span class="pill ok">Quitada em grãos</span>`:`<span class="pill ok">${l.natureza==="receber"?"Recebido":"Pago"} ${brDate(l.pagoEm||l.vencimento)}</span>`;
   const d=dias(h,l.vencimento);
   return d<0?`<span class="pill venc">Vencida há ${-d} dia${d===-1?"":"s"}</span>`:d===0?`<span class="pill venc">Vence hoje</span>`:d<=7?`<span class="pill prox">Vence em ${d} dia${d===1?"":"s"}</span>`:`<span class="pill">Vence ${brDate(l.vencimento)}</span>`;
@@ -1205,7 +1235,7 @@ function lcLinhas(){
   const per=$("#lc-per").value||"mes:"+hoje().slice(0,7), [a,b]=faixa(per), conta=$("#lc-conta").value, tit=$("#lc-tit").value;
   const movs=[];
   for(const l of fnLanc){
-    if(l.status!=="pago"||l.quitGraos) continue;
+    if(l.status!=="pago"||l.quitGraos||l.semCaixa) continue;
     const d=l.pagoEm||l.vencimento, v=vp(l);
     if(l.natureza==="transf"){
       if(!conta) continue; // transferências entre contas não mudam o caixa total
@@ -1399,6 +1429,7 @@ function renderCtrRet(sy){
   const box=$("#rsf-ctr"); if(!box) return;
   const M=new Map(), get=n=>{let o=M.get(n); if(!o){o={n,forn:"",pago:0,aberto:0,ret:0,rets:[],dup:0,datas:[]}; M.set(n,o)} return o};
   for(const l of fnLanc) if(l.natureza==="pagar"&&l.contrato){const n=ctrN(l.contrato); if(!n) continue; const o=get(n);
+    if(l.semCaixa){const v=Number(l.valor)||0; o.ret+=v; o.rets.push({e:{comercial:(l.itens||[]).map(i=>i.desc).join(", ")||l.descricao,unidade:""},x:{data:l.competencia,nf:l.nf,valorTotal:v,quantidade:null}}); o.forn||=l.pessoa||""; o.datas.push(l.competencia); continue}
     if(l.status==="pago") o.pago+=Number(l.valorPago??l.valor)||0; else o.aberto+=vp(l); o.forn||=l.pessoa||""; o.datas.push(l.competencia||l.vencimento)}
   for(const e of (typeof estoque!=="undefined"?estoque:[])) for(const x of e.entradas||[]) if(x.contrato){const n=ctrN(x.contrato); if(!n) continue; const o=get(n);
     const v=Number(x.valorTotal)||0; if(x.retirada){o.ret+=v; o.rets.push({e,x})} else o.dup+=v; o.forn||=x.origem||""; o.datas.push(x.data)}
