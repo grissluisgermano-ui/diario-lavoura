@@ -1885,7 +1885,7 @@ function renderNfRev(){
         <div class="field"><label><span class="nf-soest-i">Nome comercial</span><span class="nf-fora-i">Produto / serviço</span></label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial??it.descricao??"")}" placeholder="Ex.: Fox Xpro, Semente soja P95R51"></div>
         <div class="field nf-soest"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
         <div class="field nf-soest"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
-        <div class="field nf-unf nf-soest"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div class="field nf-unf"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
         ${(()=>{const m=it.emb||(ehEmb(ex)?ultimaEmb(ex):null)||{tipo:"saco",cont:null,med:"sem"};return `<div class="field nf-sf"><label>Embalagem da semente</label><select class="nf-et"><option value="kg" ${m.tipo==="kg"?"selected":""}>Kg (a granel)</option><option value="saco" ${m.tipo==="saco"?"selected":""}>Saco</option><option value="bag" ${m.tipo==="bag"?"selected":""}>Bag (bigbag)</option></select></div>
         <div class="field nf-sf nf-scf"><label>Conteúdo de cada embalagem</label><div class="nf-cont"><input class="nf-ec" inputmode="numeric" placeholder="${m.med==="kg"?"Ex.: 40":"Ex.: 200.000"}" value="${m.tipo!=="kg"&&m.cont>0?num(m.cont):""}"><select class="nf-em"><option value="sem" ${m.med!=="kg"?"selected":""}>sementes</option><option value="kg" ${m.med==="kg"?"selected":""}>kg</option></select></div></div>`})()}
         <div class="field"><label class="nf-q-l">Quantidade (${u})</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
@@ -1909,14 +1909,17 @@ function renderNfRev(){
   const box$=$("#nf-rev");
   const unSync=box=>{
     const sem=box.querySelector(".nf-cla").value==="Semente", t=box.querySelector(".nf-et").value, u=box.querySelector(".nf-un").value;
-    box.querySelectorAll(".nf-sf").forEach(f=>f.hidden=!sem); box.querySelector(".nf-scf").hidden=!sem||t==="kg"; box.querySelector(".nf-unf").hidden=sem;
+    const fora=box.classList.contains("nf-fora"), sem2=sem&&!fora, un$=box.querySelector(".nf-un");
+    // fora do estoque: a unidade é livre (a do produto do estoque não vale)
+    un$.disabled=!fora&&!!prodEstoque(box.querySelector(".nf-nome").value);
+    box.querySelectorAll(".nf-sf").forEach(f=>f.hidden=!sem2); box.querySelector(".nf-scf").hidden=!sem2||t==="kg"; box.querySelector(".nf-unf").hidden=sem2;
     const nm=t==="bag"?"bags":"sacos";
-    box.querySelector(".nf-q-l").textContent=sem?(t==="kg"?"Quantidade (kg)":`Quantidade de ${nm}`):`Quantidade (${u})`;
-    box.querySelector(".nf-vu-l").textContent=sem?(t==="kg"?"Valor por kg (R$)":`Valor de cada ${t==="bag"?"bag":"saco"} (R$)`):`Valor unitário (R$/${u})`;
+    box.querySelector(".nf-q-l").textContent=sem2?(t==="kg"?"Quantidade (kg)":`Quantidade de ${nm}`):`Quantidade (${u})`;
+    box.querySelector(".nf-vu-l").textContent=sem2?(t==="kg"?"Valor por kg (R$)":`Valor de cada ${t==="bag"?"bag":"saco"} (R$)`):`Valor unitário (R$/${u})`;
     const ec=box.querySelector(".nf-ec"); ec.placeholder=box.querySelector(".nf-em").value==="kg"?"Ex.: 40":"Ex.: 200.000";
   };
   box$.querySelectorAll(".nf-it").forEach(box=>{
-    const dsb=box.querySelector(".nf-dst"); if(dsb){window.finItDestLiga?.(dsb); const c=dsb.querySelector(".i-cat"); c.addEventListener("change",()=>{box.classList.toggle("nf-fora",c.value!=="__est"); nfBotao()})}
+    const dsb=box.querySelector(".nf-dst"); if(dsb){window.finItDestLiga?.(dsb); const c=dsb.querySelector(".i-cat"); c.addEventListener("change",()=>{box.classList.toggle("nf-fora",c.value!=="__est"); unSync(box); nfBotao()})}
     const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v");
     q.addEventListener("input",()=>{const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
     vu.addEventListener("input",()=>{box.dataset.ult="vu"; const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0) t.value=nfF2(a*b); nfDivide()});
@@ -2046,7 +2049,7 @@ async function nfLancar(){
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
     un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value),
-    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null, i:+b.dataset.i, ...nfDestLer(b)}));
+    emb:b.querySelector(".nf-cla").value==="Semente"&&!b.classList.contains("nf-fora")?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null, i:+b.dataset.i, ...nfDestLer(b)}));
   const fora=itens.filter(it=>it.cat&&it.cat!=="__est"), daNota=[...itens]; itens.splice(0,itens.length,...itens.filter(it=>!fora.includes(it)));
   for(const it of fora){ if(!it.nome){nfSt("Há item sem nome.");return} if(!(it.v>0)){nfSt(`Informe o valor de ${it.nome}.`);return} }
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return}
