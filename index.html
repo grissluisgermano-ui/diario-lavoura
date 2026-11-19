@@ -119,6 +119,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .prods{display:flex;flex-direction:column;gap:8px;counter-reset:p}
 .prod{display:grid;grid-template-columns:24px minmax(0,1fr) 92px 104px 112px 40px;gap:8px;align-items:center}
 .prod>small{grid-column:2/-1}
+.prod .p-totx:empty{display:none}.prod .p-totx .falta{display:inline}
 .prods-dica{margin:-2px 0 4px;font-size:.82rem}
 .prod::before{counter-increment:p;content:counter(p);font-family:var(--f-mono);font-size:.8rem;color:var(--muted);text-align:right}
 .prod .rm{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;height:42px;font-size:1.1rem;cursor:pointer}
@@ -1503,7 +1504,7 @@ function prodRow(p={}){
     <select class="p-un" aria-label="Unidade">${UNIDADES.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select>
     <input class="p-tot" inputmode="decimal" placeholder="Total (${esc(u.replace("/ha",""))})" aria-label="Quantidade total usada">
     <button type="button" class="rm" aria-label="Remover produto">×</button>
-    <small class="p-saldo"></small><small class="p-custo"></small></div>`;
+    <small class="p-saldo"></small><small class="p-custo"></small><small class="p-totx"></small></div>`;
 }
 function renderProds(list){
   const box=$("#prods-box");
@@ -1553,14 +1554,28 @@ function prodTotais(){
   document.querySelectorAll("#prods .prod").forEach(r=>{
     const dose=r.querySelector(".p-dose"), tot=r.querySelector(".p-tot"), uD=r.querySelector(".p-un").value;
     // sementes: total sempre em sementes (por metro × metros de linha por ha × área)
-    const fat=uD==="sem/m"?(espForm()?10000/espForm():0):uD==="mil sem/ha"?1000:1, un=/sem/.test(uD)?"sementes":uD.replace("/ha","");
+    // mL/ha e g/ha: o total vai em L e kg (5.000 mL → 5 L), como no estoque
+    const fat=uD==="sem/m"?(espForm()?10000/espForm():0):uD==="mil sem/ha"?1000:/^(mL|g)\/ha$/.test(uD)?0.001:1, un=/sem/.test(uD)?"sementes":uD==="mL/ha"?"L":uD==="g/ha"?"kg":uD.replace("/ha","");
     if(!tot) return; tot.placeholder=`Total (${un})`;
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
     if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
     if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)}
-    else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*area,2)):""}
+    else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*fat*area,fat<1?3:2)):""}
+    prodConfere(r,uD,un,fat,area);
   });
+}
+/* linha de baixo do produto: total usado com a unidade, e aviso de dose fora do normal (ex.: 140 L/ha que era para ser 140 mL/ha) */
+function prodConfere(r,uD,un,fat,area){
+  const x=r.querySelector(".p-totx"); if(!x) return;
+  const d=parseNum(r.querySelector(".p-dose").value), e=prodEstoque(r.querySelector(".p-nome").value.trim());
+  if(!(d>0)||/sem/.test(uD)){x.innerHTML=""; return}
+  const t=d*fat*area, cla=e?.classe||"", insumo=/Fertilizante|Corretivo|Semente|Inoculante/.test(cla);
+  let av="";
+  if(!insumo&&((uD==="L/ha"&&d>15)||(uD==="kg/ha"&&d>15))) av=`⚠️ ${fmtN(d,2)} ${uD} é muito para ${cla?cla.toLowerCase():"um defensivo"}. Será ${fmtN(d,2)} ${uD==="L/ha"?"mL/ha":"g/ha"}? <button type="button" class="link p-tromL" data-un="${uD==="L/ha"?"mL/ha":"g/ha"}">Trocar para ${uD==="L/ha"?"mL/ha":"g/ha"}</button>`;
+  else if(!insumo&&((uD==="mL/ha"&&d<1)||(uD==="g/ha"&&d<1))) av=`⚠️ ${fmtN(d,3)} ${uD} é muito pouco. Será ${fmtN(d,3)} ${uD==="mL/ha"?"L/ha":"kg/ha"}? <button type="button" class="link p-tromL" data-un="${uD==="mL/ha"?"L/ha":"kg/ha"}">Trocar para ${uD==="mL/ha"?"L/ha":"kg/ha"}</button>`;
+  x.innerHTML=(area>0?`Total usado: <b>${fmtN(t,fat<1?3:2)} ${esc(un)}</b> em ${num(area)} ha`:"")+(av?` <span class="falta">${av}</span>`:"");
+  x.querySelector(".p-tromL")?.addEventListener("click",ev=>{const s=r.querySelector(".p-un"); s.value=ev.target.dataset.un; r.dataset.src=""; s.dispatchEvent(new Event("change",{bubbles:true}))});
 }
 /* semente por embalagem: quantas embalagens saíram de cada tipo (bags, sacos, kg) — é isso que baixa do estoque */
 function embsDaLinha(r){
