@@ -48,6 +48,8 @@ function classeCat(classe,desc){
   if(/Herbicida|Fungicida|Inseticida|Acaricida|Nematicida|Adjuvante|Tratamento/.test(c)) return "defensivos";
   if(/^(ste |semente)|\bsemente\b|\bsoja\b.*\b(ipro|i2x|rr|tsi)\b|\bmilho\b.*\b(vyh|pro|tsi)\b/.test(d)) return "sementes";
   if(/\b(fert|ureia|calcario|kcl|adubo|npk|super|map|gesso|cloreto)\b|\b\d{2} \d{2} \d{2}\b/.test(d)) return "fertilizantes";
+  if(/bicheir|vermifug|ivermectin|\bvacina|bovin|equin|suin|\bracao\b|sal mineral|mineral (bovino|gado)|carrapat|mosquicid|antibiotic|ocitocin|terramicin|pour on|\bbrinco|bezerr|\bgado\b|\bleite(ira)?\b|cicatrizant|\bcurativo\b/.test(d)) return "animais";
+  if(/\b(filtro|rolamento|correia|retentor|parafuso|porca|arruela|mangueira|graxa|pneu|camara de ar|bateria|lamina|navalha|corrente|engrenagem|bucha|junta|anel o|o ring|oring|mola|lampada|farol|ponteira|rebite|cabo de aco|terminal|pino|chaveta|abracadeira|eletrodo|disco de corte|embolo|vedacao|antigotejo|diafragma|valvula|bico|reparo|mancal|cruzeta|pastilha|lona de freio|vela)\b|oleo (lubrificante|de motor|motor|hidraulico|transmissao|15w|10w|2 tempos)|\b(15w|10w)\d/.test(d)) return "manutencao";
   const e=(typeof estoque!=="undefined"?estoque:[]).find(x=>d.includes(norm(x.comercial)));
   if(e) return classeCat(e.classe,"")||"insumos";
   return "";
@@ -148,9 +150,9 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
   for(const p of g.values()){p.categoria=catDosItens(p.itens); p.itens=p.itens.map(({classe,...i})=>i); p.descricao=`Compra de ${catNome(p.categoria).toLowerCase()}${p.nf?" — NF "+p.nf:""}`; if(livre(p.k,p.data)) out.push(p)}
   for(const d of (typeof diesel!=="undefined"?diesel:[])) if(d.tipo==="entrada"&&Number(d.valorTotal)>0){
     const k="ds|"+d.id; if(livre(k,d.data)) out.push({k,natureza:"pagar",data:d.data,descricao:`Diesel — ${num(d.litros)} L no tanque`,pessoa:d.fornecedor||"",nf:d.nf||"",valor:Number(d.valorTotal),categoria:"combustivel",fonte:"Abastecimento",itens:[]})}
-  for(const x of (typeof manut!=="undefined"?manut:[])) if(Number(x.custoTotal)>0){
+  for(const x of (typeof manut!=="undefined"?manut:[])) if(Number(x.custoTotal)>0&&!x.finId){
     const k="mq|"+x.id; if(livre(k,x.data)) out.push({k,natureza:"pagar",data:x.data,descricao:`Manutenção — ${nomeMaq(x.maquinaId)}${(x.servicos||[]).length?" ("+x.servicos.join(", ")+")":""}`,pessoa:x.oficina||"",nf:"",valor:Number(x.custoTotal),categoria:"manutencao",fonte:"Máquinas",itens:(x.itens||[]).filter(i=>i.desc||i.valor).map(i=>({desc:i.desc||"Item",valor:i.valor}))})}
-  for(const x of (typeof bfServ!=="undefined"?bfServ:[])) if(Number(x.custoTotal)>0&&x.status!=="pendente"){
+  for(const x of (typeof bfServ!=="undefined"?bfServ:[])) if(Number(x.custoTotal)>0&&x.status!=="pendente"&&!x.finId){
     const k="bf|"+x.id; if(livre(k,x.data)) out.push({k,natureza:"pagar",data:x.data,descricao:`${nomeBf(x.benfId)}${(x.servicos||[]).length?" — "+x.servicos.join(", "):""}`,pessoa:x.responsavel||"",nf:"",valor:Number(x.custoTotal),categoria:"benfeitorias",fonte:"Benfeitorias",itens:(x.itens||[]).filter(i=>i.desc||i.valor).map(i=>({desc:i.desc||"Item",valor:i.valor}))})}
   const recG=fnLanc.filter(l=>l.natureza==="receber"&&l.categoria==="graos");
   const vendaNoFin=m=>recG.some(l=>Math.abs(vp(l)-m.valorTotal)<=m.valorTotal*.01&&Math.abs(dias(l.competencia||l.vencimento,m.data))<=5);
@@ -504,7 +506,7 @@ function itensRender(list){
       <label><span>Unid.</span><input class="i-un" list="dl-fn-un" placeholder="un" value="${esc(i.un||"")}"></label>
       <label><span>Valor unit. (R$)</span><input class="i-vu" inputmode="decimal" placeholder="0,00" value="${i.vu!=null?f2(Number(i.vu)):""}"></label>
       <label><span>Total (R$)</span><input class="i-val" inputmode="decimal" placeholder="0,00" value="${i.valor!=null?f2(Number(i.valor)):""}"></label>
-    </div></div>`).join("")+`<datalist id="dl-fn-un">${FN_UN.map(u=>`<option value="${u}">`).join("")}</datalist>`;
+    </div>${itDestHtml(i)}</div>`).join("")+`<datalist id="dl-fn-un">${FN_UN.map(u=>`<option value="${u}">`).join("")}</datalist>`;
   $("#fn-itens").querySelectorAll(".fn-item2").forEach(r=>{
     const q=r.querySelector(".i-q"), vu=r.querySelector(".i-vu"), t=r.querySelector(".i-val");
     const calc=()=>{const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0){t.value=f2(a*b); totalSt(); autoParc()}};
@@ -512,7 +514,27 @@ function itensRender(list){
     t.addEventListener("input",()=>{const a=parseNum(q.value), v=parseNum(t.value); if(a>0&&v>=0) vu.value=f2(v/a); totalSt(); autoParc()});
   });
   $("#fn-itens").querySelectorAll(".rm").forEach(b=>b.onclick=()=>{b.closest(".fn-item2").remove(); totalSt(); autoParc()});
+  $("#fn-itens").querySelectorAll(".fn-item2").forEach(itDestLiga);
 }
+/* Para onde vai cada item: categoria própria (ex.: mata-bicheira → Animais; peça → Manutenção) e a máquina ou benfeitoria */
+const MAQS=()=>(typeof maquinas!=="undefined"?maquinas:[]), BFS=()=>(typeof benf!=="undefined"?benf:[]);
+function itDestHtml(i,{estoque,tira}={}){
+  const c=i.cat||"";
+  return `<div class="fi-l3">
+    <label><span>${estoque||tira?"Vai para":"Categoria do item"}</span><select class="i-cat">${estoque?`<option value="__est"${c==="__est"?" selected":""}>📦 Estoque (insumo da lavoura)</option>`:tira?"":`<option value="">Igual à da conta</option>`}${cats("pagar").map(x=>`<option value="${x.k}"${x.k===c?" selected":""}>${esc(x.l)}</option>`).join("")}</select></label>
+    <label class="i-maq-l" hidden><span>Máquina</span><select class="i-maq"><option value="">— nenhuma —</option>${MAQS().map(m=>`<option value="${m.id}"${m.id===i.maquinaId?" selected":""}>${esc(m.nome)}</option>`).join("")}</select></label>
+    <label class="i-bf-l" hidden><span>Benfeitoria</span><select class="i-bf"><option value="">— nenhuma —</option>${BFS().map(b=>`<option value="${b.id}"${b.id===i.benfId?" selected":""}>${esc(b.nome)}</option>`).join("")}</select></label>
+  </div>`;
+}
+function itDestLiga(r,catConta){
+  const c=r.querySelector(".i-cat"); if(!c) return;
+  const vis=()=>{const k=c.value||(catConta?catConta():$("#fn-cat")?.value)||""; r.querySelector(".i-maq-l").hidden=k!=="manutencao"||!MAQS().length; r.querySelector(".i-bf-l").hidden=k!=="benfeitorias"||!BFS().length};
+  c.addEventListener("change",vis); r._vis=vis; vis();
+}
+window.finItDestHtml=itDestHtml; window.finItDestLiga=itDestLiga;
+const itDestLer=r=>{const o={}, c=r.querySelector(".i-cat")?.value; if(c) o.cat=c;
+  const m=r.querySelector(".i-maq-l:not([hidden]) .i-maq")?.value, b=r.querySelector(".i-bf-l:not([hidden]) .i-bf")?.value; if(m) o.maquinaId=m; if(b) o.benfId=b; return o};
+window.finItDestLer=itDestLer;
 // uma parcela só e sem valor digitado à mão: acompanha o total dos itens
 function autoParc(){
   const rs=document.querySelectorAll("#fn-parcs .fn-parc-row"); if(rs.length!==1) return;
@@ -523,6 +545,7 @@ const itensLer=()=>[...document.querySelectorAll("#fn-itens .fn-item2")].map(r=>
   const v=parseNum(r.querySelector(".i-val").value), q=parseNum(r.querySelector(".i-q").value), vu=parseNum(r.querySelector(".i-vu").value), un=r.querySelector(".i-un").value.trim();
   const it={desc:r.querySelector(".i-desc").value.trim(),valor:Number.isFinite(v)?+v.toFixed(2):null};
   if(q>0){it.qtd=q; if(un) it.un=un; if(vu>=0&&r.querySelector(".i-vu").value.trim()) it.vu=+vu.toFixed(4)}
+  Object.assign(it,itDestLer(r));
   return it}).filter(i=>i.desc||i.valor!=null);
 function parcsRender(list){
   const n=list.length;
@@ -621,6 +644,7 @@ async function salvarLanc(ev){
       if(pago.status!=="pago"){delete body.pagoEm; delete body.contaId; delete body.valorPago}
       else if(o.status==="pago"&&o.valorPago!=null) body.valorPago=o.valorPago;
       await db.collection("fin_lanc").doc(fnEdit).set(body); flash("#fn-toast","Lançamento atualizado.");
+      if(body.natureza==="pagar"&&!/^(mq|bf)\|/.test(body.origem||"")) await criaServicos(body.itens,{data:body.competencia,fornecedor:body.pessoa,nf:body.nf,chave:body.chave,finId:body.grupo||fnEdit,catConta:body.categoria});
     }else{
       const grupo=parcs.length>1?rid():null;
       if($("#fn-rec").checked&&parcs.length===1){
@@ -637,7 +661,8 @@ async function salvarLanc(ev){
         const rf=await db.collection("fin_lanc").add(b); if(!primeiro) primeiro=rf?.id||null;
       }
       if(fnXmlTxt) window.danfeGuardar?.(fnXmlTxt);
-      flash("#fn-toast",parcs.length>1?`${parcs.length} parcelas lançadas.`:"Lançamento salvo.");
+      let sv=""; if(fnNat==="pagar"&&!/^(mq|bf)\|/.test(fnOrigem||"")) sv=await criaServicos(base.itens,{data:comp,fornecedor:base.pessoa,nf:base.nf,chave:base.chave,finId:grupo||primeiro,catConta:base.categoria});
+      flash("#fn-toast",(parcs.length>1?`${parcs.length} parcelas lançadas.`:"Lançamento salvo.")+sv);
       if(fnNat==="pagar"&&$("#fn-est")?.checked&&window.nfDoFinanceiro){
         const its=base.itens.filter(i=>i.desc);
         if(its.length){const d={data:comp,nf:base.nf,origem:base.pessoa,itens:its,anexos:base.anexos,ref:grupo||primeiro||true,chave:base.chave||null};
@@ -648,6 +673,53 @@ async function salvarLanc(ev){
   }catch(err){flash("#fn-toast",erroTxt(err))}
   finally{$("#fn-salvar").disabled=false}
 }
+
+/* Itens com máquina ou benfeitoria viram uma manutenção (Máquinas) / um serviço (Benfeitorias) ligado à conta (finId):
+   aparecem no histórico da máquina e não viram pendência de novo. Não repete: uma por conta + máquina. */
+async function criaServicos(itens,{data,fornecedor,nf,chave,finId,catConta}){
+  const ef=i=>i.cat||catConta||"", por=new Map();
+  for(const i of itens||[]){const k=ef(i)==="manutencao"&&i.maquinaId?"mq|"+i.maquinaId:ef(i)==="benfeitorias"&&i.benfId?"bf|"+i.benfId:null; if(k){const a=por.get(k)||[]; a.push(i); por.set(k,a)}}
+  let n=0;
+  for(const [k,its] of por){
+    const [tp,id]=k.split("|"), its2=its.map(i=>({desc:window.itTxt(i),valor:Number(i.valor)||0}));
+    const comum={data:data||hoje(),itens:its2,custoTotal:+its2.reduce((t,i)=>t+i.valor,0).toFixed(2),descricao:`NF ${nf||""}${fornecedor?" — "+fornecedor:""}`.trim(),servicos:[],fotos:[],nf:nf||"",chave:chave||"",finId:finId||null,doFinanceiro:true,criadoEm:new Date().toISOString()};
+    if(tp==="mq"){ if(finId&&(typeof manut!=="undefined"?manut:[]).some(x=>x.finId===finId&&x.maquinaId===id)) continue;
+      await db.collection("manutencoes").add({...comum,maquinaId:id,oficina:fornecedor||"",horimetro:null,proxData:null,proxHoras:null}); n++}
+    else{ if(finId&&(typeof bfServ!=="undefined"?bfServ:[]).some(x=>x.finId===finId&&x.benfId===id)) continue;
+      await db.collection("servicos_benf").add({...comum,benfId:id,responsavel:fornecedor||"",status:"concluido",proxData:null}); n++}
+  }
+  return n?` ${n===1?"Também registrado":"Também registrados"} em ${[...por.keys()].map(k=>k.startsWith("mq")?"Máquinas":"Benfeitorias").filter((v,i,a)=>a.indexOf(v)===i).join(" e ")}.`:"";
+}
+window.finCriaServicos=criaServicos;
+window.finNovaConta=p=>{show("fin_contas"); setTimeout(()=>formDePendencia({k:null,fonte:"Estoque",itens:[],...p}),60)};
+/* tirar do estoque um produto que não é insumo (peça, produto para animais…): as entradas saem do estoque,
+   a conta da nota (se já está no Financeiro) passa a ter esse item na categoria certa, e a máquina/benfeitoria ganha o registro */
+window.finTiraEstoque=async function(e,{cat,maquinaId,benfId}){
+  const semFin=[], contasMud=new Map();
+  const nomeW=norm(e.comercial).split(" ").filter(w=>w.length>2);
+  for(const x of (e.entradas||[]).filter(y=>!y.devolucao)){
+    const cs=fnLanc.filter(l=>l.natureza==="pagar"&&((x.chave&&l.chave===x.chave)||(x.finId&&(l.grupo===x.finId||l.id===x.finId))||(x.nf&&x.origem&&l.nf&&nfKey(l.nf,l.pessoa)===nfKey(x.nf,x.origem))));
+    const desc=`${e.comercial} — ${num(x.quantidade)} ${e.unidade}`, it={desc:e.comercial,qtd:Number(x.quantidade)||null,un:e.unidade,valor:Number(x.valorTotal)||0,cat,...(maquinaId?{maquinaId}:{}),...(benfId?{benfId}:{})};
+    if(cs.length){
+      for(const l0 of cs){const l=contasMud.get(l0.id)||{...l0,itens:(l0.itens||[]).map(i=>({...i}))};
+        // o item da nota: pelo nome do produto ou, se não achar, pelo valor
+        let k=l.itens.findIndex(i=>!i.cat&&nomeW.some(w=>norm(i.desc).includes(w)));
+        if(k<0) k=l.itens.findIndex(i=>!i.cat&&Math.abs((Number(i.valor)||0)-it.valor)<=0.05);
+        if(k>=0) Object.assign(l.itens[k],{cat,...(maquinaId?{maquinaId}:{}),...(benfId?{benfId}:{})});
+        else if(!l.itens.length) l.categoria=cat;
+        contasMud.set(l.id,l)}
+    } else semFin.push({x,desc,it});
+    if(maquinaId||benfId) await criaServicos([it],{data:x.data,fornecedor:x.origem,nf:x.nf,chave:x.chave,finId:cs[0]?(cs[0].grupo||cs[0].id):null,catConta:cat});
+  }
+  for(const l of contasMud.values()){
+    const t={}; for(const i of l.itens) {const c=i.cat||l.categoria; t[c]=(t[c]||0)+(Number(i.valor)||0)}
+    const top=Object.entries(t).sort((a,b)=>b[1]-a[1])[0]; if(top&&l.itens.every(i=>i.cat)) l.categoria=top[0];
+    const {id,...doc}=l; await db.collection("fin_lanc").doc(id).set(doc)}
+  return {contas:contasMud.size,semFin};
+};
+window.finCatsPagar=()=>cats("pagar");
+window.finClasseCat=(c,d)=>classeCat(c,d);
+window.finCatNome=k=>catNome(k);
 
 /* ---------- XML da NF-e ---------- */
 const titulo=t=>String(t||"").toLowerCase().replace(/(^|[\s\/(-])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g,x=>x.toLowerCase());
@@ -681,8 +753,8 @@ window.finDadosXml=function(doc){
     const emit=doc.getElementsByTagNameNS("*","emit")[0], dest=doc.getElementsByTagNameNS("*","dest")[0], tot=doc.getElementsByTagNameNS("*","ICMSTot")[0];
     const chave=(g(doc,"chNFe")||inf?.getAttribute("Id")||"").replace(/\D/g,"");
     const dups=[...doc.getElementsByTagNameNS("*","dup")].map(d=>({n:g(d,"nDup"),venc:g(d,"dVenc"),valor:+g(d,"vDup")||0})).filter(d=>d.valor>0);
-    const itens=[...doc.getElementsByTagNameNS("*","det")].map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];const q=+g(p,"qCom")||0;
-      return {desc:`${g(p,"xProd")} — ${num(q)} ${g(p,"uCom")}`,valor:+(((+g(p,"vProd")||0)-(+g(p,"vDesc")||0)).toFixed(2))}});
+    const itens=[...doc.getElementsByTagNameNS("*","det")].map(d=>{const p=d.getElementsByTagNameNS("*","prod")[0];const q=+g(p,"qCom")||0, v=+(((+g(p,"vProd")||0)-(+g(p,"vDesc")||0)).toFixed(2));
+      const it={desc:g(p,"xProd"),valor:v}; if(q>0){it.qtd=q; it.un=g(p,"uCom"); it.vu=+(v/q).toFixed(4)} return it});
     return {chave,numero:g(ide,"nNF"),data:(g(ide,"dhEmi")||g(ide,"dEmi")).slice(0,10),emit:window.finNomeEmit(g(emit,"xNome"),g(emit,"xFant"),g(emit,"xMun")),emitRazao:g(emit,"xNome"),
       dest:titulo(g(dest,"xNome")),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens,
       contrato:contratoDoTexto(g(doc,"infCpl")),categoria:catDosItens(itens),
@@ -710,17 +782,22 @@ function parcelasDaNota(fin,data){
 /* para ligacoes.js: contas, mesma regra de nota+fornecedor, abrir uma conta para editar */
 window.finLig={lanc:()=>fnLanc, pronto:()=>fnCarregou, nfKey, norm};
 window.finEditar=id=>{const l=fnLanc.find(x=>x.id===id); if(!l) return; show("fin_contas"); setTimeout(()=>formEditar(l),60)};
-window.finDaNota=async function(fin,{data,nf,origem,itens,anexos}){
+window.finDaNota=async function(fin,{data,nf,origem,itens,anexos,itensCat}){
+  window.finDaNota.ultimo=null;
   if(!db||!fin) return "";
   if(jaLancada(fin.chave,nf||fin.numero,origem||fin.emit)) return "";
-  const cat=itens?.length?catDosItens(itens.map(i=>({classe:i.classe,desc:i.nome,valor:i.v}))):fin.categoria;
+  let cat=itens?.length?catDosItens(itens.map(i=>({classe:i.classe,desc:i.nome,valor:i.v}))):fin.categoria;
+  if(itensCat){ // cada item com a sua categoria (estoque → pela classe; peça → manutenção; animais…)
+    fin={...fin,itens:fin.itens.map((x,i)=>({...x,...(itensCat[i]||{})}))};
+    const t={}; for(const i of fin.itens){const c=i.cat||cat; t[c]=(t[c]||0)+(Number(i.valor)||0)} cat=Object.entries(t).sort((a,b)=>b[1]-a[1])[0]?.[0]||cat;
+    if(fin.itens.every(i=>(i.cat||cat)===cat)) fin.itens=fin.itens.map(({cat:_,...i})=>i);}
   const parcs=parcelasDaNota(fin,data), agora=new Date().toISOString(), grupo=parcs.length>1?rid():null;
   for(let i=0;i<parcs.length;i++){
     const b={natureza:"pagar",descricao:`Compra de ${catNome(cat).toLowerCase()} — NF ${nf||fin.numero}`,pessoa:origem||fin.emit,categoria:cat,forma:formaNota(fin),
       competencia:data||fin.data,vencimento:parcs[i].venc,valor:parcs[i].valor,status:"aberto",nf:nf||fin.numero,titular:fin.dest||"",chave:fin.chave,itens:fin.itens,obs:"",contrato:fin.contrato||"",criadoEm:agora};
     if(grupo){b.grupo=grupo; b.parcela=`${i+1}/${parcs.length}`}
     if(anexos?.length) b.anexos=anexos;
-    await db.collection("fin_lanc").add(b);
+    const rf=await db.collection("fin_lanc").add(b); if(!window.finDaNota.ultimo) window.finDaNota.ultimo=grupo||rf?.id||null;
   }
   return ` ${parcs.length>1?parcs.length+" parcelas lançadas":"Conta a pagar lançada"} no Financeiro.`;
 };
@@ -736,7 +813,7 @@ async function importarXml(file){
     $("#fn-desc").value=`Nota ${fin.numero} — ${fin.emit}`; $("#fn-pessoa").value=fin.emit; $("#fn-data").value=fin.data; $("#fn-nf").value=fin.numero; $("#fn-tit").value=fin.dest;
     $("#fn-cat").value=fin.categoria; jurosVis(); $("#fn-contrato").value=fin.contrato||"";
     $("#fn-forma").value=formaNota(fin);
-    itensRender(fin.itens); parcsRender(parcelasDaNota(fin));
+    itensRender(fin.itens.map(i=>{const c=classeCat("",i.desc); return c&&c!==fin.categoria?{...i,cat:c}:i})); parcsRender(parcelasDaNota(fin));
     const noEst=(typeof estoque!=="undefined"?estoque:[]).some(e=>(e.entradas||[]).some(x=>x.chave&&x.chave===fin.chave));
     origemTxt(ja?`<span class="falta">Atenção: esta nota já foi lançada (${esc(ja.descricao)}).</span>`:
       `Nota ${esc(fin.numero)} lida: ${fin.itens.length} ite${fin.itens.length===1?"m":"ns"}, ${fin.dups.length||1} parcela(s). Confira a categoria e salve.`+
@@ -1212,8 +1289,11 @@ function renderSafra(){
   for(const m of vendas) addRec(nc(m.cultura),"Venda de "+nc(m.cultura),Number(m.valorTotal));
   const fora={invest:{},amort:0,fam:{saiu:0,entrou:0},pec:{desp:0,rec:0},emp:0};
   let semJuros=0; const cat={}, custos=[];
-  for(const l of lan){
-    const pp=papel(l.categoria), v=vp(l);
+  const partes=l=>{const its=(l.itens||[]).filter(i=>Number(i.valor)>0); if(l.natureza!=="pagar"||!its.some(i=>i.cat&&i.cat!==l.categoria&&i.cat!=="__est")) return [[l,1]];
+    const tot=its.reduce((t,i)=>t+Number(i.valor),0), g={}; for(const i of its){const c=i.cat&&i.cat!=="__est"?i.cat:l.categoria; g[c]=(g[c]||0)+Number(i.valor)}
+    return Object.entries(g).map(([c,v])=>[{...l,categoria:c},v/tot])};
+  for(const l0 of lan) for(const [l,fr] of partes(l0)){
+    const pp=papel(l.categoria), v=vp(l0)*fr;
     if(l.natureza==="receber"){
       if(pp==="receita"){ if(l.categoria==="graos"&&(String(l.origem||"").startsWith("gr|")||vendas.some(m=>Math.abs(m.valorTotal-v)<=m.valorTotal*.01&&Math.abs(dias(m.data,l.competencia||l.vencimento))<=5))) continue; // já contada pela venda do Diário
         const c=nc(l.cultura)||(l.categoria==="graos"?cultDoTexto(l.descricao):""); addRec(c,l.categoria==="graos"?(c?"Venda de "+c:"Venda de grãos"):catNome(l.categoria),v)}
@@ -1425,6 +1505,7 @@ $("#fn-cats-salvar").onclick=salvarCats;
 $("#fn-item-add").onclick=()=>{itensRender([...itensLer(),{desc:"",valor:null}]); const r=[...document.querySelectorAll("#fn-itens .i-desc")].pop(); r?.focus()};
 $("#fn-dividir").onclick=dividir;
 $("#fn-cat").addEventListener("change",jurosVis);
+$("#fn-cat").addEventListener("change",()=>document.querySelectorAll("#fn-itens .fn-item2").forEach(r=>r._vis?.()));
 $("#fn-np").addEventListener("change",dividir);
 $("#fn-aegro").addEventListener("change",e=>{const f=e.target.files[0]; e.target.value=""; if(f) importarAegro(f)});
 $("#fn-xml").addEventListener("change",e=>{const fs=[...e.target.files]; e.target.value=""; if(fs.length===1) importarXml(fs[0]); else if(fs.length>1) importarLote(fs)});

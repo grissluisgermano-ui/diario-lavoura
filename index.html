@@ -265,6 +265,13 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pe-junta{display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--line);padding-top:8px}
 .pe-jbox{display:flex;flex-direction:column;gap:4px}.pe-jbox[hidden]{display:none}
 .pe-jn{margin:0}
+.pe-tira{border-top:1px dashed var(--line);padding-top:8px}
+.pe-tira>summary{cursor:pointer;font-weight:600;font-size:.92rem}
+.pe-tdst .fi-l3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin:6px 0}
+.pe-tdst .fi-l3 label{display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--muted);margin:0}
+.pe-tdst .fi-l3 label[hidden]{display:none}
+.es-semfin{display:flex;flex-direction:column;gap:6px;border:1px solid #e6c08a;background:#fff7ea;border-radius:var(--r);padding:10px 12px;margin:0 0 10px}
+.es-semfin .row{justify-content:space-between;gap:8px;flex-wrap:wrap}
 .pe-conv .note{margin:0}
 #ne-box[hidden]+.ne-vazio{display:block}
 .tabs .tabs-s button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--accent)}
@@ -311,6 +318,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nf-imp>div{flex:1 1 220px;min-width:0}
 .nf-box{display:flex;flex-direction:column;gap:12px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface)}
 .nf-it{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.nf-it.nf-fora .nf-soest,.nf-it.nf-fora .nf-sf,.nf-it.nf-fora .pill{display:none!important}
+.nf-it .nf-fora-i,.nf-it.nf-fora .nf-soest-i{display:none}.nf-it.nf-fora .nf-fora-i{display:inline}
+.nf-dst .fi-l3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.nf-dst .fi-l3 label{display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--muted);margin:0}
+.nf-dst .fi-l3 label[hidden]{display:none}
+.nf-it.nf-fora{background:color-mix(in srgb,var(--surface) 80%,#f3e9d8);border-radius:8px;padding:10px 8px}
 .nf-chk{display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:.95rem;color:var(--ink)}
 .nf-chk input{width:auto}
 .nf-tit-box{display:flex;flex-direction:column;gap:2px}
@@ -1828,10 +1841,11 @@ function nfLer(){ // guarda o que está digitado antes de redesenhar
   const g=id=>document.getElementById(id);
   if(g("nf-data")) r.data=g("nf-data").value; if(g("nf-num")) r.numero=g("nf-num").value; if(g("nf-orig")) r.origem=g("nf-orig").value; if(g("nf-tit")) r.titular=g("nf-tit").value;
   r.itens=[...$("#nf-rev").querySelectorAll(".nf-it")].map((b,i)=>({...r.itens[i],nomeComercial:b.querySelector(".nf-nome").value,generico:b.querySelector(".nf-gen").value,classe:b.querySelector(".nf-cla").value,
-    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null,_ger:b.querySelector(".nf-gen").dataset.touched?1:0}))
+    unidade:b.querySelector(".nf-un").value,quantidade:parseNum(b.querySelector(".nf-q").value),vu:parseNum(b.querySelector(".nf-vu").value),valorTotal:parseNum(b.querySelector(".nf-v").value),ok:b.querySelector(".nf-ok").checked,emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null,_ger:b.querySelector(".nf-gen").dataset.touched?1:0,...nfDestLer(b)}))
     .map(it=>({...it,quantidade:Number.isFinite(it.quantidade)?it.quantidade:null,vu:Number.isFinite(it.vu)?it.vu:null,valorTotal:Number.isFinite(it.valorTotal)?it.valorTotal:null}));
   if(r.manual){r.contrato=(g("nf-ctr")?.value||"").trim(); r.retirada=!!g("nf-retm")?.checked; r.finOn=!!g("nf-fin")?.checked; r.parcs=[...$("#nf-rev").querySelectorAll(".nf-parc")].map(x=>({venc:x.querySelector(".pc-d").value,valor:parseNum(x.querySelector(".pc-v").value),mexeu:!!x.querySelector(".pc-v").dataset.mexeu}))}
 }
+const nfDestLer=b=>{const d=b.querySelector(".nf-dst"); if(!d) return {}; const o=window.finItDestLer?.(d)||{}; return {cat:o.cat||"__est",maquinaId:o.maquinaId||null,benfId:o.benfId||null}};
 const nfTotal=()=>[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).reduce((t,b)=>{const v=parseNum(b.querySelector(".nf-v").value); return t+(v>0?v:0)},0);
 const nfMais=(iso,m)=>{const d=new Date(iso+"T12:00:00"); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10)};
 function nfParcsHtml(){
@@ -1862,21 +1876,22 @@ function renderNfRev(){
       <div class="field" style="grid-column:1/-1"><label for="nf-ctr">Contrato de fornecimento de insumos <small class="note">(opcional)</small></label><input id="nf-ctr" list="dl-nf-ctr" value="${esc(r.contrato||"")}" placeholder="Ex.: 84870 ou Pedido 3754"><datalist id="dl-nf-ctr">${nfContratos().map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
       <label class="nf-chk nf-retm" style="grid-column:1/-1"><input type="checkbox" id="nf-retm" ${r.retirada?"checked":""}> <span>📦 Retirada de produto <b>já pago no contrato</b> (fica no depósito da cooperativa): entra só no estoque, sem conta a pagar</span></label>`:""}
     </div>
-    ${r.itens.map((it,i)=>{const ex=prodEstoque(it.nomeComercial||""), u=ex?.unidade||nfUn(it.unidade)||"L";return `<div class="nf-it" data-i="${i}">
+    ${r.itens.map((it,i)=>{const ex=prodEstoque(it.nomeComercial||""), u=ex?.unidade||nfUn(it.unidade)||"L", dst=nfDest(r)?(it.cat||nfDestPadrao(it,ex)):"__est";return `<div class="nf-it${dst!=="__est"?" nf-fora":""}" data-i="${i}">
       <div class="row" style="justify-content:space-between"><label class="nf-chk"><input type="checkbox" class="nf-ok" ${it.ok===false?"":"checked"}> ${r.manual?`Produto ${i+1}`:"Lançar"}</label><span class="row" style="gap:10px"><span class="pill ${ex?"ok":"prox"}">${ex?"Já no estoque":it.nomeComercial?"Produto novo":"—"}</span>${r.manual&&r.itens.length>1?`<button type="button" class="rm nf-rm" aria-label="Tirar produto ${i+1}">×</button>`:""}</span></div>
       ${it.descricao?`<div class="note">Na nota: ${esc(it.descricao)}</div>`:""}
+      ${nfDest(r)?`<div class="nf-dst">${window.finItDestHtml?.({...it,cat:dst},{estoque:true})||""}</div>`:""}
       <div class="grid2">
-        <div class="field"><label>Nome comercial</label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial??it.descricao??"")}" placeholder="Ex.: Fox Xpro, Semente soja P95R51"></div>
-        <div class="field"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
-        <div class="field"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
-        <div class="field nf-unf"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div class="field"><label><span class="nf-soest-i">Nome comercial</span><span class="nf-fora-i">Produto / serviço</span></label><input class="nf-nome" list="dl-estoque" value="${esc(it.nomeComercial??it.descricao??"")}" placeholder="Ex.: Fox Xpro, Semente soja P95R51"></div>
+        <div class="field nf-soest"><label>Princípio ativo</label><input class="nf-gen" value="${esc(ex?.generico||it.generico||"")}"${it._ger?' data-touched="1"':""}></div>
+        <div class="field nf-soest"><label>Classe</label><select class="nf-cla"><option value="">—</option>${CLASSES.map(c=>`<option ${c===(ex?.classe||it.classe)?"selected":""}>${c}</option>`).join("")}</select></div>
+        <div class="field nf-unf nf-soest"><label>Unidade</label><select class="nf-un" ${ex?"disabled":""}>${un.map(x=>`<option ${x===u?"selected":""}>${x}</option>`).join("")}</select></div>
         ${(()=>{const m=it.emb||(ehEmb(ex)?ultimaEmb(ex):null)||{tipo:"saco",cont:null,med:"sem"};return `<div class="field nf-sf"><label>Embalagem da semente</label><select class="nf-et"><option value="kg" ${m.tipo==="kg"?"selected":""}>Kg (a granel)</option><option value="saco" ${m.tipo==="saco"?"selected":""}>Saco</option><option value="bag" ${m.tipo==="bag"?"selected":""}>Bag (bigbag)</option></select></div>
         <div class="field nf-sf nf-scf"><label>Conteúdo de cada embalagem</label><div class="nf-cont"><input class="nf-ec" inputmode="numeric" placeholder="${m.med==="kg"?"Ex.: 40":"Ex.: 200.000"}" value="${m.tipo!=="kg"&&m.cont>0?num(m.cont):""}"><select class="nf-em"><option value="sem" ${m.med!=="kg"?"selected":""}>sementes</option><option value="kg" ${m.med==="kg"?"selected":""}>kg</option></select></div></div>`})()}
         <div class="field"><label class="nf-q-l">Quantidade (${u})</label><input class="nf-q" inputmode="decimal" value="${it.quantidade!=null?String(it.quantidade).replace(".",","):""}"></div>
         <div class="field"><label class="nf-vu-l">Valor unitário (R$/${u})</label><input class="nf-vu" inputmode="decimal" placeholder="0,00" value="${it.vu!=null?nfF2(it.vu):it.quantidade>0&&it.valorTotal!=null?nfF2(it.valorTotal/it.quantidade):""}"></div>
         <div class="field" style="grid-column:1/-1"><label>Valor total (R$)</label><input class="nf-v" inputmode="decimal" placeholder="0,00" value="${nfF2(it.valorTotal)}"></div>
       </div>
-      ${it.duvida?`<div class="falta">Confira: ${esc(it.duvida)}</div>`:""}
+      ${it.duvida?`<div class="falta nf-soest">Confira: ${esc(it.duvida)}</div>`:""}
     </div>`}).join("")}
     ${r.manual?`<button type="button" class="btn ghost" id="nf-add">+ Adicionar outro produto</button>`:""}
     <p class="note">Princípio ativo e classe vêm do seu estoque ou da lista oficial do AGROFIT (MAPA)${r.manual||r.finRef?"":"; a conversão de embalagens, da nota"}. Confira no rótulo.</p>
@@ -1900,6 +1915,7 @@ function renderNfRev(){
     const ec=box.querySelector(".nf-ec"); ec.placeholder=box.querySelector(".nf-em").value==="kg"?"Ex.: 40":"Ex.: 200.000";
   };
   box$.querySelectorAll(".nf-it").forEach(box=>{
+    const dsb=box.querySelector(".nf-dst"); if(dsb){window.finItDestLiga?.(dsb); const c=dsb.querySelector(".i-cat"); c.addEventListener("change",()=>{box.classList.toggle("nf-fora",c.value!=="__est"); nfBotao()})}
     const q=box.querySelector(".nf-q"), vu=box.querySelector(".nf-vu"), t=box.querySelector(".nf-v");
     q.addEventListener("input",()=>{const a=parseNum(q.value), b=parseNum(vu.value), c=parseNum(t.value); if(a>0){if(b>=0&&vu.value.trim()&&(box.dataset.ult!=="t"||!t.value.trim())) t.value=nfF2(a*b); else if(c>=0&&t.value.trim()) vu.value=nfF2(c/a)} nfDivide()});
     vu.addEventListener("input",()=>{box.dataset.ult="vu"; const a=parseNum(q.value), b=parseNum(vu.value); if(a>0&&b>=0) t.value=nfF2(a*b); nfDivide()});
@@ -1936,9 +1952,19 @@ function renderNfRev(){
   }
   $("#nf-cancel").onclick=()=>{$("#nf-rev").hidden=true;nfDados=null;nfXmlTxt=null;nfSt("")};
   if($("#nf-danfe")) $("#nf-danfe").onclick=()=>window.danfeAbrir?.(nfXmlTxt);
-  $("#nf-lancar").onclick=nfLancar;
+  $("#nf-lancar").onclick=nfLancar; nfBotao();
   $("#nf-rev").scrollIntoView({block:"start"});
 }
+/* cada item da nota pode ir para o estoque ou ficar só no Financeiro, numa categoria (peça → manutenção da máquina; mata-bicheira → animais…) */
+const nfDest=r=>!!r&&!r.refaz&&!r.finRef;
+function nfDestPadrao(it,ex){
+  if(ex||it.classe||window.agrofitBusca?.(it.nomeComercial||"")||window.agrofitBusca?.(it.descricao||"")) return "__est";
+  const c=window.finClasseCat?.("",(it.descricao||"")+" "+(it.nomeComercial||""));
+  return c==="animais"||c==="manutencao"?c:"__est";
+}
+function nfBotao(){const b=$("#nf-lancar"); if(!b||nfDados?.refaz) return;
+  const its=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(x=>x.querySelector(".nf-ok").checked), fora=its.filter(x=>x.classList.contains("nf-fora")).length;
+  b.textContent=!fora?"Lançar produtos no estoque":fora===its.length?"Lançar a nota (sem estoque)":"Lançar a nota"}
 function embDe(b){const t=b.querySelector(".nf-et").value; return t==="kg"?{...EMB_KG}:{tipo:t,cont:qMil(b.querySelector(".nf-ec").value)||0,med:b.querySelector(".nf-em").value}}
 const ultimaEmb=e=>{const l=(e?.entradas||[]).filter(x=>x.emb).pop(); return l?{...l.emb}:null};
 const embAntiga=u=>u==="kg"?{...EMB_KG}:{tipo:"saco",cont:0,med:"sem"}; // entradas antigas, de antes da contagem por embalagem
@@ -2019,13 +2045,17 @@ async function nfLancar(){
   const itens=[...$("#nf-rev").querySelectorAll(".nf-it")].filter(b=>b.querySelector(".nf-ok").checked).map(b=>({
     nome:b.querySelector(".nf-nome").value.trim(),gen:b.querySelector(".nf-gen").value.trim(),classe:b.querySelector(".nf-cla").value,
     un:b.querySelector(".nf-un").value,q:parseNum(b.querySelector(".nf-q").value),v:parseNum(b.querySelector(".nf-v").value),vu:parseNum(b.querySelector(".nf-vu").value),
-    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null}));
+    emb:b.querySelector(".nf-cla").value==="Semente"?embDe(b):null, info:nfDados?.itens?.[+b.dataset.i]?.info||null, i:+b.dataset.i, ...nfDestLer(b)}));
+  const fora=itens.filter(it=>it.cat&&it.cat!=="__est"), daNota=[...itens]; itens.splice(0,itens.length,...itens.filter(it=>!fora.includes(it)));
+  for(const it of fora){ if(!it.nome){nfSt("Há item sem nome.");return} if(!(it.v>0)){nfSt(`Informe o valor de ${it.nome}.`);return} }
   for(const it of itens){ if(!it.nome){nfSt("Há produto sem nome comercial.");return} if(!(it.q>0)){nfSt(`Informe a quantidade de ${it.nome}.`);return}
     if(it.emb&&it.emb.tipo!=="kg"&&!(it.emb.cont>0)){nfSt(`Informe quantas sementes (ou kg) vêm em cada ${it.emb.tipo==="bag"?"bag":"saco"} de ${it.nome}.`);return}
     if(it.emb){const ex=prodEstoque(it.nome); if(ex&&!ehEmb(ex)&&ex.classe!=="Semente"&&ex.classe){nfSt(`${ex.comercial} está no estoque como ${ex.classe}. Confira a classe ou o nome.`);return}} }
-  if(!itens.length){nfSt("Nenhum produto marcado para lançar.");return}
+  if(!itens.length&&!fora.length){nfSt("Nenhum produto marcado para lançar.");return}
+  const finOn=$("#nf-fin")?($("#nf-fin").checked&&!$("#nf-retm")?.checked):!!nfDados?.fin;
+  if(fora.length&&!finOn&&!fora.every(f=>f.maquinaId||f.benfId)&&$("#nf-lancar").dataset.semfin!=="1"){$("#nf-lancar").dataset.semfin="1"; nfSt(`Os itens que não vão para o estoque só entram no Financeiro, e "Lançar também no Financeiro" está desmarcado: eles não serão lançados em lugar nenhum. Marque o Financeiro, ou toque em Lançar de novo para seguir assim.`); return}
   if(esAnx.ocupado()){nfSt("Aguarde o anexo terminar de enviar.");return}
-  if(!nfDados?.refaz&&!nfDados?.finRef){const d=nfNoEstoque(nfDados?.fin?.chave||null,nf,origem);
+  if(!nfDados?.refaz&&!nfDados?.finRef&&itens.length){const d=nfNoEstoque(nfDados?.fin?.chave||null,nf,origem);
     if(d.length&&!$("#nf-dupok")?.checked){ if(!$("#nf-dup")) $("#nf-rev .nf-box").insertAdjacentHTML("afterbegin",nfDupBox(d)); $("#nf-dup").scrollIntoView({block:"center",behavior:"smooth"});
       nfSt("Esta nota já está no estoque. Se for outra nota, marque a caixa no aviso vermelho e toque em Lançar de novo."); return}}
   let parcs=null;
@@ -2067,17 +2097,23 @@ async function nfLancar(){
       else await db.collection("estoque").add({comercial:it.nome,generico:it.gen,classe:it.classe||"",unidade:emb?"emb":it.un,entradas:ents,criadoEm:new Date().toISOString()});
       ok+=ents.length;
     }
-    let fin="";
-    if(nfDados?.fin&&$("#nf-fin")?.checked){try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx})}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
+    let fin="", finId=null;
+    // categoria de cada item da nota: estoque → pela classe; os outros → o que foi escolhido (com máquina/benfeitoria)
+    const itCat=it=>it.cat&&it.cat!=="__est"?{cat:it.cat,...(it.maquinaId?{maquinaId:it.maquinaId}:{}),...(it.benfId?{benfId:it.benfId}:{})}:{cat:window.finClasseCat?.(it.classe,it.nome)||"insumos"};
+    if(nfDados?.fin&&$("#nf-fin")?.checked){
+      const itensCat=fora.length?(nfDados.fin.itens||[]).map((_,k)=>{const it=daNota.find(x=>x.i===k)||null; return it?itCat(it):(nfDados.itens?.[k]?.cat&&nfDados.itens[k].cat!=="__est"?{cat:nfDados.itens[k].cat}:{})}):null;
+      try{fin=await window.finDaNota(nfDados.fin,{data,nf,origem,itens,anexos:anx,itensCat}); finId=window.finDaNota.ultimo||null}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}}
     else if(parcs){
       const tot=itens.reduce((t,i)=>t+(i.v>0?i.v:0),0), unica=parcs.length===1&&parcs[0].venc===data;
       const f={chave:null,numero:nf,emit:origem,dest:($("#nf-tit")?.value||"").trim(),total:tot,data,dups:unica?[]:parcs,contrato:($("#nf-ctr")?.value||"").trim(),
-        itens:itens.map(i=>({desc:i.emb&&i.emb.tipo!=="kg"?`${i.nome} — ${embRot(i.emb,2)}`:i.nome,qtd:i.q,un:i.emb?(i.emb.tipo==="kg"?"kg":i.emb.tipo==="bag"?"bag":"sc"):i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null}))};
+        itens:daNota.map(i=>({desc:i.emb&&i.emb.tipo!=="kg"?`${i.nome} — ${embRot(i.emb,2)}`:i.nome,qtd:i.q>0?i.q:null,un:i.emb?(i.emb.tipo==="kg"?"kg":i.emb.tipo==="bag"?"bag":"sc"):i.un,...(i.vu>=0?{vu:+i.vu.toFixed(4)}:{}),valor:i.v>0?+i.v.toFixed(2):null,...(fora.length?itCat(i):{})}))};
       if(unica) f.total=parcs[0].valor;
-      try{fin=await window.finDaNota(f,{data,nf,origem,itens,anexos:anx})||" Esta nota já estava no Financeiro."}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
+      if(fora.length){const t={}; for(const x of f.itens){t[x.cat]=(t[x.cat]||0)+(x.valor||0)} f.categoria=Object.entries(t).sort((a,b)=>b[1]-a[1])[0]?.[0]}
+      try{fin=await window.finDaNota(f,{data,nf,origem,itens:fora.length?null:itens,anexos:anx})||" Esta nota já estava no Financeiro."; finId=window.finDaNota.ultimo||null}catch{fin=" Não consegui lançar no Financeiro: lance pela aba Financeiro."}
     }
+    if(fora.some(f=>f.maquinaId||f.benfId)) try{fin+=await window.finCriaServicos(fora.map(i=>({desc:i.nome,qtd:i.q>0?i.q:null,un:i.un,valor:i.v,cat:i.cat,maquinaId:i.maquinaId,benfId:i.benfId})),{data,fornecedor:origem,nf,chave:nfDados?.fin?.chave||null,finId})}catch{}
     if(nfXmlTxt) window.danfeGuardar?.(nfXmlTxt);
-    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok} ite${ok>1?"ns":"m"} lançado${ok>1?"s":""} no estoque${nf?` (NF ${nf})`:""}.${fin}`);
+    $("#nf-rev").hidden=true; nfDados=null; nfXmlTxt=null; esAnx.limpar(); nfSt(`${ok?`${ok} ite${ok>1?"ns":"m"} lançado${ok>1?"s":""} no estoque`:"Nada no estoque"}${nf?` (NF ${nf})`:""}.${fora.length?` ${fora.length} ite${fora.length>1?"ns":"m"} fora do estoque (${[...new Set(fora.map(f=>window.finCatNome?.(f.cat)||f.cat))].join(", ")}).`:""}${fin}`);
   }catch{nfSt(`Parei no meio: ${ok} produto(s) lançado(s). Confira o estoque antes de tentar de novo.`)}
   finally{const b=$("#nf-lancar"); if(b) b.disabled=false}
 }
@@ -2198,6 +2234,11 @@ function peForm(e){
         <div class="field"><label class="pe-jf-l">Quantos</label><input class="pe-jf" inputmode="decimal" value="1"></div>
         <p class="note pe-jn"></p>
       </div></div>`})()}
+    ${ehEmb(e)?"":`<details class="pe-tira"><summary>Este produto não é de estoque (peça de máquina, produto para animais…)</summary>
+      <p class="note">As entradas saem do estoque. Se a nota já está no Financeiro, o item passa para a categoria escolhida (o custo sai dos insumos da lavoura). Peça com máquina escolhida vira uma manutenção no histórico da máquina.</p>
+      <div class="pe-tdst">${window.finItDestHtml?.({cat:window.finClasseCat?.("",e.comercial)==="animais"?"animais":"manutencao"},{tira:true})||""}</div>
+      ${(()=>{const n=esUsos(e).length; return n?`<p class="falta">Atenção: ${n} atividade${n>1?"s usaram":" usou"} este produto. Elas continuam com o nome, mas sem desconto de estoque.</p>`:""})()}
+      <div class="row"><button type="button" class="btn ghost fn-mini pe-tira-ok">Tirar do estoque</button><span class="note pe-tira-st" role="status"></span></div></details>`}
     <div class="row"><button type="button" class="btn fn-mini pe-ok">Salvar produto</button><button type="button" class="link pe-x">Cancelar</button><span class="note pe-st" role="status"></span></div>
   </div>`;
 }
@@ -2258,6 +2299,17 @@ function peLiga(box){
     const f=parseNum(fat.value)||1; box.querySelector(".pe-conv-n").textContent=`As entradas passam de ${num(ent)} ${e.unidade} para ${num(ent*f)} ${un.value}. O valor pago não muda. Deixe 1 se as quantidades já estão certas.`};
   un.onchange=mostra; fat.oninput=mostra; mostra();
   box.querySelector(".pe-x").onclick=()=>{esEdit=null; renderEstoque()};
+  const td=box.querySelector(".pe-tdst"); if(td){window.finItDestLiga?.(td);
+    box.querySelector(".pe-tira-ok").onclick=async ev=>{const b=ev.target, st=t=>box.querySelector(".pe-tira-st").innerHTML=t, d=window.finItDestLer?.(td)||{};
+      if(!d.cat){st("Escolha a categoria.");return}
+      if(b.dataset.ok!=="1"){b.dataset.ok="1"; b.textContent="Toque de novo para tirar"; st(`${esc(e.comercial)} sai do estoque e vai para <b>${esc(window.finCatNome?.(d.cat)||d.cat)}</b>.`); return}
+      b.disabled=true;
+      try{const r=await window.finTiraEstoque(e,d); await db.collection("estoque").doc(e.id).delete(); esEdit=null; esAbertos.delete(e.id); renderEstoque();
+        const sf=r.semFin.filter(()=>!(d.maquinaId||d.benfId));
+        window.ponte?.aviso?.(`${e.comercial} saiu do estoque.${r.contas?` ${r.contas} conta${r.contas>1?"s":""} do Financeiro ajustada${r.contas>1?"s":""}.`:""}${d.maquinaId||d.benfId?" Registrado na "+(d.maquinaId?"máquina":"benfeitoria")+".":""}`,true);
+        if(sf.length) esSemFin(e,d,sf);
+      }catch{st("Não foi possível. Tente de novo."); b.disabled=false}};
+  }
   box.querySelector(".pe-ok").onclick=async ev=>{
     const st=t=>box.querySelector(".pe-st").textContent=t;
     const nome=box.querySelector(".pe-nome").value.trim(); if(!nome){st("Informe o nome.");return}
@@ -2332,6 +2384,15 @@ function esUsosBox(e){const us=esUsos(e); if(!us.length) return "";
     <p class="note">Toque na atividade para abrir e ajustar a dose. Ao salvar, o app volta para este produto.</p>
     ${lst.map(linha).join("")}
     ${us.length>5?`<button type="button" class="link" data-esutodos="${e.id}">${todos?"Mostrar só as últimas 5":`Mostrar todas (${us.length})`}</button>`:""}</details>`}
+/* produto tirado do estoque cuja nota não estava no Financeiro: oferece lançar a conta */
+function esSemFin(e,d,sf){
+  const box=document.createElement("div"); box.className="es-semfin";
+  box.innerHTML=`<b>${esc(e.comercial)}: ${sf.length===1?"esta compra não está":"estas compras não estão"} no Financeiro</b>${sf.map((y,k)=>`<div class="row"><span>${y.x.data?brDate(y.x.data):""} · ${y.x.nf?"NF "+esc(y.x.nf)+" · ":""}${esc(y.x.origem||"")} · ${Number(y.x.valorTotal)>0?brl(y.x.valorTotal):"sem valor"}</span><button type="button" class="btn fn-mini" data-sfk="${k}">Lançar no Financeiro</button></div>`).join("")}<button type="button" class="link" data-sfx>Fechar</button>`;
+  $("#es-lista").before(box);
+  box.querySelector("[data-sfx]").onclick=()=>box.remove();
+  box.querySelectorAll("[data-sfk]").forEach(b=>b.onclick=()=>{const y=sf[+b.dataset.sfk]; b.closest(".row").remove(); if(!box.querySelector("[data-sfk]")) box.remove();
+    window.finNovaConta?.({natureza:"pagar",data:y.x.data,descricao:`${e.comercial}${y.x.nf?" — NF "+y.x.nf:""}`,pessoa:y.x.origem||"",nf:y.x.nf||"",chave:y.x.chave||null,valor:Number(y.x.valorTotal)||0,categoria:d.cat,itens:[y.it],anexos:y.x.anexos||[],fonte:"produto tirado do estoque"})});
+}
 const esAbertos=new Set();
 let esZeros=false;
 function renderEstoque(){

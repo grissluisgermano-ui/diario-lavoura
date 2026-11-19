@@ -139,3 +139,9 @@
 .ag-it-b{grid-column:1/-1;display:flex;gap:14px;align-items:center}
 .lm-alerta.fn-alerta-top{background:#F8DCD6;color:#4A120A;border-color:#E3A396}
 .lm-alerta.fn-alerta-top .lm-al-bt .btn{background:#4A120A;color:#F8DCD6;border-color:#4A120A}
+/* para onde vai cada item (categoria, máquina, benfeitoria) */
+.fi-l3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-top:4px}
+.fi-l3 label{display:flex;flex-direction:column;gap:2px;font-size:.72rem;color:var(--muted);text-transform:none;letter-spacing:0;margin:0}
+.fi-l3 label[hidden]{display:none}
+.fi-l3 select{min-width:0}
+
