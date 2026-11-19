@@ -79,7 +79,11 @@ function le(xml){
       const mot=CPL.match(/MOTORISTA\s*:\s*([A-Z ]+?)\s+(RG|CPF|_|$)/); if(mot) r.motorista=mot[1].trim();
       const pl=CPL.match(/PLACA DO VEICULO\s*:\s*([A-Z0-9-]+)/); if(pl) r.placa=pl[1];
     }
-    if(tipo==="devolucao"){r.refNF=((CPL.match(/REF\.?\s*NF\s*(?:NR\.?)?\s*([\d.]+)/)||[])[1]||"").replace(/\./g,"")}
+    if(tipo==="devolucao"){
+      r.refNF=((CPL.match(/REF\.?\s*NF\s*(?:NR\.?)?\s*([\d.]+)/)||[])[1]||"").replace(/\./g,"");
+      r.refChave=g("refNFe"); r.contrato=fin.contrato||((CPL.match(/CONTRATO DE FORNECIMENTO[^N]*NR\.?:?\s*([\d.]+)/)||[])[1]||"").replace(/\./g,"");
+      r.itens=its.map(i=>({prod:i.prod,un:i.un,q:i.q,v:i.v,vu:i.q?i.v/i.q:0,ad:i.ad})); r.total=r.total||its.reduce((s,i)=>s+i.v,0);
+    }
   }catch(err){console.error(err); r=null}
   cache.set(ck,r); return r;
 }
@@ -104,7 +108,7 @@ function romaneioDe(v){
     .sort((a,b)=>Math.abs(a.sacas-v.sacas)-Math.abs(b.sacas-v.sacas)).find(m=>perto(m.sacas,v.sacas,Math.max(1,v.sacas*.03)))||null;
 }
 const saldoLav=(cult,local)=>{try{const s=grSaldosTit()[cult]?.lavoura||{}; const k=Object.keys(s).find(l=>mesmoLocal(l,local)); return k?s[k]:0}catch{return null}};
-window.vgJaLancada=v=>v?.tipo==="venda"?existentes(v).lancada:v?.tipo==="remessa"?!!(window.danfeColecao?.()||[]).find(d=>d.id===v.chave&&d.registrada):false;
+window.vgJaLancada=v=>v?.tipo==="devolucao"?devJa(v):v?.tipo==="venda"?existentes(v).lancada:v?.tipo==="remessa"?!!(window.danfeColecao?.()||[]).find(d=>d.id===v.chave&&d.registrada):false;
 function contaPadrao(local){
   const cs=window.finLote?.contas?.()||[];
   return (cs.find(c=>c.tipo==="coop"&&mesmoLocal(c.nome,local))||cs.find(c=>N(c.nome).includes(N(local).split(" ")[0]))||{}).id||window.finLote?.contaPadrao?.()||"";
@@ -151,6 +155,81 @@ async function vgLancar(v,o={}){
 async function vgGuardar(v,xml){await guardaXml(v,xml,{registrada:true,tipoGraos:"remessa",kg:v.kg,sacas:v.sacas,cultura:v.cultura,local:v.local})}
 window.vgLancar=vgLancar; window.vgContaPadrao=contaPadrao; window.vgGuardar=vgGuardar; window.vgExistentes=existentes; window.vgRomaneio=romaneioDe;
 
+/* ---------- devolução de compra: tira do estoque, abate do contrato / da conta ---------- */
+const est=()=>typeof estoque!=="undefined"?estoque:[];
+const devJa=v=>est().some(p=>(p.entradas||[]).some(x=>x.chave===v.chave&&x.devolucao));
+const tok=t=>N(t).split(/[^A-Z0-9]+/).filter(w=>w.length>2&&!/^(STE|TRAT|SC|KG|LT|UN|PRO\d?)$/.test(w));
+const parece=(a,b)=>{const A=tok(a), B=new Set(tok(b)); return A.length?A.filter(w=>B.has(w)).length/A.length:0};
+function devPlano(v){ // para cada item: produto do estoque, entrada original, quantidade a tirar
+  const orig=[]; for(const p of est()) (p.entradas||[]).forEach((x,i)=>{if(x.devolucao) return; if((v.refChave&&x.chave===v.refChave)||(v.refNF&&String(x.nf||"").replace(/\D/g,"").replace(/^0+/,"")===v.refNF&&mesmoLocal(x.origem,v.emit))) orig.push({p,x,i})});
+  return (v.itens||[]).map(it=>{
+    const cands=orig.map(o=>{const un=Number(o.x.valorTotal)>0&&o.x.quantidade>0?o.x.valorTotal/o.x.quantidade:0; return {...o,un,dif:un&&it.vu?Math.abs(un-it.vu)/it.vu:9,sim:parece(it.prod,o.p.comercial+" "+(o.x.obs||""))}})
+      .sort((a,b)=>(a.dif-b.dif)||(b.sim-a.sim));
+    let o=cands.find(c=>c.dif<.03)||cands.sort((a,b)=>b.sim-a.sim)[0]||null;
+    let prod=o?.p||null;
+    if(!prod){const s=est().map(p=>({p,sim:parece(it.prod,p.comercial)})).sort((a,b)=>b.sim-a.sim)[0]; if(s&&s.sim>=.5) prod=s.p}
+    const un=o?.un||0;
+    let q=un>0?it.v/un:(prod&&/^(SC|SACO|UN|BAG|L|LT|KG)$/.test(it.un)?it.q:it.q);
+    if(prod&&typeof ehEmb==="function"&&ehEmb(prod)) q=Math.round(q*100)/100;
+    return {it,prod,orig:o,q:Math.round(q*1000)/1000,v:it.v};
+  });
+}
+window.vgDevPlano=devPlano;
+function contasOrig(v){return lanc().filter(l=>l.natureza==="pagar"&&((v.refChave&&l.chave===v.refChave)||(v.refNF&&String(l.nf||"").replace(/\D/g,"").replace(/^0+/,"")===v.refNF&&mesmoLocal(l.pessoa,v.emit))))}
+async function vgDevLancar(v,plano,o={}){
+  const agora=new Date().toISOString(), porProd=new Map();
+  for(const pl of plano){ if(!pl.prod||!(pl.q>0)) continue; const a=porProd.get(pl.prod.id)||[]; a.push(pl); porProd.set(pl.prod.id,a)}
+  for(const [pid,pls] of porProd){
+    const atual=est().find(p=>p.id===pid); if(!atual) continue; const {id,...doc}=atual;
+    doc.entradas=[...(atual.entradas||[]),...pls.map(pl=>({data:v.data,quantidade:-pl.q,valorTotal:-Math.round(pl.v*100)/100,origem:v.emit,nf:v.numero,chave:v.chave,devolucao:true,
+      ...(v.refChave?{refChave:v.refChave}:{}),...(v.refNF?{refNF:v.refNF}:{}),...(pl.orig?.x?.emb?{emb:{...pl.orig.x.emb}}:{}),...(pl.orig?.x?.retirada?{retirada:true}:{}),
+      ...((pl.orig?.x?.contrato||v.contrato)?{contrato:pl.orig?.x?.contrato||v.contrato}:{}),obs:`Devolução${v.refNF?" da NF "+v.refNF:""}`,criadoEm:agora}))];
+    await db.collection("estoque").doc(id).set(doc);
+  }
+  const total=plano.reduce((s,pl)=>s+(pl.prod&&pl.q>0?pl.v:0),0);
+  if(o.abater){ // abate da última parcela em aberto da nota original
+    const ab=contasOrig(v).filter(l=>l.status!=="pago").sort((a,b)=>String(b.vencimento).localeCompare(String(a.vencimento)))[0];
+    if(ab){const {id,...d}=ab; await db.collection("fin_lanc").doc(id).set({...d,valor:Math.max(0,Math.round((Number(d.valor)-total)*100)/100),obs:[d.obs,`Abatido ${br(total)} da devolução NF ${v.numero}`].filter(Boolean).join(" · ")})}
+  }
+  if(o.credito) await db.collection("fin_lanc").doc("dev_"+v.chave).set({natureza:"receber",descricao:`Crédito da devolução — NF ${v.numero}${v.refNF?` (ref. NF ${v.refNF})`:""}`,pessoa:v.emit,categoria:"devol_r",
+    competencia:v.data,vencimento:o.venc||v.data,valor:Math.round(total*100)/100,status:"aberto",nf:v.numero,chave:v.chave,origem:"dev|"+v.chave,titular:v.dest||"",...(v.contrato?{contrato:v.contrato}:{}),criadoEm:agora});
+  if(o.xml) try{await guardaXml(v,o.xml,{devolucao:true})}catch{}
+}
+window.vgDevLancar=vgDevLancar;
+function pintaDev(ov,v,xml,cab,info){
+  const ja=devJa(v), plano=devPlano(v), cs=contasOrig(v), ab=cs.filter(l=>l.status!=="pago");
+  const ret=plano.some(pl=>pl.orig?.x?.retirada), prods=est().slice().sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
+  const unTxt=pl=>pl.prod?(typeof ehEmb==="function"&&ehEmb(pl.prod)?(pl.orig?.x?.emb&&typeof embRot==="function"?embRot(pl.orig.x.emb,pl.q):"embalagens"):pl.prod.unidade):"";
+  const semOrig=plano.some(pl=>!pl.orig);
+  ov.innerHTML=`<div class="vg-box">${cab.replace("📦 Entrega de grãos no depósito","↩️ Devolução de compra")}${info}
+    ${ja?`<p class="vg-ok">✓ Esta devolução já está lançada no estoque.</p>`:""}
+    ${semOrig?`<p class="vg-av">⚠️ Não achei no estoque a nota original${v.refNF?` (NF ${e(v.refNF)})`:""}. Lance a NF original primeiro${v.refNF?"":""} — ou escolha abaixo de qual produto sai a devolução.</p>`:""}
+    ${plano.map((pl,k)=>`<div class="vg-dev">
+      <div class="vg-nota"><b>${e(pl.it.prod)}</b><small>Na nota: ${nm(pl.it.q,3)} ${e(pl.it.un)} · ${br(pl.v)}${pl.orig?` · da NF ${e(pl.orig.x.nf||v.refNF)} de ${dt(pl.orig.x.data)} (${nm(pl.orig.x.quantidade)} ${e(pl.orig.p.unidade==="emb"&&typeof embRot==="function"?embRot(pl.orig.x.emb,pl.orig.x.quantidade):pl.orig.p.unidade)})`:""}</small></div>
+      <div class="grid2"><div class="field"><label for="vg-dp${k}">Sai do produto</label><select id="vg-dp${k}" data-k="${k}" class="vg-dp"><option value="">— não tirar do estoque —</option>${prods.map(p=>`<option value="${p.id}" ${pl.prod?.id===p.id?"selected":""}>${e(p.comercial)}</option>`).join("")}</select></div>
+      <div class="field"><label for="vg-dq${k}">Quantidade que volta${unTxt(pl)?` (${e(unTxt(pl))})`:""}</label><input id="vg-dq${k}" class="vg-dq" data-k="${k}" inputmode="decimal" value="${String(pl.q).replace(".",",")}"></div></div>
+    </div>`).join("")}
+    <p class="vg-exp">Ao lançar: <b>Estoque</b> — sai ${plano.map(pl=>`${nm(pl.q,3)} ${e(unTxt(pl)||"")} de ${e(pl.prod?.comercial||"?")}`).join(", ")} (fica registrado como "↩️ Devolução", com o mesmo custo da compra).
+      ${v.contrato||ret?` <b>Contrato ${e(v.contrato||plano[0]?.orig?.x?.contrato||"")}</b> — o retirado do contrato diminui ${br(v.total)} (Resultado da safra → Contratos de insumos).`:""}</p>
+    <div class="vg-rec" style="grid-template-columns:1fr">
+      ${ab.length?`<label class="nf-chk"><input type="checkbox" id="vg-dab" checked> <span>Abater ${br(v.total)} da conta a pagar em aberto da NF ${e(v.refNF||"original")} (${br(ab[0].valor)}, vence ${dt(ab[0].vencimento)})</span></label>`:""}
+      <label class="nf-chk"><input type="checkbox" id="vg-dcr"> <span>Lançar ${br(v.total)} como crédito a receber no Financeiro${ab.length?"":" (só se a cooperativa for devolver o dinheiro; o crédito no contrato já é contado acima)"}</span></label>
+    </div>
+    <div class="vg-bt">${ja?"":`<button type="button" class="btn" id="vg-ok">Lançar a devolução</button>`}<button type="button" class="btn ghost" id="vg-can">${ja?"Fechar":"Cancelar"}</button><span class="note" id="vg-st" role="status"></span></div>
+  </div>`;
+  ov.querySelector("#vg-x").onclick=fechar; ov.querySelector("#vg-can").onclick=fechar;
+  ov.querySelector("#vg-danfe").onclick=ev=>{ev.preventDefault(); window.danfeAbrir?.(xml)};
+  const ok=ov.querySelector("#vg-ok"); if(!ok) return;
+  ok.onclick=async()=>{
+    const st=t=>ov.querySelector("#vg-st").textContent=t;
+    const pl2=plano.map((pl,k)=>({...pl,prod:est().find(p=>p.id===ov.querySelector("#vg-dp"+k).value)||null,q:pn(ov.querySelector("#vg-dq"+k).value)||Number(String(ov.querySelector("#vg-dq"+k).value).replace(",","."))||0}));
+    if(!pl2.some(pl=>pl.prod&&pl.q>0)&&!ov.querySelector("#vg-dcr").checked){st("Escolha o produto de onde sai a devolução."); return}
+    ok.disabled=true; st("Gravando…");
+    try{await vgDevLancar(v,pl2,{abater:!!ov.querySelector("#vg-dab")?.checked,credito:ov.querySelector("#vg-dcr").checked,xml});
+      window.ponte?.aviso?.(`Devolução lançada (NF ${v.numero}).`,true); atual?.o?.depois?.(); fechar()}
+    catch(err){console.error(err); ok.disabled=false; st("Não foi possível gravar. Tente de novo.")}
+  };
+}
 /* texto curto para as listas */
 window.vgResumo=v=>!v?"":v.tipo==="venda"?`🌾 Venda: ${nm(v.sacas)} sc de ${v.cultura} a ${br(v.precoSc)}/sc${v.descontos.length?` · líquido ${br(v.liquido)}`:""}`
   :v.tipo==="remessa"?`📦 Entrega no depósito: ${nm(v.sacas)} sc de ${v.cultura} (${nm(v.kg,0)} kg) — não é venda`
@@ -160,7 +239,7 @@ window.vgResumo=v=>!v?"":v.tipo==="venda"?`🌾 Venda: ${nm(v.sacas)} sc de ${v.
 let atual=null;
 function fechar(){const ov=$("#vg-ov"); if(ov) ov.hidden=true; document.body.classList.remove("vg-aberto"); atual=null}
 window.vgAbrir=function(xml,o={}){
-  const v=le(xml); if(!v||!v.tipo||v.tipo==="devolucao") return false;
+  const v=le(xml); if(!v||!v.tipo) return false;
   atual={v,xml,o};
   let ov=$("#vg-ov"); if(!ov){ov=document.createElement("div"); ov.id="vg-ov"; ov.className="vg-ov"; ov.setAttribute("role","dialog"); ov.setAttribute("aria-modal","true"); document.body.appendChild(ov);
     ov.addEventListener("click",ev=>{if(ev.target===ov) fechar()}); document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!ov.hidden&&!$("#danfe-ov:not([hidden])")) fechar()})}
@@ -172,6 +251,7 @@ function pinta(){
   const locOpts=[...new Set([v.local,...deps])].filter(Boolean);
   const cab=`<div class="vg-cab"><span>${v.tipo==="venda"?"🌾 Venda de grãos":"📦 Entrega de grãos no depósito"}</span><button type="button" class="vg-x" id="vg-x" aria-label="Fechar">✕</button></div>`;
   const info=`<div class="vg-nota"><b>NF ${e(v.numero)} · ${e(v.emit)}</b><small>${dt(v.data)} · ${e(v.natOp)}${v.dest?` · em nome de ${e(v.dest)}`:""}</small><button type="button" class="link" id="vg-danfe">Ver DANFE</button></div>`;
+  if(v.tipo==="devolucao"){pintaDev(ov,v,xml,cab,info); return}
   if(v.tipo==="remessa"){
     const rm=romaneioDe(v), ja=window.vgJaLancada(v);
     ov.innerHTML=`<div class="vg-box">${cab}${info}

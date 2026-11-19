@@ -63,6 +63,8 @@ function prepara(am,lista,titulo){
       notas.push({d,x,fin,grao:vg,rm:vg.tipo==="remessa"?window.vgRomaneio?.(vg):null,ok:!d.cancelada&&!ja,aviso:d.cancelada?"nota cancelada":ja?"já lançada":"",itens:[],temSem:false,finJa:false}); continue}
     const temSem=x.itens.some(it=>/SEMENTE|\bSTE\b/i.test(it.descricao)||classeDe(it.descricao)==="Semente");
     const vgD=tp==="0"?window.vgLe?.(d.xml):null;
+    if(vgD?.tipo==="devolucao"){const plano=window.vgDevPlano?.(vgD)||[], ja=window.vgJaLancada?.(vgD), okP=plano.length&&plano.every(pl=>pl.orig);
+      if(okP||ja){notas.push({d,x,fin,grao:vgD,dev:plano,ok:!d.cancelada&&!ja,aviso:d.cancelada?"nota cancelada":ja?"já lançada":"",itens:[],temSem:false,finJa:false,devol:true}); continue}}
     const aviso=d.cancelada?"nota cancelada":vgD?.tipo==="devolucao"?`devolução de compra${vgD.refNF?` (ref. NF ${vgD.refNF})`:""}: acerte a quantidade na entrada da nota original no estoque`:tp==="0"?"nota de entrada emitida pelo fornecedor (ex.: compra de grãos)":noEstoque(fin.chave)?"já está no estoque":
       temSem?"tem semente: lance esta nota sozinha (embalagens)":window.finLote?.jaLancada(fin)&&!lista?"já está no Financeiro":"";
     const n={d,x,fin,ok:!aviso,aviso,itens:[],temSem,finJa:!!window.finLote?.jaLancada(fin),devol:vgD?.tipo==="devolucao"};
@@ -174,9 +176,10 @@ async function lancar(){
     // 2) Financeiro: contas a pagar de cada nota
     let nf=0;
     // notas de grãos (venda / entrega no depósito)
-    let ng=0, nr=0;
+    let ng=0, nr=0, nd=0;
     for(const n of notas.filter(n=>n.grao)){
-      if(n.grao.tipo==="venda"){await window.vgLancar(n.grao,{recebido:true,conta:window.vgContaPadrao?.(n.grao.local)||"",xml:n.d.xml}); ng++}
+      if(n.grao.tipo==="devolucao"){await window.vgDevLancar(n.grao,n.dev,{abater:true,xml:n.d.xml}); nd++}
+      else if(n.grao.tipo==="venda"){await window.vgLancar(n.grao,{recebido:true,conta:window.vgContaPadrao?.(n.grao.local)||"",xml:n.d.xml}); ng++}
       else{await window.vgGuardar(n.grao,n.d.xml); nr++}
       st(`Grãos: ${ng+nr} de ${notas.filter(n=>n.grao).length} notas…`);
     }
@@ -185,7 +188,7 @@ async function lancar(){
       await window.finLote.lancarNota(n.fin,{pago,conta,itens}); st(`Financeiro: ${++nf} de ${notas.length} notas…`) }
       if(pago) window.finLote.lembraConta(conta) }
     const el=$("#nl-tela .ct-corpo");
-    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${[porProd.size?`${porProd.size} produto${porProd.size===1?"":"s"} no estoque`:"",fin&&nf?`${nf} no Financeiro`:"",ng?`${ng} venda${ng===1?"":"s"} de grãos`:"",nr?`${nr} entrega${nr===1?"":"s"} no depósito guardada${nr===1?"":"s"}`:""].filter(Boolean).join(" · ")}${notas.some(n=>n.fin.retirada)?` (${notas.filter(n=>n.fin.retirada).length} de retirada de contrato: só no estoque)`:""}.</p>
+    el.innerHTML=`<h2 class="nl-h">Pronto</h2><p class="toast">${notas.length} nota${notas.length===1?"":"s"} lançada${notas.length===1?"":"s"}: ${[porProd.size?`${porProd.size} produto${porProd.size===1?"":"s"} no estoque`:"",fin&&nf?`${nf} no Financeiro`:"",ng?`${ng} venda${ng===1?"":"s"} de grãos`:"",nr?`${nr} entrega${nr===1?"":"s"} no depósito guardada${nr===1?"":"s"}`:"",nd?`${nd} devoluç${nd===1?"ão":"ões"}`:""].filter(Boolean).join(" · ")}${notas.some(n=>n.fin.retirada&&!n.grao)?` (${notas.filter(n=>n.fin.retirada&&!n.grao).length} de retirada de contrato: só no estoque)`:""}.</p>
       <div class="row"><button type="button" class="btn" id="nl-fim">Voltar às notas</button></div>`;
     $("#nl-volta").disabled=false; $("#nl-fim").onclick=fechar;
   }catch(err){

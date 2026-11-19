@@ -88,6 +88,7 @@ function montar(){
     n.vFin=n.parcs.reduce((s,l)=>s+(Number(l.valor)||0),0);
     n.valor=n.total||n.vFin||n.vEst;
     n.emit=n.emit||"Fornecedor não informado";
+    if(n.devol) n.valor=-Math.abs(n.valor);
     n.lancada=n.est||n.fin||n.grao||n.registrada;
     n.sit=n.cancelada?"cancelada":n.lancada?"lancada":n.ignorada?"ignorada":"falta";
     if(!n.lancada&&n.xRet) n.retirada=true;
@@ -156,7 +157,7 @@ const chaveN=n=>n.chave||n.numero+"|"+n.emit;
 function linha(n){
   const ab=st.abertos.has(chaveN(n));
   const sel_=n.sit==="cancelada"?`<span class="pill venc">Cancelada</span>`:n.sit==="falta"?`<span class="pill rn-falta">Falta lançar</span>`:n.sit==="ignorada"?`<span class="pill rn-ign">Ignorada</span>`:"";
-  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.grao?`<span class="rn-tag rn-est">🌾 Grãos: venda de ${e(n.graoTxt)}</span>`:n.venda?`<span class="rn-tag">Venda</span>`:"",n.remessa?`<span class="rn-tag">📦 Entrega no depósito (não é venda)</span>`:"",n.devol?`<span class="rn-tag">↩️ Devolução</span>`:"",n.anexos.length?`<span class="rn-tag">📎 ${n.anexos.length} anexo${n.anexos.length>1?"s":""}</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
+  const onde=[n.est?`<span class="rn-tag rn-est">📦 Estoque</span>`:"",n.fin?`<span class="rn-tag rn-fin">💲 Financeiro</span>`:"",n.retirada&&!n.devol?`<span class="rn-tag rn-ret">Retirada do contrato${n.contrato?" "+e(n.contrato):""} · já paga</span>`:"",n.grao?`<span class="rn-tag rn-est">🌾 Grãos: venda de ${e(n.graoTxt)}</span>`:n.venda?`<span class="rn-tag">Venda</span>`:"",n.remessa?`<span class="rn-tag">📦 Entrega no depósito (não é venda)</span>`:"",n.devol?`<span class="rn-tag">↩️ Devolução${n.contrato?" · abatida do contrato "+e(n.contrato):""}</span>`:"",n.anexos.length?`<span class="rn-tag">📎 ${n.anexos.length} anexo${n.anexos.length>1?"s":""}</span>`:"",n.repetida?`<span class="rn-tag rn-rep">⚠️ Lançada em dobro</span>`:""].join("");
   const pg=n.pag?`<span class="rn-pag rn-${n.pag}">${e(pagTxt(n))}</span>`:"";
   const det=ab?`<div class="rn-det">
       ${n.repetida?`<div class="rn-repbox"><b>⚠️ Esta nota foi lançada mais de uma vez</b>

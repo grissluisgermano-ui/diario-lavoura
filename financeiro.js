@@ -23,7 +23,7 @@ const CAT_PADRAO={
     ["outras_d","Despesas diversas","custo"],["financ","Financiamentos (parcela — informe os juros)","financ"],["consorcio","Consórcio","invest"],["capital","Cota capital da cooperativa (retenção na venda)","invest"],
     ["investimento","Aquisição de máquinas e implementos","invest"],["familia_pai","Finanças Nestor Griss","familia"],["emprestimo","Empréstimos (família)","familia"],
     ["animais","Animais (pecuária)","pecuaria"]],
-  receber:[["graos","Venda agrícola (grãos)","receita"],["outras_r","Outras receitas","receita"],["financ_r","Financiamento recebido (custeio)","naoreceita"],
+  receber:[["graos","Venda agrícola (grãos)","receita"],["outras_r","Outras receitas","receita"],["financ_r","Financiamento recebido (custeio)","naoreceita"],["devol_r","Crédito de devolução de compra","naoreceita"],
     ["familia_r","Recebido da família / empréstimo","familia"],["animais_r","Venda de animais","pecuaria"]]};
 const PAPEIS={pagar:{custo:"Custo da lavoura",invest:"Investimento (fora do custo)",financ:"Financiamento: só os juros são custo",familia:"Contas com a família (fora do custo)",pecuaria:"Pecuária (separada da lavoura)"},
   receber:{receita:"Receita da lavoura",naoreceita:"Não é receita (empréstimo)",familia:"Contas com a família",pecuaria:"Pecuária"}};
@@ -137,6 +137,7 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     if(x.chave&&chaves.has(x.chave)) continue;
     if(x.doFinanceiro) continue; // lançada a partir de uma conta do Financeiro
     if(x.retirada) continue; // retirada de produto já pago no contrato
+    if(x.devolucao) continue; // devolução de compra: abate no contrato/conta, não vira pendência
     if(x.nf&&nfs.has(nfKey(x.nf,x.origem))) continue;
     const k=`est|${norm(x.origem)}|${x.nf?String(x.nf).replace(/^0+/,""):x.data}`;
     const p=g.get(k)||{k,natureza:"pagar",data:x.data,nf:x.nf||"",pessoa:x.origem||"",categoria:"insumos",fonte:"Estoque",itens:[],valor:0,chave:x.chave||""};
@@ -1336,7 +1337,7 @@ function renderCtrRet(sy){
     ${ls.length?ls.map(o=>{const [c,t]=st(o); return `<div class="ctr-it"><b>Contrato ${esc(o.n)}${o.forn?` · ${esc(o.forn)}`:""}</b>
       <div class="ctr-nums"><div><span>Pago</span><b>${brl(o.pago)}</b></div><div><span>A pagar</span><b>${brl(o.aberto)}</b></div><div><span>Retirado</span><b>${brl(o.ret)}</b></div></div>
       <span class="ctr-st ${c}">${t}</span>
-      ${o.rets.length?`<details><summary class="note">${o.rets.length} retirada${o.rets.length>1?"s":""}</summary><ul class="lg-lista">${o.rets.sort((a,b)=>String(a.x.data).localeCompare(String(b.x.data))).map(({e,x})=>`<li>${brDate(x.data)} · NF ${esc(x.nf||"")} · ${esc(e.comercial)} · ${brl(x.valorTotal)}</li>`).join("")}</ul></details>`:""}
+      ${o.rets.length?`<details><summary class="note">${(n=>`${n} retirada${n>1?"s":""}`)(o.rets.filter(r=>!r.x.devolucao).length)}${o.rets.some(r=>r.x.devolucao)?` · ${o.rets.filter(r=>r.x.devolucao).length} devolução(ões)`:""}</summary><ul class="lg-lista">${o.rets.sort((a,b)=>String(a.x.data).localeCompare(String(b.x.data))).map(({e,x})=>`<li>${brDate(x.data)} · NF ${esc(x.nf||"")} · ${esc(e.comercial)} · ${brl(x.valorTotal)}</li>`).join("")}</ul></details>`:""}
       ${o.ret>0&&o.pago+o.aberto<=0?`<div class="row"><button type="button" class="btn fn-mini" data-ctrl="${esc(o.n)}">Lançar o pagamento do contrato</button></div>`:""}
     </div>`}).join(""):`<p class="note">Nenhum contrato ${ctrTodos?"":"nesta safra "}— o número do contrato vem da nota (informações complementares) ou do campo Contrato da conta.</p>`}`;
   $("#ctr-todos").onchange=e=>{ctrTodos=e.target.checked; renderCtrRet(sy)};
