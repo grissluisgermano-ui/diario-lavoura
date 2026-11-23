@@ -36,6 +36,18 @@ function negativo(e){
   return prim?{data:prim,falta:-min}:null;
 }
 
+/* atividades que deixaram o produto negativo na data, e se um produto igual tinha saldo naquela data */
+function negRegs(e){
+  const out=[];
+  for(const r of registros){ if(ehProg(r)) continue;
+    const p=(r.campos?.produtos||[]).find(p=>ehDoEstoque(p,e)); if(!p) continue;
+    if(saldoNaData(e,r.data)>=-0.0001) continue;
+    const d=doseN(p), a=areaTotal(r);
+    const m=typeof melhorNaData==="function"?melhorNaData(e,r.data,x=>{const f=FATOR[x.unidade]?.[p.unidade]; return f!=null&&d>0?d*f*a:null}):null;
+    out.push({r,m:m&&m.x.id!==e.id?m:null});
+  }
+  return out.sort((a,b)=>a.r.data.localeCompare(b.r.data));
+}
 /* ---------- Na atividade ---------- */
 const orig=atualizaSaldos;
 atualizaSaldos=function(){
@@ -52,19 +64,59 @@ atualizaSaldos=function(){
       el.append(botao("Cadastrar no estoque",()=>abre(r,null)));
       return;
     }
-    if(!exec) return;
-    const f=FATOR[e.unidade]?.[r.querySelector(".p-un").value], d=parseNum(r.querySelector(".p-dose").value);
-    if(f==null||!(d>0)||!(area>0)) return;
-    const precisa=d*f*area, tem=saldoNaData(e,data,editing);
-    if(precisa>tem+0.0001){
+    if(r.dataset.vcTroca&&r.dataset.vcTroca!==e.comercial){const n=document.createElement("span"); n.className="vq-falta vq-troca"; n.textContent=r.dataset.vcPor==="perto"?` · usando este, que entrou mais perto da data (em vez de “${r.dataset.vcTroca}”).`:` · trocado de “${r.dataset.vcTroca}”, que não tinha saldo nesta data.`; el.append(n)}
+    if(!exec||ehEmb(e)) return;
+    const un=r.querySelector(".p-un").value, f=FATOR[e.unidade]?.[un], d=parseNum(r.querySelector(".p-dose").value);
+    if(f==null&&d>0){ // unidade da dose não converte para a do estoque: não baixa nada
       el.classList.add("neg");
       const s=document.createElement("span"); s.className="vq-falta";
-      s.textContent=data>=todayISO()?` · falta ${num(precisa-Math.max(tem,0))} ${e.unidade} para esta atividade`:` · em ${brDate(data).slice(0,5)} tinha ${num(Math.max(tem,0))} ${e.unidade}; falta ${num(precisa-Math.max(tem,0))} ${e.unidade}`;
-      el.append(s, botao("Lançar compra",()=>abre(r,e)));
+      s.textContent=` · a dose em ${un} não baixa do estoque, porque o produto está cadastrado em “${e.unidade}”. Corrija em Estoque → Editar produto (unidade).`;
+      el.append(s); return;
     }
+    const precisaDe=x=>{const fx=FATOR[x.unidade]?.[un]; return fx!=null&&d>0&&area>0?d*fx*area:null};
+    const precisa=precisaDe(e), tem=saldoNaData(e,data,editing), dt=brDate(data);
+    const prim=entradasCom(e)[0];
+    const falta=precisa!=null?precisa>tem+0.0001:tem<=0.0001;
+    if(!falta) return;
+    el.classList.add("neg");
+    const s=document.createElement("span"); s.className="vq-falta";
+    s.textContent=prim&&prim>data?` · em ${dt} este produto ainda não estava no estoque (primeira entrada em ${brDate(prim)})`
+      :precisa==null?` · em ${dt} não tinha saldo deste produto`
+      :data>=todayISO()?` · falta ${num(precisa-Math.max(tem,0))} ${e.unidade} para esta atividade`:` · em ${dt} tinha ${num(Math.max(tem,0))} ${e.unidade}; falta ${num(precisa-Math.max(tem,0))} ${e.unidade}`;
+    el.append(s);
+    const m=melhorNaData(e,data,precisaDe);
+    if(m&&m.x.id!==e.id){
+      const o=document.createElement("span"); o.className="vq-falta vq-outro";
+      o.textContent=` · O “${m.x.comercial}” tinha ${num(m.tem)} ${m.x.unidade} nesta data (entrada em ${brDate(m.ult)}).`;
+      el.append(o, botao(`Usar ${m.x.comercial}`,()=>troca(r,m.x)));
+    }
+    el.append(botao("Lançar compra",()=>abre(r,e)));
   });
   agenda();
 };
+/* troca o produto da linha mantendo dose e unidade */
+function troca(r,x,auto){
+  const inp=r.querySelector(".p-nome"), un=r.querySelector(".p-un"), u=un.value, de=inp.value.trim();
+  inp.value=x.comercial; inp.dispatchEvent(new Event("change",{bubbles:true}));
+  if(FATOR[x.unidade]?.[u]!=null) un.value=u; // o change põe a unidade do estoque; volta a da dose se ela converte
+  if(typeof prodTotais==="function") prodTotais(); atualizaSaldos();
+  if(auto){r.dataset.vcTroca=de; r.dataset.vcPor=auto; atualizaSaldos()} else flash(`Trocado para ${x.comercial}.`);
+}
+/* Ao escolher o produto (ou mudar a data): se ele não tinha saldo na data e um igual tinha, usa o igual (entrada mais próxima da data) */
+function autoEscolhe(r){
+  if(situacao==="programada") return;
+  const e=prodEstoque(r.querySelector(".p-nome").value.trim()); if(!e||ehEmb(e)) return;
+  const data=$("#f-data")?.value||todayISO(), un=r.querySelector(".p-un").value, d=parseNum(r.querySelector(".p-dose").value), area=areaForm();
+  const precisaDe=x=>{const fx=FATOR[x.unidade]?.[un]; return fx!=null&&d>0&&area>0?d*fx*area:null};
+  const pr=precisaDe(e), tem=saldoNaData(e,data,editing), tinha=pr!=null?tem>=pr-0.0001:tem>0.0001;
+  const m=melhorNaData(e,data,precisaDe); if(m&&m.x.id!==e.id) troca(r,m.x,tinha?"perto":"sem");
+}
+$("#prods").addEventListener("change",ev=>{ if(ev.isTrusted&&ev.target.classList.contains("p-nome")){const r=ev.target.closest(".prod"); delete r.dataset.vcTroca; autoEscolhe(r)} });
+/* dose, total ou unidade mudou: confere o saldo de novo (falta / não converte) */
+let tSal=0;
+$("#prods").addEventListener("input",ev=>{ if(ev.target.matches(".p-dose,.p-tot")){clearTimeout(tSal); tSal=setTimeout(()=>atualizaSaldos(),250)} });
+$("#prods").addEventListener("change",ev=>{ if(ev.target.matches(".p-un")) atualizaSaldos() });
+$("#f-data")?.addEventListener("change",()=>{ if(!editing) document.querySelectorAll("#prods .prod").forEach(autoEscolhe) });
 function botao(txt,fn){const b=document.createElement("button"); b.type="button"; b.className="link vq-bt"; b.textContent=txt; b.onclick=fn; return b}
 function fecha(r){r.querySelector(".vq")?.remove()}
 
@@ -121,13 +173,13 @@ function abre(r,e){
 $("#view-lancar").addEventListener("submit",ev=>{
   if(!TIPOS[tipo]?.prods) return;
   const fora=[...document.querySelectorAll("#prods .prod")].map(r=>r.querySelector(".p-nome").value.trim()).filter(n=>n&&!prodEstoque(n)&&!ignorados.has(norm(n)));
-  const falta=[...document.querySelectorAll("#prods .vq-falta")].length;
+  const falta=[...document.querySelectorAll("#prods .vq-falta:not(.vq-troca):not(.vq-outro)")].length;
   if(!fora.length&&!falta){avisou="";return}
   const chave=fora.join("|")+"#"+falta;
   if(avisou===chave){avisou="";return}
   avisou=chave; ev.preventDefault(); ev.stopImmediatePropagation();
   flash(fora.length?`${fora.length===1?"“"+fora[0]+"” está":fora.length+" produtos estão"} fora do estoque. Cadastre, ou toque em Salvar de novo para salvar assim.`
-    :"Falta saldo no estoque nesta data. Lance a compra, ou toque em Salvar de novo para salvar assim.");
+    :"Tem produto sem saldo nesta data ou que não baixa do estoque (veja em vermelho). Corrija, ou toque em Salvar de novo para salvar assim.");
 },true);
 
 /* ---------- Conferência (Estoque → Produtos) ---------- */
@@ -162,18 +214,33 @@ function semBaixa(){
 const semConteudo=()=>estoque.filter(e=>ehEmb(e)&&(e.entradas||[]).some(x=>Number(x.quantidade)>0&&(!x.emb||(x.emb.tipo!=="kg"&&!(Number(x.emb.cont)>0)))));
 /* produtos que podem ser o mesmo (outra embalagem/outro nome): mesma fórmula NPK, ou mesma 1ª palavra e mesmo princípio ativo */
 const GENER=new Set(["adubo","semente","sementes","fert","fertilizante","oleo","sulfato","ureia","calcario","cloreto","super","superfosfato","oxido","acido","adjuvante","inseticida","fungicida","herbicida","kit","produto"]);
+const npk=c=>{const m=norm(c).match(/(^|\D)(\d{1,2})[\s.\-\/]+(\d{1,2})[\s.\-\/]+(\d{1,2})(\D|$)/); return m?[m[2],m[3],m[4]].map(x=>x.padStart(2,"0")).join("-"):""};
+const w1=c=>norm(c).replace(/[^a-z0-9 ]/g," ").trim().split(/\s+/)[0]||"";
+/* com fórmula NPK nos dois: só se a fórmula for igual; senão, mesma 1ª palavra (que não seja genérica como "adubo", "semente") e o mesmo princípio ativo */
+function iguais(a,b,tudo){ // tudo = vale também para os marcados "São diferentes" (lotes separados do mesmo adubo)
+  if(a.id===b.id||ehEmb(a)||ehEmb(b)||(!tudo&&naoDup.has([a.id,b.id].sort().join("|")))) return false;
+  const na=npk(a.comercial), nb=npk(b.comercial), ga=norm(a.generico), gb=norm(b.generico);
+  const wa=w1(a.comercial), cl=!a.classe||!b.classe||a.classe===b.classe;
+  return na&&nb?na===nb:(wa.length>=4&&wa===w1(b.comercial)&&!GENER.has(wa)&&cl&&(!ga||!gb||ga===gb));
+}
 function duplicados(){
-  const npk=c=>{const m=norm(c).match(/(^|\D)(\d{1,2})[\s.\-\/]+(\d{1,2})[\s.\-\/]+(\d{1,2})(\D|$)/); return m?[m[2],m[3],m[4]].map(x=>x.padStart(2,"0")).join("-"):""};
-  const w1=c=>norm(c).replace(/[^a-z0-9 ]/g," ").trim().split(/\s+/)[0]||"";
   const ls=estoque.filter(e=>!ehEmb(e)), out=[];
-  for(let i=0;i<ls.length;i++) for(let j=i+1;j<ls.length;j++){const a=ls[i], b=ls[j], par=[a.id,b.id].sort().join("|"); if(naoDup.has(par)) continue;
-    const na=npk(a.comercial), nb=npk(b.comercial), ga=norm(a.generico), gb=norm(b.generico);
-    const wa=w1(a.comercial), cl=!a.classe||!b.classe||a.classe===b.classe;
-    // com fórmula NPK nos dois: só se a fórmula for igual; senão, mesma 1ª palavra (que não seja genérica como "adubo", "semente") e o mesmo princípio ativo
-    const mesmo=na&&nb?na===nb:(wa.length>=4&&wa===w1(b.comercial)&&!GENER.has(wa)&&cl&&(!ga||!gb||ga===gb));
-    if(mesmo) out.push({a,b,par,npk:na&&na===nb?na:""})}
+  for(let i=0;i<ls.length;i++) for(let j=i+1;j<ls.length;j++){const a=ls[i], b=ls[j];
+    if(iguais(a,b)){const na=npk(a.comercial); out.push({a,b,par:[a.id,b.id].sort().join("|"),npk:na&&na===npk(b.comercial)?na:""})}}
   return out;
 }
+/* datas de entrada (com quantidade) */
+const entradasCom=e=>(e.entradas||[]).filter(x=>Number(x.quantidade)>0&&x.data).map(x=>x.data).sort();
+const ultEntrada=(e,data)=>entradasCom(e).filter(d=>d<=data).pop()||"";
+/* Entre o produto e os iguais a ele (mesmo adubo cadastrado duas vezes, outra embalagem…), o que tinha saldo na data da
+   atividade e cuja entrada é a mais próxima (até a data). precisa = quanto a atividade usa (na unidade de cada produto) */
+function melhorNaData(e,data,precisaDe){
+  const cands=[e,...estoque.filter(x=>iguais(e,x,true))].map(x=>{const pr=precisaDe(x); return {x,tem:saldoNaData(x,data,editing),pr,ult:ultEntrada(x,data)}})
+    .filter(c=>c.ult&&(c.pr!=null?c.tem>=c.pr-0.0001:c.tem>0.0001));
+  cands.sort((a,b)=>b.ult.localeCompare(a.ult)||(a.x.id===e.id?-1:b.x.id===e.id?1:0));
+  return cands[0]||null;
+}
+window.vcMelhorNaData=melhorNaData;
 function render(){
   const box=$("#vc-box"); if(!box) return;
   const ss=soltos(), ng=estoque.map(e=>({e,n:negativo(e)})).filter(x=>x.n).sort((a,b)=>a.n.data.localeCompare(b.n.data));
@@ -192,7 +259,8 @@ function render(){
           <button type="button" class="btn fn-mini vc-ok">Vincular</button></div>
       </div>`}).join("")}`:""}
     ${ng.length?`<h4 class="vc-h">Usados antes de ter compra lançada</h4>${ng.map(({e,n})=>`<div class="vc-it">
-        <div><b>${esc(e.comercial)}</b><small>a partir de ${brDate(n.data)} faltou até ${num(n.falta)} ${e.unidade}</small></div>
+        <div><b>${esc(e.comercial)}</b><small>a partir de ${brDate(n.data)} faltou até ${num(n.falta)} ${e.unidade}</small>
+          ${negRegs(e).slice(0,6).map(({r,m})=>`<button type="button" class="link vc-reg" data-vcreg="${r.id}" data-vcprod="${e.id}">${brDate(r.data)} · ${esc(r.nome||TIPOS[r.tipo]?.label||r.tipo)} · ${esc(talhoesTxt?.(r.talhoes||[],r.areas,r.data)||(r.talhoes||[]).join(", "))}${m?` — o “${esc(m.x.comercial)}” tinha saldo nesta data (entrada em ${brDate(m.ult)})`:""}</button>`).join("")}</div>
         <div class="vc-acao"><button type="button" class="btn ghost fn-mini" data-vccompra="${e.id}" data-d="${n.data}" data-q="${n.falta}">Lançar compra</button></div>
       </div>`).join("")}`:""}
     ${sb.length?`<h4 class="vc-h">Atividades que não baixaram do estoque</h4><p class="note">A dose está numa unidade que não converte para a do estoque (ex.: adubo cadastrado em "un" e a dose em kg/ha), ou está sem dose. Corrija a unidade do produto (Editar produto) ou a dose da atividade.</p>${sb.map(({e,rs})=>`<div class="vc-it vc-sb">
