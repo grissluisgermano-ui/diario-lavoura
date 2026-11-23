@@ -103,6 +103,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .examples .chip{font-size:.88rem}
 .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .filters .full{grid-column:1/-1}
+.fl-lab{display:block;margin-bottom:6px}.fl-lab small{text-transform:none;letter-spacing:0;font-weight:400}
+.fl-chips .chip{font-size:.88rem;padding:6px 11px}
 .day{display:flex;flex-direction:column;gap:8px}
 .day h3{font-family:var(--f-mono);font-size:.85rem;font-weight:500;color:var(--muted);margin:6px 0 0;font-variant-numeric:tabular-nums}
 .rec{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
@@ -1366,8 +1368,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     </div>
 
     <div class="filters">
-      <div class="field"><label for="fl-tipo">Tipo</label><select id="fl-tipo"><option value="">Todos</option></select></div>
-      <div class="field"><label for="fl-talhao">Talhão</label><select id="fl-talhao"><option value="">Todos</option></select></div>
+      <div class="field full"><span class="fl-lab lbl" id="fl-tipo-l">Tipo <small class="note">(toque em quantos quiser)</small></span><div class="chips fl-chips" id="fl-tipo" role="group" aria-labelledby="fl-tipo-l"></div></div>
+      <div class="field full"><span class="fl-lab lbl" id="fl-talhao-l">Talhão</span><div class="chips fl-chips" id="fl-talhao" role="group" aria-labelledby="fl-talhao-l"></div></div>
       <div class="field full"><label for="fl-sit">Situação</label><select id="fl-sit"><option value="">Todas</option><option value="executada">Só executadas</option><option value="programada">Só programadas</option></select></div>
       <div class="field full"><label for="fl-busca">Buscar</label><input id="fl-busca" type="search" placeholder="Produto, cultivar, praga…"></div>
     </div>
@@ -1544,7 +1546,7 @@ function atualizaSaldos(){
         const disp=c.gs.filter(g=>embMed(g.m)===q.med).reduce((t,g)=>t+Math.max(g.saldo,0)*embPor(g.m),0); el.classList.toggle("neg",q.q>disp+1e-6); if(q.q>disp+1e-6) usa+=` (faltam ${qMedTxt(q.med,q.q-disp)})`}
       else{el.classList.remove("neg"); if(un==="sem/m"&&!espForm()) usa=" · informe o espaçamento para calcular"; else usa=" · diga quantas embalagens saíram ou a dose"}
       el.textContent=`Estoque: ${tem}${usa}`;}
-    else if(e){const s=resumoProd(e);el.textContent=`${e.generico?e.generico+" · ":""}saldo ${num(s.saldo)} ${e.unidade}${s.programado>0?` · ${num(s.programado)} ${e.unidade} já programado`:""}`;el.classList.toggle("neg",s.saldo<=0)}
+    else if(e){const s=resumoProd(e), sd=Math.abs(s.saldo)<ZERO_EST?0:s.saldo;el.textContent=`${e.generico?e.generico+" · ":""}saldo ${numP(sd)} ${e.unidade}${s.programado>0?` · ${num(s.programado)} ${e.unidade} já programado`:""}`;el.classList.toggle("neg",sd<0||(sd===0&&!editing))}
     else{el.textContent=nome&&estoque.length?"Fora do estoque":"";el.classList.remove("neg")}
   });
   atualizaCustos();
@@ -1563,7 +1565,7 @@ function prodTotais(){
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
     if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
-    if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)}
+    if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:6)}
     else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*fat*area,fat<1?3:2)):""}
     prodConfere(r,uD,un,fat,area);
   });
@@ -2771,8 +2773,8 @@ function fimNota(){const a=$("#f-data").value,b=$("#f-fim").value,n=$("#f-fim-n"
   else n.hidden=true}
 document.addEventListener("input",e=>{if(e.target.id==="f-data"||e.target.id==="f-fim") fimNota()});
 function renderLista(){
-  const ft=$("#fl-tipo").value, fh=$("#fl-talhao").value, fs=$("#fl-sit").value, q=$("#fl-busca").value.trim().toLowerCase();
-  const rows=registros.filter(r=>(!ft||r.tipo===ft)&&(!fs||(fs==="programada")===ehProg(r))&&(!fh||(r.talhoes||[]).includes(fh))&&
+  const ft=flSel.tipo, fh=flSel.talhao, fs=$("#fl-sit").value, q=$("#fl-busca").value.trim().toLowerCase();
+  const rows=registros.filter(r=>(!ft.size||ft.has(r.tipo))&&(!fs||(fs==="programada")===ehProg(r))&&(!fh.size||(r.talhoes||[]).some(t=>fh.has(t)))&&
     (!q||JSON.stringify([r.nome,r.descricao,r.campos,r.talhoes]).toLowerCase().includes(q)));
   if(!registros.length){$("#lista").innerHTML=`<div class="empty">Nenhum registro ainda.<br>Comece pela aba <b>Lançar</b>: escolha o tipo, a data e os talhões.</div>`;return}
   if(!rows.length){$("#lista").innerHTML=`<div class="empty">Nenhum registro com esses filtros.</div>`;return}
@@ -2823,9 +2825,26 @@ async function excluir(b){
   const r=registros.find(x=>x.id===b.dataset.del);
   try{await col.doc(b.dataset.del).delete(); for(const id of r?.fotos||[]) assets?.delete(id).catch(()=>{})}catch{b.textContent="Falhou, tente de novo";delete b.dataset.armed}
 }
-["#fl-tipo","#fl-talhao","#fl-sit","#fl-busca"].forEach(s=>$(s).addEventListener("input",renderLista));
-$("#fl-tipo").innerHTML+=Object.entries(TIPOS).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join("");
-function opcoesTalhao(){$("#fl-talhao").innerHTML=`<option value="">Todos</option>`+TALHOES.map(t=>`<option>${esc(t.n)}</option>`).join("")}
+["#fl-sit","#fl-busca"].forEach(s=>$(s).addEventListener("input",renderLista));
+/* Filtros do Histórico com escolha múltipla (vários tipos e vários talhões); nenhum marcado = Todos. Guardado no aparelho. */
+const flSel={tipo:new Set(),talhao:new Set()};
+try{const g=JSON.parse(localStorage.getItem("fl-sel")||"{}"); flSel.tipo=new Set(g.tipo||[]); flSel.talhao=new Set(g.talhao||[])}catch{}
+function flChips(k,opts){
+  const sel=flSel[k], box=$("#fl-"+k);
+  for(const v of [...sel]) if(!opts.some(o=>o[0]===v)) sel.delete(v);
+  box.innerHTML=`<button type="button" class="chip" data-flv="" aria-pressed="${!sel.size}">Todos</button>`+
+    opts.map(([v,l])=>`<button type="button" class="chip" data-flv="${esc(v)}" aria-pressed="${sel.has(v)}">${esc(l)}</button>`).join("");
+}
+function flGuarda(){try{localStorage.setItem("fl-sel",JSON.stringify({tipo:[...flSel.tipo],talhao:[...flSel.talhao]}))}catch{}}
+["tipo","talhao"].forEach(k=>$("#fl-"+k).addEventListener("click",e=>{
+  const b=e.target.closest("[data-flv]"); if(!b) return;
+  const v=b.dataset.flv, sel=flSel[k];
+  if(!v) sel.clear(); else if(sel.has(v)) sel.delete(v); else sel.add(v);
+  $("#fl-"+k).querySelectorAll("[data-flv]").forEach(c=>c.setAttribute("aria-pressed",String(c.dataset.flv?sel.has(c.dataset.flv):!sel.size)));
+  flGuarda(); renderLista();
+}));
+flChips("tipo",Object.entries(TIPOS).map(([k,t])=>[k,t.label]));
+function opcoesTalhao(){flChips("talhao",TALHOES.map(t=>[t.n,t.n]))}
 opcoesTalhao();
 
 /* ---------- Resumo ---------- */

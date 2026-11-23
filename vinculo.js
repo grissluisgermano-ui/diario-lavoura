@@ -15,6 +15,8 @@ const classeDe=t=>t==="plantio"?"Semente":t==="adubacao"?"Fertilizante":"";
 const doseN=p=>typeof p.dose==="number"?p.dose:parseNum(p.dose);
 const ehDoEstoque=(p,e)=>p.produtoId===e.id||(!p.produtoId&&norm(p.nome)===norm(e.comercial));
 
+/* folga de arredondamento: dose gravada com 4 casas (ex. 6 L ÷ 38 ha = 0,1579 L/ha → 6,0002 L) não é falta de produto */
+const folga=q=>Math.max(0.0005,Math.abs(q||0)*0.0005);
 /* Saldo de um produto ao fim de uma data (entradas até a data − usos executados até a data), sem contar um registro */
 function saldoNaData(e,data,semId){
   let s=(e.entradas||[]).filter(x=>!x.data||x.data<=data).reduce((t,x)=>t+(Number(x.quantidade)||0),0);
@@ -31,8 +33,8 @@ function negativo(e){
     for(const p of r.campos?.produtos||[]){ if(!ehDoEstoque(p,e)) continue;
       const f=FATOR[e.unidade]?.[p.unidade], d=doseN(p); if(f!=null&&d>0) ev.push({d:r.data,q:-d*f*areaTotal(r),o:1}) } }
   ev.sort((a,b)=>a.d.localeCompare(b.d)||a.o-b.o);
-  let s=0,min=0,prim=null;
-  for(const x of ev){ s+=x.q; if(s<-0.0001){ if(!prim) prim=x.d; if(s<min) min=s } }
+  let s=0,min=0,prim=null,tol=0.0005;
+  for(const x of ev){ s+=x.q; if(x.q<0) tol+=-x.q*0.0005; if(s<-tol){ if(!prim) prim=x.d; if(s<min) min=s } }
   return prim?{data:prim,falta:-min}:null;
 }
 
@@ -41,7 +43,7 @@ function negRegs(e){
   const out=[];
   for(const r of registros){ if(ehProg(r)) continue;
     const p=(r.campos?.produtos||[]).find(p=>ehDoEstoque(p,e)); if(!p) continue;
-    if(saldoNaData(e,r.data)>=-0.0001) continue;
+    if(saldoNaData(e,r.data)>=-folga(doseN(p)*(FATOR[e.unidade]?.[p.unidade]||0)*areaTotal(r))) continue;
     const d=doseN(p), a=areaTotal(r);
     const m=typeof melhorNaData==="function"?melhorNaData(e,r.data,x=>{const f=FATOR[x.unidade]?.[p.unidade]; return f!=null&&d>0?d*f*a:null}):null;
     out.push({r,m:m&&m.x.id!==e.id?m:null});
@@ -76,7 +78,7 @@ atualizaSaldos=function(){
     const precisaDe=x=>{const fx=FATOR[x.unidade]?.[un]; return fx!=null&&d>0&&area>0?d*fx*area:null};
     const precisa=precisaDe(e), tem=saldoNaData(e,data,editing), dt=brDate(data);
     const prim=entradasCom(e)[0];
-    const falta=precisa!=null?precisa>tem+0.0001:tem<=0.0001;
+    const falta=precisa!=null?precisa>tem+folga(precisa):tem<=0.0005;
     if(!falta) return;
     el.classList.add("neg");
     const s=document.createElement("span"); s.className="vq-falta";
@@ -108,7 +110,7 @@ function autoEscolhe(r){
   const e=prodEstoque(r.querySelector(".p-nome").value.trim()); if(!e||ehEmb(e)) return;
   const data=$("#f-data")?.value||todayISO(), un=r.querySelector(".p-un").value, d=parseNum(r.querySelector(".p-dose").value), area=areaForm();
   const precisaDe=x=>{const fx=FATOR[x.unidade]?.[un]; return fx!=null&&d>0&&area>0?d*fx*area:null};
-  const pr=precisaDe(e), tem=saldoNaData(e,data,editing), tinha=pr!=null?tem>=pr-0.0001:tem>0.0001;
+  const pr=precisaDe(e), tem=saldoNaData(e,data,editing), tinha=pr!=null?tem>=pr-folga(pr):tem>0.0005;
   const m=melhorNaData(e,data,precisaDe); if(m&&m.x.id!==e.id) troca(r,m.x,tinha?"perto":"sem");
 }
 $("#prods").addEventListener("change",ev=>{ if(ev.isTrusted&&ev.target.classList.contains("p-nome")){const r=ev.target.closest(".prod"); delete r.dataset.vcTroca; autoEscolhe(r)} });
@@ -236,7 +238,7 @@ const ultEntrada=(e,data)=>entradasCom(e).filter(d=>d<=data).pop()||"";
    atividade e cuja entrada é a mais próxima (até a data). precisa = quanto a atividade usa (na unidade de cada produto) */
 function melhorNaData(e,data,precisaDe){
   const cands=[e,...estoque.filter(x=>iguais(e,x,true))].map(x=>{const pr=precisaDe(x); return {x,tem:saldoNaData(x,data,editing),pr,ult:ultEntrada(x,data)}})
-    .filter(c=>c.ult&&(c.pr!=null?c.tem>=c.pr-0.0001:c.tem>0.0001));
+    .filter(c=>c.ult&&(c.pr!=null?c.tem>=c.pr-folga(c.pr):c.tem>0.0005));
   cands.sort((a,b)=>b.ult.localeCompare(a.ult)||(a.x.id===e.id?-1:b.x.id===e.id?1:0));
   return cands[0]||null;
 }
