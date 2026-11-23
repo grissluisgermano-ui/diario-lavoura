@@ -1546,7 +1546,7 @@ function atualizaSaldos(){
         const disp=c.gs.filter(g=>embMed(g.m)===q.med).reduce((t,g)=>t+Math.max(g.saldo,0)*embPor(g.m),0); el.classList.toggle("neg",q.q>disp+1e-6); if(q.q>disp+1e-6) usa+=` (faltam ${qMedTxt(q.med,q.q-disp)})`}
       else{el.classList.remove("neg"); if(un==="sem/m"&&!espForm()) usa=" · informe o espaçamento para calcular"; else usa=" · diga quantas embalagens saíram ou a dose"}
       el.textContent=`Estoque: ${tem}${usa}`;}
-    else if(e){const s=resumoProd(e), sd=Math.abs(s.saldo)<ZERO_EST?0:s.saldo;el.textContent=`${e.generico?e.generico+" · ":""}saldo ${numP(sd)} ${e.unidade}${s.programado>0?` · ${num(s.programado)} ${e.unidade} já programado`:""}`;el.classList.toggle("neg",sd<0||(sd===0&&!editing))}
+    else if(e){const s=resumoProd(e), sd=Math.abs(s.saldo)<ZERO_EST?0:s.saldo;el.textContent=`${e.generico?e.generico+" · ":""}saldo ${numP(sd)} ${e.unidade}${s.programado>0?` · ${numP(s.programado)} ${e.unidade} já programado`:""}`;el.classList.toggle("neg",sd<0||(sd===0&&!editing))}
     else{el.textContent=nome&&estoque.length?"Fora do estoque":"";el.classList.remove("neg")}
   });
   atualizaCustos();
@@ -1648,7 +1648,7 @@ function atualizaProdutos(){
   for(const r of [...registros].reverse()) for(const p of r.campos?.produtos||[]) if(p.nome){m[p.nome.toLowerCase()]=p.unidade;nomes.set(p.nome.toLowerCase(),p.nome)}
   ultimaUnidade=m;
   for(const e of estoque) nomes.delete(e.comercial.toLowerCase());
-  const salTxt=e=>{try{const r=resumoProd(e); if(r.emb) return "saldo: "+embSaldoTxt(e); const sd=Math.abs(r.saldo)<ZERO_EST?0:r.saldo; return `saldo ${numP(sd)} ${e.unidade}`+(r.programado>0?` (${num(r.programado)} ${e.unidade} reservado)`:"")}catch{return ""}};
+  const salTxt=e=>{try{const r=resumoProd(e); if(r.emb) return "saldo: "+embSaldoTxt(e); const sd=Math.abs(r.saldo)<ZERO_EST?0:r.saldo; return `saldo ${numP(sd)} ${e.unidade}`+(r.programado>0?` (${numP(r.programado)} ${e.unidade} reservado)`:"")}catch{return ""}};
   $("#dl-prod").innerHTML=estoque.map(e=>`<option value="${esc(e.comercial)}">${esc([e.generico||"Estoque",salTxt(e)].filter(Boolean).join(" · "))}</option>`).join("")+
     [...nomes.values()].sort((a,b)=>a.localeCompare(b,"pt-BR")).map(n=>`<option value="${esc(n)}">`).join("");
   $("#dl-orig").innerHTML=[...new Set([...estoque.flatMap(e=>(e.entradas||[]).map(x=>x.origem)).filter(Boolean).reverse(),...DEPOSITOS])].map(o=>`<option value="${esc(o)}">`).join("");

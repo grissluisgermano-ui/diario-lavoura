@@ -16,6 +16,8 @@ const doseN=p=>typeof p.dose==="number"?p.dose:parseNum(p.dose);
 const ehDoEstoque=(p,e)=>p.produtoId===e.id||(!p.produtoId&&norm(p.nome)===norm(e.comercial));
 
 /* folga de arredondamento: dose gravada com 4 casas (ex. 6 L ÷ 38 ha = 0,1579 L/ha → 6,0002 L) não é falta de produto */
+/* quantidade sem arredondar: abaixo de 1 kg/1 L mostra em g/mL (ex. "falta 12 g") */
+const qtd=(q,un)=>{const a=Math.abs(q); if(a>0&&a<1&&(un==="kg"||un==="L")) return `${Number(q*1000).toLocaleString("pt-BR",{maximumFractionDigits:1})} ${un==="kg"?"g":"mL"}`; return `${numP(q)} ${un}`};
 const folga=q=>Math.max(0.0005,Math.abs(q||0)*0.0005);
 /* Saldo de um produto ao fim de uma data (entradas até a data − usos executados até a data), sem contar um registro */
 function saldoNaData(e,data,semId){
@@ -84,12 +86,12 @@ atualizaSaldos=function(){
     const s=document.createElement("span"); s.className="vq-falta";
     s.textContent=prim&&prim>data?` · em ${dt} este produto ainda não estava no estoque (primeira entrada em ${brDate(prim)})`
       :precisa==null?` · em ${dt} não tinha saldo deste produto`
-      :data>=todayISO()?` · falta ${num(precisa-Math.max(tem,0))} ${e.unidade} para esta atividade`:` · em ${dt} tinha ${num(Math.max(tem,0))} ${e.unidade}; falta ${num(precisa-Math.max(tem,0))} ${e.unidade}`;
+      :data>=todayISO()?` · falta ${qtd(precisa-Math.max(tem,0),e.unidade)} para esta atividade (precisa ${qtd(precisa,e.unidade)})`:` · em ${dt} tinha ${qtd(Math.max(tem,0),e.unidade)}; esta atividade usa ${qtd(precisa,e.unidade)}; falta ${qtd(precisa-Math.max(tem,0),e.unidade)}`;
     el.append(s);
     const m=melhorNaData(e,data,precisaDe);
     if(m&&m.x.id!==e.id){
       const o=document.createElement("span"); o.className="vq-falta vq-outro";
-      o.textContent=` · O “${m.x.comercial}” tinha ${num(m.tem)} ${m.x.unidade} nesta data (entrada em ${brDate(m.ult)}).`;
+      o.textContent=` · O “${m.x.comercial}” tinha ${qtd(m.tem,m.x.unidade)} nesta data (entrada em ${brDate(m.ult)}).`;
       el.append(o, botao(`Usar ${m.x.comercial}`,()=>troca(r,m.x)));
     }
     el.append(botao("Lançar compra",()=>abre(r,e)));
