@@ -362,7 +362,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .prod.emb .p-nome{grid-column:2/-2}
 .prod.emb .p-dl{display:block;grid-column:2/-1;margin-bottom:-4px}
 .prod.emb .p-dose{grid-column:2}
-@media (min-width:541px){.prod.emb .p-nome{grid-column:2/5}.prod.emb .rm{grid-column:6;grid-row:1}.prod.emb .p-dose{grid-column:2/3}}
+@media (min-width:541px){.prod.emb .p-totw{grid-column:4/6}.prod.emb .p-nome{grid-column:2/5}.prod.emb .rm{grid-column:6;grid-row:1}.prod.emb .p-dose{grid-column:2/3}}
 @media (max-width:540px){.prod.emb .rm{grid-column:5;grid-row:1}}
 .rec-prods li span .p-embs{display:block;font-size:.8rem;color:var(--muted);font-family:var(--f-body,inherit);white-space:normal}
 .prod.emb .p-tot{font-size:.88rem;padding-left:6px}
@@ -1535,11 +1535,14 @@ function atualizaSaldos(){
   document.querySelectorAll("#prods .prod").forEach(r=>{
     const el=r.querySelector(".p-saldo"), nome=r.querySelector(".p-nome").value.trim(), e=prodEstoque(nome);
     if(ehEmb(e)){const c=consumoEmb(e,null,editing), un=r.querySelector(".p-un").value, d=un==="sem/ha"?qMil(r.querySelector(".p-dose").value):parseNum(r.querySelector(".p-dose").value), q=qtdDose(un,d,areaForm(),espForm());
-      const tem=c.gs.filter(g=>g.saldo>0).map(g=>embCurto(g.m,g.saldo)).join(" + ")||"sem saldo";
+      const tem=c.gs.filter(g=>g.saldo>0.0005).map(g=>embCurto(g.m,g.saldo)).join(" + ")||"sem saldo";
       const eq=embsDaLinha(r);
-      if(eq.length){const sq=embsQtd({embs:eq}), t=q?.med==="kg"?sq.kg:sq.sem, med=q?.med||(sq.sem?"sem":"kg"), falta=eq.filter(x=>{const g=c.gs.find(y=>y.k===x.k); return !g||x.q>g.saldo+1e-6});
+      if(eq.length){const sq=embsQtd({embs:eq}), t=q?.med==="kg"?sq.kg:sq.sem, med=q?.med||(sq.sem?"sem":"kg"), falta=eq.filter(x=>{const g=c.gs.find(y=>y.k===x.k); return !g||x.q>g.saldo+0.0005});
+        const faltaTxt=falta.map(x=>{const g=c.gs.find(y=>y.k===x.k), f=x.q-Math.max(g?.saldo||0,0), m=g?.m||x; return `falta ${numEmb(f)} ${m.tipo==="kg"?"kg":embCurto(m,2).replace(/^2 /,"")}${m.tipo!=="kg"&&embPor(m)>0?` = ${qMedTxt(embMed(m),f*embPor(m))}`:""} (tem ${numEmb(Math.max(g?.saldo||0,0))})`}).join("; ");
         el.classList.toggle("neg",falta.length>0);
-        el.textContent=`Estoque: ${tem} · sai ${embsTxt({embs:eq})} = ${qMedTxt(sq.sem?"sem":"kg",sq.sem||sq.kg)}`+(falta.length?` (não tem tudo isso no estoque)`:"")+(q&&t>0&&Math.abs(q.q-t)/t>0.03?` · a dose dá ${qMedTxt(med,q.q)}; o estoque baixa pelas embalagens`:"");
+        el.textContent=`Estoque: ${tem} · sai ${embsTxt({embs:eq})} = ${qMedTxt(sq.sem?"sem":"kg",sq.sem||sq.kg)}`+(falta.length?` — não tem tudo isso no estoque: ${faltaTxt}`:"")+(q&&t>0&&Math.abs(q.q-t)/t>0.03?` · a dose dá ${qMedTxt(med,q.q)}; o estoque baixa pelas embalagens`:"");
+        for(const x of falta){const g=c.gs.find(y=>y.k===x.k); if(!(g?.saldo>0.0005)) continue; const b=document.createElement("button"); b.type="button"; b.className="link"; b.style.marginLeft="6px"; b.textContent=`Usar ${numEmb(g.saldo)} (tudo o que tem)`;
+          b.onclick=()=>{const i=r.querySelector(`.p-eq input[data-k="${CSS.escape(x.k)}"]`); if(i){i.value=String(Math.round(g.saldo*1000)/1000).replace(".",","); i.dispatchEvent(new Event("input",{bubbles:true}))}}; el.append(b)}
         return}
       let usa=""; if(q){const g=c.gs.find(x=>x.k===r.querySelector(".p-embq").dataset.old)||c.gs.find(x=>embMed(x.m)===q.med&&embPor(x.m)>0);
         usa=` · vai usar ${qMedTxt(q.med,q.q)}${g&&g.m.tipo!=="kg"&&embMed(g.m)===q.med?` ≈ ${num(q.q/embPor(g.m))} ${g.m.tipo==="bag"?"bags":"sacos"}`:""}`;
@@ -1563,7 +1566,7 @@ function prodTotais(){
     const fat=uD==="sem/m"?(espForm()?10000/espForm():0):uD==="mil sem/ha"?1000:/^(mL|g)\/ha$/.test(uD)?0.001:1, un=/sem/.test(uD)?"sementes":uD==="mL/ha"?"L":uD==="g/ha"?"kg":uD.replace("/ha","");
     if(!tot) return; tot.placeholder="Total"; const tun=r.querySelector(".p-tun"); if(tun) tun.textContent=un==="sementes"?"sem.":un;
     const ld=v=>uD==="sem/ha"?qMil(v):parseNum(v), lt=v=>/sem/.test(uD)?qMil(v):parseNum(v);
-    if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
+    if(r.dataset.src==="emb"){const q=embsQtd({embs:embsDaLinha(r)}), t=/sem/.test(uD)?q.sem:q.kg; if(t>0){tot.value=/sem/.test(uD)?num(Math.round(t)):fmtN(t,2); dose.placeholder=!fat&&uD==="sem/m"?"Falta o espaçamento":!(area>0)?"Falta a área":"Dose"; if(area>0&&fat) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:4)} return}
     if(!fat){if(document.activeElement!==tot) tot.value=""; return}
     if(r.dataset.src==="tot"){const t=lt(tot.value); if(t>0&&area>0) dose.value=uD==="sem/ha"?num(Math.round(t/area)):fmtN(t/area/fat,uD==="sem/m"?1:6)}
     else{const d=ld(dose.value); if(document.activeElement!==tot) tot.value=d>0&&area>0?(/sem/.test(uD)?num(Math.round(d*fat*area)):fmtN(d*fat*area,fat<1?3:2)):""}
@@ -1598,10 +1601,10 @@ function embLinha(r){
   const gs=consumoEmb(e,null,editing).gs.filter(g=>embPor(g.m)>0&&(embMed(g.m)===med||atual[g.k]));
   const lin=gs.filter(g=>g.saldo>0||atual[g.k]), sig=lin.map(g=>g.k).join(",")+"|"+med;
   if(box.dataset.sig===sig&&box.querySelector(".p-eqt")){ // mesmo jeito: só atualiza o saldo (não apaga o que está sendo digitado)
-    for(const g of lin){const i=box.querySelector(`input[data-k="${CSS.escape(g.k)}"]`); const sm=i?.nextElementSibling?.querySelector("small"); if(sm) sm.textContent=`(tem ${num(g.saldo)})`}
+    for(const g of lin){const i=box.querySelector(`input[data-k="${CSS.escape(g.k)}"]`); const sm=i?.nextElementSibling?.querySelector("small"); if(sm) sm.textContent=`(tem ${numEmb(g.saldo)})`}
     box.hidden=false; return}
   box.dataset.sig=sig;
-  box.innerHTML=`<span class="p-eqt">Quantidade que saiu do estoque</span>`+(lin.length?`<div class="p-eqs">${lin.map(g=>`<label class="p-eq"><input inputmode="decimal" data-k="${esc(g.k)}" data-tipo="${g.m.tipo}" data-cont="${g.m.cont||0}" data-med="${g.m.med||""}" value="${atual[g.k]?String(atual[g.k]).replace(".",","):""}" placeholder="0" aria-label="${esc(embRot(g.m,2))}"><span>${esc(g.m.tipo==="kg"?"kg":embCurto(g.m,2).replace(/^2 /,""))} <small>(tem ${num(g.saldo)})</small></span></label>`).join("")}</div>`
+  box.innerHTML=`<span class="p-eqt">Quantidade que saiu do estoque</span>`+(lin.length?`<div class="p-eqs">${lin.map(g=>`<label class="p-eq"><input inputmode="decimal" data-k="${esc(g.k)}" data-tipo="${g.m.tipo}" data-cont="${g.m.cont||0}" data-med="${g.m.med||""}" value="${atual[g.k]?String(atual[g.k]).replace(".",","):""}" placeholder="0" aria-label="${esc(embRot(g.m,2))}"><span>${esc(g.m.tipo==="kg"?"kg":embCurto(g.m,2).replace(/^2 /,""))} <small>(tem ${numEmb(g.saldo)})</small></span></label>`).join("")}</div>`
     :`<small class="note">Sem saldo desta semente no estoque${med==="kg"?" em kg":" em sementes"}.</small>`);
   box.hidden=false;
 }
@@ -2191,10 +2194,11 @@ function embTotais(gs){ // total em sementes e em kg
 }
 const embTotTxt=gs=>{const t=embTotais(gs); return [t.sem?semTxt(t.sem):"",t.kg?num(t.kg)+" kg":""].filter(Boolean).join(" + ")};
 const semCurto=n=>n>=1e6?`${num(n/1e6)} mi`:n>=1000?`${num(n/1000)} mil`:num(n);
-const embCurto=(m,n)=>{m=m||EMB_KG; if(m.tipo==="kg") return `${num(n)} kg`; const nm=m.tipo==="bag"?(n===1?"bag":"bags"):(n===1?"saco":"sacos"); return `${num(n)} ${nm}${m.cont>0?" "+(m.med==="kg"?num(m.cont)+" kg":semCurto(m.cont)):""}`};
+const embCurto=(m,n)=>{m=m||EMB_KG; if(m.tipo==="kg") return `${numEmb(n)} kg`; const nm=m.tipo==="bag"?(n===1?"bag":"bags"):(n===1?"saco":"sacos"); return `${numEmb(n)} ${nm}${m.cont>0?" "+(m.med==="kg"?num(m.cont)+" kg":semCurto(m.cont)):""}`};
 const embTotCurto=gs=>{const t=embTotais(gs); return [t.sem?semCurto(t.sem)+" sem.":"",t.kg?num(t.kg)+" kg":""].filter(Boolean).join(" + ")||"–"};
 const embSaldoTxt=e=>(ehEmb(e)?resumoProd(e).grupos:gruposEmb(e)).filter(g=>g.saldo>0).map(g=>`${num(g.saldo)} ${embRot(g.m,g.saldo)}`).join(" + ")||"sem saldo";
 const embMed=m=>(!m||m.tipo==="kg"||m.med==="kg")?"kg":"sem";
+const numEmb=q=>Number(Math.abs(q)<0.0005?0:q).toLocaleString("pt-BR",{maximumFractionDigits:3}); // saldo de embalagens sem arredondar (1,184 bags)
 const embPor=m=>(!m||m.tipo==="kg")?1:(m.cont||0); // sementes (ou kg) em cada embalagem
 /* Baixa de semente por embalagem: cada plantio executado consome (dose × área) da embalagem escolhida e, se faltar,
    das outras da mesma medida (bags, depois sacos, depois kg). Programados só reservam. semId: ignora um registro (edição). */
