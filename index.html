@@ -1648,7 +1648,8 @@ function atualizaProdutos(){
   for(const r of [...registros].reverse()) for(const p of r.campos?.produtos||[]) if(p.nome){m[p.nome.toLowerCase()]=p.unidade;nomes.set(p.nome.toLowerCase(),p.nome)}
   ultimaUnidade=m;
   for(const e of estoque) nomes.delete(e.comercial.toLowerCase());
-  $("#dl-prod").innerHTML=estoque.map(e=>`<option value="${esc(e.comercial)}">${esc(e.generico||"Estoque")}</option>`).join("")+
+  const salTxt=e=>{try{const r=resumoProd(e); if(r.emb) return "saldo: "+embSaldoTxt(e); const sd=Math.abs(r.saldo)<ZERO_EST?0:r.saldo; return `saldo ${numP(sd)} ${e.unidade}`+(r.programado>0?` (${num(r.programado)} ${e.unidade} reservado)`:"")}catch{return ""}};
+  $("#dl-prod").innerHTML=estoque.map(e=>`<option value="${esc(e.comercial)}">${esc([e.generico||"Estoque",salTxt(e)].filter(Boolean).join(" · "))}</option>`).join("")+
     [...nomes.values()].sort((a,b)=>a.localeCompare(b,"pt-BR")).map(n=>`<option value="${esc(n)}">`).join("");
   $("#dl-orig").innerHTML=[...new Set([...estoque.flatMap(e=>(e.entradas||[]).map(x=>x.origem)).filter(Boolean).reverse(),...DEPOSITOS])].map(o=>`<option value="${esc(o)}">`).join("");
   $("#dl-estoque").innerHTML=estoque.map(e=>`<option value="${esc(e.comercial)}">${esc(e.generico||"")}</option>`).join("");
