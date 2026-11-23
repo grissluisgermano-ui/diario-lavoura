@@ -724,7 +724,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <form class="panel" id="view-lancar" autocomplete="off">
     <div class="row" style="justify-content:space-between">
       <h2 id="form-title">Novo registro</h2>
-      <span class="row lp-ca"><button type="button" class="link lp-bt" data-limpa="lancar">🧹 Limpar formulário</button><button type="button" class="link" id="cancel-edit" hidden>Cancelar edição</button></span>
+      <span class="row lp-ca"><button type="button" class="link lp-bt" data-limpa="lancar">🧹 Limpar formulário</button><button type="button" class="link" id="cancel-edit" hidden>Cancelar edição</button><button type="button" class="link danger" id="del-edit" hidden>Excluir este lançamento</button></span>
     </div>
     <div class="banner" id="nodb" hidden>Sem conexão com o banco de dados. Confira a internet e recarregue a página.</div>
     <div class="field">
@@ -2634,11 +2634,18 @@ function renderCampos(vals){
   if(TIPOS[tipo].roms&&situacao==="programada") $("#roms-box").hidden=true;
 }
 function resetForm(){
-  editing=null; custoAnterior={}; $("#form-title").textContent="Novo registro"; $("#cancel-edit").hidden=true; $("#salvar").textContent="Salvar registro";
+  editing=null; custoAnterior={}; $("#form-title").textContent="Novo registro"; $("#cancel-edit").hidden=true; $("#del-edit").hidden=true; delete $("#del-edit").dataset.armed; $("#del-edit").textContent="Excluir este lançamento"; $("#salvar").textContent="Salvar registro";
   situacao="executada"; $("#f-data").value=todayISO(); $("#f-fim").value=""; $("#f-desc").value=""; $("#f-nome").value=""; talhoesSel=new Set(); areasSel={}; tipo="plantio";
   renderTipos(); renderTalhoes(); renderCampos({}); setSituacao("executada");
   descartarNovas(); fotosForm=[]; renderFotosForm();
 }
+/* excluir direto do formulário de edição (2 toques); se veio do Estoque, volta para o produto */
+$("#del-edit").onclick=async()=>{const b=$("#del-edit"), id=editing; if(!id) return;
+  if(!b.dataset.armed){b.dataset.armed="1"; b.textContent="Toque de novo para excluir"; setTimeout(()=>{if(b.dataset.armed){delete b.dataset.armed; b.textContent="Excluir este lançamento"}},4000); return}
+  const r=registros.find(x=>x.id===id);
+  try{await col.doc(id).delete(); for(const f of r?.fotos||[]) assets?.delete(f).catch(()=>{})}catch(e){window.errosApp?.reg("excluir",e); b.textContent="Falhou, tente de novo"; delete b.dataset.armed; return}
+  resetForm(); if(esVolta){const v=esVolta; esVolta=null; esAbrir(v)} else show("historico");
+};
 $("#cancel-edit").onclick=()=>{resetForm(); if(esVolta){const v=esVolta; esVolta=null; esAbrir(v)}};
 
 /* ---------- Fotos ---------- */
@@ -2806,7 +2813,7 @@ function editar(id,executarAgora){
   $("#f-data").value=r.data; $("#f-fim").value=r.dataFim||""; $("#f-desc").value=r.descricao||""; $("#f-nome").value=r.nome||"";
   descartarNovas(); fotosForm=(r.fotos||[]).map(id=>({id,src:fotoSrc(id)})); renderFotosForm();
   renderTipos(); renderTalhoes(); renderCampos({...(r.campos||{}),_romaneios:r.romaneios});
-  $("#form-title").textContent=executarAgora?"Executar atividade programada":"Editar registro"; $("#cancel-edit").hidden=false; $("#salvar").textContent=executarAgora?"Confirmar execução":"Salvar alterações";
+  $("#form-title").textContent=executarAgora?"Executar atividade programada":"Editar registro"; $("#cancel-edit").hidden=false; $("#del-edit").hidden=false; $("#salvar").textContent=executarAgora?"Confirmar execução":"Salvar alterações";
   if(executarAgora){custoAnterior={}; $("#f-data").value=todayISO(); $("#f-fim").value=""; setSituacao("executada")} else setSituacao(r.situacao==="programada"?"programada":"executada");
   if(executarAgora) $("#salvar").textContent="Confirmar execução"; else $("#salvar").textContent="Salvar alterações";
   show("lancar"); window.scrollTo({top:0});

@@ -95,10 +95,15 @@
   async function paraLixeira(r) {
     const col = r.parent?.id; if (!col || SEM_LIXEIRA.has(col)) return;
     const lote = ponte.lote || null; // excluídos juntos (ligacoes.js) voltam juntos
-    let s; try { s = await r.get() } catch { return }
+    // lê do próprio aparelho primeiro (é instantâneo e funciona sem sinal)
+    let s; try { s = await r.get({ source: "cache" }) } catch { s = null }
+    if (!s || !s.exists) { try { s = await r.get() } catch { return } }
     if (!s.exists) return;
-    await fs.collection("lixeira").doc().set({ colecao: col, docId: r.id, dados: s.data(), excluidoEm: new Date().toISOString(),
-      por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null, ...(lote ? { lote } : {}) });
+    // NÃO espera o servidor confirmar a cópia na Lixeira antes de excluir: antes, com sinal fraco ou o app fechado
+    // logo depois, a exclusão nunca chegava a ser feita e o lançamento continuava lá. Agora a cópia e a exclusão
+    // ficam guardadas no aparelho na hora e sobem juntas quando houver internet.
+    fs.collection("lixeira").doc().set({ colecao: col, docId: r.id, dados: s.data(), excluidoEm: new Date().toISOString(),
+      por: ponte.usuario?.uid || null, nome: ponte.perfil?.nome || null, ...(lote ? { lote } : {}) }).catch(e => console.error(e));
     aviso("Excluído. Fica 30 dias na Lixeira (Lavoura → Histórico) caso precise recuperar.", true);
   }
   const docW = r => ({
