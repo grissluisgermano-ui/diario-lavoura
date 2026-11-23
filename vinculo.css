@@ -16,3 +16,5 @@
 .vc-acao select{flex:1;min-width:0}
 .vc-it .vq{margin-top:0}
 @media (min-width:700px){.vc-it{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);align-items:center}.vc-it .vq{grid-column:1/-1}}
+.vc-sb .vc-reg{display:block;text-align:left;font-size:.84rem;margin-top:2px}
+.vc-it [data-vcdif]{margin-left:8px}

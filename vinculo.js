@@ -8,7 +8,7 @@
    config/estoque {ignorados:[nomeNormalizado]} */
 (function(){
 "use strict";
-let ignorados=new Set(), avisou="";
+let ignorados=new Set(), naoDup=new Set(), avisou="";
 const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\s+/g," ").trim();
 const unDe=u=>/^(L|mL)\//.test(u)?"L":/^(kg|g|t)\//.test(u)?"kg":u==="sc/ha"?"sc":u==="un/ha"?"un":"kg";
 const classeDe=t=>t==="plantio"?"Semente":t==="adubacao"?"Fertilizante":"";
@@ -147,15 +147,43 @@ function sugestoes(g){
     const pts=(c===k?10:0)+(c.includes(k)||k.includes(c)?5:0)+(gn&&(gn.includes(k)||k.includes(gn))?4:0)+ws.filter(w=>c.includes(w)||gn.includes(w)).length;
     return {e,pts}}).sort((a,b)=>b.pts-a.pts||a.e.comercial.localeCompare(b.e.comercial,"pt-BR"));
 }
+/* atividades executadas que NÃO baixaram do estoque: dose sem número ou unidade que não converte (ex.: adubo cadastrado em "un" e a dose em kg/ha) */
+function semBaixa(){
+  const out=[];
+  for(const e of estoque){ if(ehEmb(e)) continue; const nomeL=e.comercial.toLowerCase(), rs=[];
+    for(const r of registros){ if(ehProg(r)) continue;
+      for(const p of r.campos?.produtos||[]){ if(!(p.produtoId===e.id||(!p.produtoId&&String(p.nome).toLowerCase()===nomeL))) continue;
+        const d=typeof p.dose==="number"?p.dose:parseNum(p.dose), f=FATOR[e.unidade]?.[p.unidade];
+        if(f==null||!(d>0)) rs.push({r,p,motivo:!(d>0)?"sem dose":`dose em ${p.unidade}, estoque em ${e.unidade}`})}}
+    if(rs.length) out.push({e,rs})}
+  return out;
+}
+/* semente por embalagem com entrada sem o conteúdo (não sabe quantas sementes/kg tem) */
+const semConteudo=()=>estoque.filter(e=>ehEmb(e)&&(e.entradas||[]).some(x=>Number(x.quantidade)>0&&(!x.emb||(x.emb.tipo!=="kg"&&!(Number(x.emb.cont)>0)))));
+/* produtos que podem ser o mesmo (outra embalagem/outro nome): mesma fórmula NPK, ou mesma 1ª palavra e mesmo princípio ativo */
+const GENER=new Set(["adubo","semente","sementes","fert","fertilizante","oleo","sulfato","ureia","calcario","cloreto","super","superfosfato","oxido","acido","adjuvante","inseticida","fungicida","herbicida","kit","produto"]);
+function duplicados(){
+  const npk=c=>{const m=norm(c).match(/(^|\D)(\d{1,2})[\s.\-\/]+(\d{1,2})[\s.\-\/]+(\d{1,2})(\D|$)/); return m?[m[2],m[3],m[4]].map(x=>x.padStart(2,"0")).join("-"):""};
+  const w1=c=>norm(c).replace(/[^a-z0-9 ]/g," ").trim().split(/\s+/)[0]||"";
+  const ls=estoque.filter(e=>!ehEmb(e)), out=[];
+  for(let i=0;i<ls.length;i++) for(let j=i+1;j<ls.length;j++){const a=ls[i], b=ls[j], par=[a.id,b.id].sort().join("|"); if(naoDup.has(par)) continue;
+    const na=npk(a.comercial), nb=npk(b.comercial), ga=norm(a.generico), gb=norm(b.generico);
+    const wa=w1(a.comercial), cl=!a.classe||!b.classe||a.classe===b.classe;
+    // com fórmula NPK nos dois: só se a fórmula for igual; senão, mesma 1ª palavra (que não seja genérica como "adubo", "semente") e o mesmo princípio ativo
+    const mesmo=na&&nb?na===nb:(wa.length>=4&&wa===w1(b.comercial)&&!GENER.has(wa)&&cl&&(!ga||!gb||ga===gb));
+    if(mesmo) out.push({a,b,par,npk:na&&na===nb?na:""})}
+  return out;
+}
 function render(){
   const box=$("#vc-box"); if(!box) return;
   const ss=soltos(), ng=estoque.map(e=>({e,n:negativo(e)})).filter(x=>x.n).sort((a,b)=>a.n.data.localeCompare(b.n.data));
-  window.marca?.("estoque:conf",ss.length+ng.length);
-  const n=document.getElementById("es-conf-n"); if(n){n.hidden=!(ss.length+ng.length); n.textContent=ss.length+ng.length}
-  if(!ss.length&&!ng.length){box.hidden=true;box.innerHTML="";return}
+  const sb=semBaixa(), sc=semConteudo(), dp=duplicados(), tot=ss.length+ng.length+sb.length+sc.length+dp.length;
+  window.marca?.("estoque:conf",tot);
+  const n=document.getElementById("es-conf-n"); if(n){n.hidden=!tot; n.textContent=tot}
+  if(!tot){box.hidden=true;box.innerHTML="";return}
   const aberto=box.querySelector("details")?.open??true;
   box.hidden=false;
-  box.innerHTML=`<details${aberto?" open":""}><summary><b>Conferir estoque</b> <span class="bdg">${ss.length+ng.length}</span></summary>
+  box.innerHTML=`<details${aberto?" open":""}><summary><b>Conferir estoque</b> <span class="bdg">${tot}</span></summary>
     <p class="note">Para o saldo e o custo ficarem certos, todo produto usado nas atividades precisa estar no estoque, com a compra lançada antes do uso.</p>
     ${ss.length?`<h4 class="vc-h">Produtos digitados que não estão no estoque</h4>${ss.map(g=>{const sg=sugestoes(g), best=sg[0]?.pts>=4?sg[0].e.id:"";
       return `<div class="vc-it" data-k="${esc(g.k)}">
@@ -167,7 +195,25 @@ function render(){
         <div><b>${esc(e.comercial)}</b><small>a partir de ${brDate(n.data)} faltou até ${num(n.falta)} ${e.unidade}</small></div>
         <div class="vc-acao"><button type="button" class="btn ghost fn-mini" data-vccompra="${e.id}" data-d="${n.data}" data-q="${n.falta}">Lançar compra</button></div>
       </div>`).join("")}`:""}
+    ${sb.length?`<h4 class="vc-h">Atividades que não baixaram do estoque</h4><p class="note">A dose está numa unidade que não converte para a do estoque (ex.: adubo cadastrado em "un" e a dose em kg/ha), ou está sem dose. Corrija a unidade do produto (Editar produto) ou a dose da atividade.</p>${sb.map(({e,rs})=>`<div class="vc-it vc-sb">
+        <div><b>${esc(e.comercial)}</b><small>estoque em ${esc(e.unidade)} · ${rs.length} atividade${rs.length>1?"s":""} sem baixa</small>
+          ${rs.slice(0,6).map(({r,p,motivo})=>`<button type="button" class="link vc-reg" data-vcreg="${r.id}" data-vcprod="${e.id}">${brDate(r.data)} · ${esc(r.nome||TIPOS[r.tipo]?.label||r.tipo)} · ${esc(String(p.dose??"")+" "+(p.unidade||""))} — ${esc(motivo)}</button>`).join("")}</div>
+        <div class="vc-acao"><button type="button" class="btn ghost fn-mini" data-vcedp="${e.id}">Editar produto</button></div>
+      </div>`).join("")}`:""}
+    ${sc.length?`<h4 class="vc-h">Sementes sem o conteúdo da embalagem</h4>${sc.map(e=>`<div class="vc-it">
+        <div><b>${esc(e.comercial)}</b><small>alguma entrada não diz quantas sementes (ou kg) tem cada embalagem — o saldo e o custo ficam errados</small></div>
+        <div class="vc-acao"><button type="button" class="btn ghost fn-mini" data-vcab="${e.id}">Abrir e corrigir</button></div>
+      </div>`).join("")}`:""}
+    ${dp.length?`<h4 class="vc-h">Podem ser o mesmo produto</h4>${dp.map(({a,b,par,npk})=>`<div class="vc-it" data-par="${par}">
+        <div><b>${esc(a.comercial)}</b> <small>(${esc(a.unidade)})</small> e <b>${esc(b.comercial)}</b> <small>(${esc(b.unidade)})</small><small>${npk?"mesma fórmula "+npk:"mesmo nome / princípio ativo"} — se for o mesmo produto em outra embalagem, junte os dois para o saldo ficar num só</small></div>
+        <div class="vc-acao"><button type="button" class="btn ghost fn-mini" data-vcjun="${b.id}" data-alvo="${a.id}">Juntar</button><button type="button" class="link" data-vcdif="${par}">São diferentes</button></div>
+      </div>`).join("")}`:""}
   </details>`;
+  box.querySelectorAll("[data-vcreg]").forEach(b=>b.onclick=()=>{window.esVoltaPara?.(b.dataset.vcprod); editar(b.dataset.vcreg)});
+  box.querySelectorAll("[data-vcedp]").forEach(b=>b.onclick=()=>{window.esEditar?.(b.dataset.vcedp)});
+  box.querySelectorAll("[data-vcab]").forEach(b=>b.onclick=()=>window.esAbrir?.(b.dataset.vcab));
+  box.querySelectorAll("[data-vcjun]").forEach(b=>b.onclick=()=>window.esEditar?.(b.dataset.vcjun,b.dataset.alvo));
+  box.querySelectorAll("[data-vcdif]").forEach(b=>b.onclick=async()=>{naoDup.add(b.dataset.vcdif); b.closest(".vc-it").remove(); await db.collection("config").doc("estoque").set({ignorados:[...ignorados],naoDup:[...naoDup]})});
   box.querySelectorAll(".vc-it[data-k]").forEach(it=>{
     const g=ss.find(x=>x.k===it.dataset.k), sel=it.querySelector("select"), ok=it.querySelector(".vc-ok");
     const muda=()=>{ok.textContent=sel.value==="__novo"?"Cadastrar":sel.value==="__ign"?"Confirmar":"Vincular"; it.querySelector(".vq")?.remove();
@@ -177,7 +223,7 @@ function render(){
       if(!sel.value){sel.focus();return}
       ok.disabled=true;
       try{
-        if(sel.value==="__ign"){ignorados.add(g.k); await db.collection("config").doc("estoque").set({ignorados:[...ignorados]}); return}
+        if(sel.value==="__ign"){ignorados.add(g.k); await db.collection("config").doc("estoque").set({ignorados:[...ignorados],naoDup:[...naoDup]}); return}
         let alvo=estoque.find(e=>e.id===sel.value);
         if(sel.value==="__novo"){const res=await gravaMini(it.querySelector(".vq"),null,false); if(!res) return; alvo={id:res.id,comercial:res.comercial}}
         await vincular(g,alvo);
@@ -212,7 +258,7 @@ function instala(){
 window.vcConfig=()=>({ignorados:[...ignorados]});
 window.vcInicia=function(){
   if(window.vcInicia.ok||!db) return; window.vcInicia.ok=true;
-  db.collection("config").doc("estoque").onSnapshot(s=>{ignorados=new Set((s.exists&&s.data()?.ignorados)||[]); atualizaSaldos(); agenda()},()=>{});
+  db.collection("config").doc("estoque").onSnapshot(s=>{ignorados=new Set((s.exists&&s.data()?.ignorados)||[]); naoDup=new Set((s.exists&&s.data()?.naoDup)||[]); atualizaSaldos(); agenda()},()=>{});
 };
 instala(); agenda();
 if(typeof col!=="undefined"&&col) window.vcInicia();

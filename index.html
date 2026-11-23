@@ -2283,7 +2283,8 @@ function peForm(e){
 const peBase=n=>String(n||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]+/g," ").trim().split(/\s+/)[0]||"";
 function peParecidos(e){const b=peBase(e.comercial); return b.length<3?[]:estoque.filter(x=>x.id!==e.id&&!ehEmb(x)&&peBase(x.comercial)===b)}
 /* conteúdo da embalagem escrito no nome: "BD/20lts" → 20 L, "Gl 5 L" → 5 L, "sc 25kg" → 25 kg */
-function peEmbNome(nome){const m=String(nome||"").match(/(\d+(?:[.,]\d+)?)\s*(l|lt|lts|litro|litros|kg|kgs|quilos?)\b/i); return m?{q:parseNum(m[1]),u:/^k|^q/i.test(m[2])?"kg":"L"}:null}
+function peEmbNome(nome){const n=String(nome||""), t=n.match(/(\d+(?:[.,]\d+)?)\s*(tn|ton|tons|t)\b/i); if(t) return {q:parseNum(t[1])*1000,u:"kg"}; // "BB 1TN" = bag de 1.000 kg
+  const m=n.match(/(\d+(?:[.,]\d+)?)\s*(l|lt|lts|litro|litros|kg|kgs|quilos?)\b/i); return m?{q:parseNum(m[1]),u:/^k|^q/i.test(m[2])?"kg":"L"}:null}
 /* junta o produto "e" dentro de "t": entradas (× fator), atividades passam a apontar para "t", "e" vai para a Lixeira */
 async function peJuntar(e,t,f,doc){
   const {id:tid,...td}=t;
@@ -2319,7 +2320,8 @@ function peLiga(box){
   };
   if(alvoSel){
     alvoSel.onchange=()=>{const t=alvo(); if(t){ const en=peEmbNome(e.comercial);
-        jf.value=t.unidade===e.unidade?"1":en&&en.u===t.unidade?String(en.q).replace(".",","):"1";
+        const et=peEmbNome(t.comercial); // unidades diferentes sem pista no nome: fica em branco para a pessoa informar
+        jf.value=t.unidade===e.unidade?"1":en&&en.u===t.unidade?String(en.q).replace(".",","):(e.unidade==="un"&&et&&et.u===t.unidade?String(et.q).replace(".",","):"");
         if(nomeIn.value.trim().toLowerCase()===e.comercial.toLowerCase()) nomeIn.value=t.comercial}
       else if(nomeIn.value.trim().toLowerCase()!==e.comercial.toLowerCase()&&estoque.some(x=>x.id!==e.id&&x.comercial.toLowerCase()===nomeIn.value.trim().toLowerCase())) nomeIn.value=e.comercial;
       jMostra()};
@@ -2503,6 +2505,11 @@ function renderEstoque(){
 }
 // excluir algo que pode estar ligado a outra parte do app (ligacoes.js pergunta o que fazer com o resto)
 function ligOu(b,tipo,arg,fn){ if(window.ligDel) window.ligDel(tipo,arg,b,fn); else confirmar(b,"Confirmar exclusão",fn) }
+window.esVoltaPara=id=>{esVolta=id};
+/* abre o Editar produto (e, se vier, já escolhe o produto para juntar) */
+window.esEditar=(id,alvo)=>{show("estoque"); try{esAba("produtos")}catch{} esAbertos.add(id); esEdit=id; renderEstoque();
+  setTimeout(()=>{const f=document.querySelector(`.pe-form[data-pe="${id}"]`); if(!f) return; f.scrollIntoView({block:"center"});
+    if(alvo){const sel=f.querySelector(".pe-alvo"); if(sel){sel.value=alvo; sel.onchange?.()}}},80)};
 window.esAbrir=id=>{show("estoque"); try{esAba("produtos")}catch{} esAbertos.add(id); renderEstoque(); setTimeout(()=>document.querySelector(`[data-esab="${id}"]`)?.scrollIntoView({block:"center"}),80)};
 function confirmar(b,txt,fn){
   if(!b.dataset.armed){const orig=b.textContent;b.dataset.armed="1";b.textContent=txt;setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=orig}},4000);return}
@@ -4022,6 +4029,24 @@ async function planilhaNuvem(){
   }catch(e){console.warn("planilha na nuvem",e)}
 }
 function bkMarca(){try{const d=new Date();localStorage.setItem("ultimoBackup",`${brDate(todayISO())} às ${d.toTimeString().slice(0,5)}`)}catch{} bkUltimo()}
+/* Erros do app: guardados no aparelho e na coleção erros_app (vão para a planilha do Drive, aba "Erros do app"),
+   para descobrir problemas que só acontecem com os dados de verdade. Uma tela com erro não trava as outras (seguro). */
+window.errosApp=(()=>{
+  let banco=null; const vistos=new Set(), fila=[];
+  const grava=e=>{if(!banco) return fila.push(e); banco.collection("erros_app").add(e).catch(()=>{})};
+  const reg=(onde,err)=>{
+    const msg=String(err?.message||err||"erro"), k=onde+"|"+msg; if(vistos.has(k)) return; vistos.add(k);
+    const e={em:new Date().toISOString(),onde,msg:msg.slice(0,500),pilha:String(err?.stack||"").slice(0,1500),versao:window.APP_VERSAO?.n||null,tela:document.querySelector(".view.active,.view:not([hidden])")?.id||"",por:typeof meuId!=="undefined"?meuId:null,nav:navigator.userAgent.slice(0,140)};
+    console.error("["+onde+"]",err); grava(e);
+  };
+  addEventListener("error",ev=>reg("janela",ev.error||ev.message));
+  addEventListener("unhandledrejection",ev=>reg("promessa",ev.reason));
+  return {reg,liga(db){banco=db; fila.splice(0).forEach(grava);
+    // os últimos 30 dias vão para a planilha (aba "Erros do app")
+    const desde=new Date(Date.now()-30*864e5).toISOString();
+    db.collection("erros_app").onSnapshot(sn=>{window.errosLista=sn.docs.map(d=>d.data()).filter(e=>e.em>=desde).sort((a,b)=>a.em.localeCompare(b.em))},()=>{})}};
+})();
+const seguro=(onde,fn)=>{try{fn()}catch(e){window.errosApp.reg(onde,e)}};
 function planilhaBackup(){
   const wb=XLSX.utils.book_new(), dt=iso=>iso?brDate(iso):"";
   const add=(nome,rows)=>{const r=rows.length?rows:[{"Sem dados":""}];const ws=XLSX.utils.json_to_sheet(r);
@@ -4055,6 +4080,7 @@ function planilhaBackup(){
   window.lmPlanilha?.(add,dt);
   window.mpPlanilha?.(add,dt);
   window.cePlanilha?.(add,dt); window.rgPlanilha?.(add);
+  if(window.errosLista?.length) add("Erros do app",window.errosLista.slice(-300).map(e=>({"Quando":e.em,"Onde":e.onde,"Erro":e.msg,"Versão":e.versao||"","Tela":e.tela||"","Detalhe":(e.pilha||"").slice(0,800),"Aparelho":e.nav||""})));
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
 }
@@ -5088,12 +5114,13 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   userCap=await cl.use("user"); meuId=userCap?await userCap.id():null;
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
+  window.errosApp?.liga(rawDb);
   window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
-    renderEstoque(); atualizaProdutos(); esSync(); renderProgramacao();
+    seguro("estoque",renderEstoque); seguro("produtos",atualizaProdutos); seguro("esSync",esSync); seguro("programacao",renderProgramacao);
   },()=>{});
-  db.collection("maquinas").onSnapshot(snap=>{maquinas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));renderMaquinas();renderDiesel()},()=>{});
+  db.collection("maquinas").onSnapshot(snap=>{maquinas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));seguro("maquinas",renderMaquinas);seguro("diesel",renderDiesel)},()=>{});
   db.collection("manutencoes").onSnapshot(snap=>{manut=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderMaquinas()},()=>{});
   db.collection("benfeitorias").onSnapshot(snap=>{benf=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.nome).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));renderBenf()},()=>{});
   db.collection("servicos_benf").onSnapshot(snap=>{bfServ=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderBenf()},()=>{});
@@ -5105,7 +5132,8 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
     registros=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.data&&r.tipo)
       .sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));
     $("#sync").textContent=snap.metadata.fromCache?"Sincronizando…":"Salvo na nuvem";
-    renderStats(); renderLista(); atualizaProdutos(); renderChuvas(); renderEstoque(); renderGraos(); renderProgramacao(); agendaPainel();
+    // cada tela separada: se uma der erro, as outras (o estoque principalmente) continuam atualizando
+    seguro("painel",renderStats); seguro("historico",renderLista); seguro("produtos",atualizaProdutos); seguro("chuvas",renderChuvas); seguro("estoque",renderEstoque); seguro("graos",renderGraos); seguro("programacao",renderProgramacao); seguro("agenda",agendaPainel);
   },err=>{$("#sync").textContent="Erro de conexão — recarregue a página"});
 })();
 </script>
