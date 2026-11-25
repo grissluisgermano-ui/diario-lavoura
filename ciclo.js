@@ -146,8 +146,8 @@ function render(){
   box.innerHTML=`<div class="ci-top"><h3>Talhões hoje</h3><span class="note">DAP = dias após o plantio · DAE = após a emergência · DAA = após a aplicação</span></div>
     <div class="ci-lista">${linhas.map(({t,c,ls})=>{
       const id=(typeof propCfg!=="undefined"?propCfg.talhoes.find(x=>x.n===t)?.id:null), mini=id&&window.mpMini?window.mpMini(id,40):"";
-      if(!c) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small><span class="ci-ver">Ver atividades da safra ›</span></div></div>`;
-      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${c.colheita?`${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)`:`${esc(c.cultura||"Cultura")} encerrada${c.p.campos?.encerrada?` em ${brDate(c.p.campos.encerrada)}`:""} · plantio em ${brDate(c.p.data)}`}</small><span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
+      if(!c) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small>${window.rotLinha?.(t)||""}<span class="ci-ver">Ver atividades da safra ›</span></div></div>`;
+      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${c.colheita?`${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)`:`${esc(c.cultura||"Cultura")} encerrada${c.p.campos?.encerrada?` em ${brDate(c.p.campos.encerrada)}`:""} · plantio em ${brDate(c.p.data)}`}</small>${window.rotLinha?.(t)||""}<span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
       const sel=selDe(t,ls), L=sel.V||sel.G;
       let corpo;
       if(!L){ // Tudo: uma linha por cultura
@@ -168,6 +168,7 @@ function render(){
           <div class="ci-l1"><b>${esc(t)}</b>${ls.length===1&&ls[0].vars.length===1?`<span>${esc([ls[0].cultura,ls[0].vars[0].cultivar].filter(Boolean).join(" · "))}</span>`:""}</div>
           ${chips(t,ls,sel)}
           ${corpo}
+          ${window.rotLinha?.(t)||""}
           <span class="ci-ver">Ver tudo deste talhão ›</span>
         </div></div>`}).join("")}</div>`;
   ligaChips(box,render);
@@ -245,10 +246,12 @@ function telaTalhao(){
         <div><b>${brl(cHa)}/ha</b><small>insumos aplicados · ${brl(cTot)} no talhão${temLiq?` · com desconto ${brl(cHaL)}/ha`:""}${pHa?` · + ${brl(pHa)}/ha programado`:""}</small></div>
       </div>
       ${Object.keys(porTipo).length?`<p class="note ct-tipos">${Object.entries(porTipo).map(([k,n])=>`${esc(TIPOS[k]?.label||k)}: <b>${n}</b>`).join(" · ")}</p>`:""}
+      ${window.rotBloco?.(t)||""}
       <p class="note">Desde ${brDate(ini)}${fim?` até a colheita`:" até hoje (e o que está programado)"}. A chuva é a lançada na propriedade.</p>
       <div class="ct-lista">${rs.length?lista:`<div class="empty">Nenhuma atividade lançada neste talhão ${c?"neste ciclo":"nesta safra"}.</div>`}</div>
     </div>`;
   ligaCards(el); ligaChips(el,()=>{telaTalhao(); render()});
+  window.rotLiga?.(el,()=>{const y=el.scrollTop; telaTalhao(); el.scrollTop=y});
   el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",fecha));
   $("#ct-volta").onclick=fecha;
   $("#ct-env").onclick=()=>enviar(t);
@@ -318,7 +321,8 @@ function fecha(){aberto=null; const el=$("#ct-tela"); if(el) el.hidden=true; doc
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&aberto) fecha()});
 window.abreTalhao=abreTalhao;
 
-const agenda=()=>{clearTimeout(agenda.t); agenda.t=setTimeout(()=>{try{render(); if(aberto) telaTalhao()}catch(e){console.error(e)}},120)};
+const agenda=()=>{clearTimeout(agenda.t); agenda.t=setTimeout(()=>{try{render(); if(aberto){const el=$("#ct-tela"), y=el?.scrollTop||0; telaTalhao(); if(el) el.scrollTop=y}}catch(e){console.error(e)}},120)};
+window.ciAgenda=agenda;
 const origLista=renderLista;
 renderLista=function(){const r=origLista.apply(this,arguments); agenda(); return r};
 document.addEventListener("visibilitychange",()=>{if(!document.hidden) agenda()});
