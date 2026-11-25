@@ -369,6 +369,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nf-cont select{width:auto}
 .hor2-on{display:block;margin-top:4px;font-size:.85rem}
 .pc-saldo b+span+b{margin-top:6px}
+.hr-form{padding:8px 0 4px;border-bottom:1px solid var(--line,#ddd);margin-bottom:6px}
 .mq-anx-l{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0}
 .nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
 .nf-ret span{font-size:.88rem}
@@ -3081,6 +3082,7 @@ function renderChuvas(){
 /* ---------- Máquinas ---------- */
 const TIPOS_MAQ=["Colheitadeira","Trator","Pulverizador","Plantadeira","Implemento","Caminhão / veículo","Outro"];
 const SERVICOS=["Revisão","Troca de óleo","Filtros","Lubrificação / graxa","Conserto","Pneus / rodado","Elétrica","Hidráulica","Outro"];
+let horasMaq=[]; // leituras avulsas do horímetro (coleção horas_maq)
 let maquinas=[], manut=[], mqSel="", mqEditing=null, mqFotos=[], mqNovas=new Set(), mqEnviando=0;
 const NOVA="__nova__";
 const nomeMaq=id=>maquinas.find(m=>m.id===id)?.nome||"Máquina removida";
@@ -3088,9 +3090,10 @@ const horNum=v=>{const n=parseNum(String(v??"").replace(/\.(?=\d{3}(\D|$))/g,"")
 const fmtH=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:1})+" h";
 function infoMaq(m){
   const ms=manut.filter(x=>x.maquinaId===m.id).sort((a,b)=>b.data.localeCompare(a.data)||(b.horimetro||0)-(a.horimetro||0));
-  const hs=[...ms.map(x=>x.horimetro),...diesel.filter(d=>d.tipo==="saida"&&d.maquinaId===m.id).map(d=>d.horimetro)].filter(h=>h>0);
+  const lei=horasMaq.filter(x=>x.maquinaId===m.id);
+  const hs=[...ms.map(x=>x.horimetro),...diesel.filter(d=>d.tipo==="saida"&&d.maquinaId===m.id).map(d=>d.horimetro),...lei.map(x=>x.horimetro)].filter(h=>h>0);
   const horAtual=hs.length?Math.max(...hs):null;
-  const hs2=[...ms.map(x=>x.horimetro2),...diesel.filter(d=>d.tipo==="saida"&&d.maquinaId===m.id).map(d=>d.horimetro2)].filter(h=>h>0);
+  const hs2=[...ms.map(x=>x.horimetro2),...diesel.filter(d=>d.tipo==="saida"&&d.maquinaId===m.id).map(d=>d.horimetro2),...lei.map(x=>x.horimetro2)].filter(h=>h>0);
   const horAtual2=hs2.length?Math.max(...hs2):null;
   const oleo=ms.find(x=>(x.servicos||[]).includes("Troca de óleo"));
   const comProx=ms.find(x=>x.proxData||x.proxHoras||x.proxHoras2);
@@ -3166,6 +3169,40 @@ function ptLiga(cont,lista,render){
     };
   });
 }
+/* Leituras do horímetro: anotação avulsa (data + horas, sem manutenção nem abastecimento), no cartão da máquina */
+const hrRasc={};
+function horBox(m){
+  const ls=horasMaq.filter(x=>x.maquinaId===m.id).sort((a,b)=>b.data.localeCompare(a.data)||String(b.criadoEm).localeCompare(String(a.criadoEm)));
+  const k="h"+m.id, todos=mqHistAb.has(k+"#t"), lst=todos?ls:ls.slice(0,5), r=hrRasc[m.id]||{}, n2=m.hor2||"";
+  const ult=ls[0];
+  return `<details class="mq-hist hr-box" data-mqh="${k}" ${mqHistAb.has(k)?"open":""}><summary>⏱ Leituras do horímetro (${ls.length})${ult?` · última ${brDate(ult.data).slice(0,5)}: ${esc(horTxt(ult,m.id))}`:""}</summary>
+    <div class="hr-form" data-hr="${m.id}"><div class="grid2">
+      <div class="field"><label>Data</label><input type="date" class="hr-d" value="${esc(r.d||todayISO())}"></div>
+      <div class="field"><label>${n2?"Horímetro do motor (h)":"Horímetro (h)"}</label><input class="hr-h" inputmode="decimal" placeholder="Ex.: 3.250" value="${esc(r.h||"")}"></div>
+      ${n2?`<div class="field"><label>Horímetro do ${esc(n2.toLowerCase())} (h)</label><input class="hr-h2" inputmode="decimal" placeholder="Ex.: 2.100" value="${esc(r.h2||"")}"></div>`:""}
+      <div class="field"><label>Observação</label><input class="hr-o" placeholder="Opcional" value="${esc(r.o||"")}"></div>
+    </div><div class="row"><button type="button" class="btn fn-mini hr-ok">Anotar leitura</button><span class="note hr-st" role="status"></span></div></div>
+    ${lst.map(x=>`<div class="mq-h"><span class="mono">${brDate(x.data)}</span><span>${esc(horTxt(x,m.id))}${x.obs?` · ${esc(x.obs)}`:""}</span><button type="button" class="link danger" data-hrdel="${x.id}">Excluir</button></div>`).join("")}
+    ${ls.length>5?`<button type="button" class="link" data-mqtodos="${k}">${todos?"Mostrar só as últimas 5":`Mostrar todas (${ls.length})`}</button>`:""}</details>`;
+}
+function horLiga(cont){
+  cont.querySelectorAll(".hr-form").forEach(f=>{
+    const id=f.dataset.hr, g=c=>f.querySelector(c)?.value.trim()||"";
+    f.addEventListener("input",()=>{hrRasc[id]={d:g(".hr-d"),h:g(".hr-h"),h2:g(".hr-h2"),o:g(".hr-o")}});
+    f.querySelector(".hr-ok").onclick=async ev=>{
+      const st=t=>f.querySelector(".hr-st").textContent=t, h=horNum(g(".hr-h")), h2=f.querySelector(".hr-h2")?horNum(g(".hr-h2")):null, d=g(".hr-d");
+      if(!d){st("Informe a data.");return} if(!(h>0)&&!(h2>0)){st("Informe as horas.");return}
+      ev.target.disabled=true;
+      try{await db.collection("horas_maq").add({maquinaId:id,data:d,horimetro:h>0?h:null,horimetro2:h2>0?h2:null,obs:g(".hr-o"),criadoEm:new Date().toISOString()}); delete hrRasc[id]; mqHistAb.add("h"+id); window.ponte?.aviso?.("Leitura do horímetro anotada.",true)}
+      catch{st("Não foi possível salvar. Tente de novo."); ev.target.disabled=false}
+    };
+  });
+  cont.querySelectorAll("[data-hrdel]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.ok!=="1"){b.dataset.ok="1"; b.textContent="Confirmar exclusão"; setTimeout(()=>{b.dataset.ok=""; b.textContent="Excluir"},4000); return}
+    try{await db.collection("horas_maq").doc(b.dataset.hrdel).delete()}catch{}
+  });
+  cont.querySelectorAll("[data-hrnova]").forEach(b=>b.onclick=()=>{const k="h"+b.dataset.hrnova; mqHistAb.add(k); const dt=cont.querySelector(`details[data-mqh="${k}"]`); if(dt){dt.open=true; dt.querySelector(".hr-h")?.focus(); dt.scrollIntoView({block:"center"})}});
+}
 /* no cartão da máquina: as manutenções e peças dela (lançadas em Máquinas, numa nota ou no Financeiro) */
 const mqHistAb=new Set();
 function mqHistBox(m,bf){
@@ -3202,16 +3239,18 @@ function renderMaquinas(){
         ${ptNums(m)}
       </div>
       ${mqHistBox(m)}
+      ${horBox(m)}
       ${ptEdit==="maquinas:"+m.id?ptForm("maquinas",m):""}
       ${window.axBloco?axBloco("maquinas",m):""}
       <div class="row" style="justify-content:space-between">${i.status?`<span class="pill ${i.status}">${STATUS_TXT[i.status]}</span>`:"<span></span>"}
-        <div class="rec-actions"><button type="button" class="link" data-mqnova="${m.id}">+ Registrar manutenção</button><button type="button" class="link" data-pted="maquinas:${m.id}">Editar</button><button type="button" class="link danger" data-mqdel="${m.id}">Excluir máquina</button></div></div>
+        <div class="rec-actions"><button type="button" class="link" data-mqnova="${m.id}">+ Registrar manutenção</button><button type="button" class="link" data-hrnova="${m.id}">⏱ Anotar horímetro</button><button type="button" class="link" data-pted="maquinas:${m.id}">Editar</button><button type="button" class="link danger" data-mqdel="${m.id}">Excluir máquina</button></div></div>
     </article>`).join("");
   $("#mq-novo").innerHTML=ptEdit==="maquinas:__novo"?ptForm("maquinas",{id:"__novo"}):"";
   $('[data-pted="maquinas:__novo"]').hidden=ptEdit==="maquinas:__novo";
   ptLiga($("#view-maquinas"),()=>maquinas,renderMaquinas); ptVolta(rasc); window.axLiga?.($("#mq-cards"),"maquinas");
   $("#mq-cards").querySelectorAll("[data-mqnova]").forEach(b=>b.onclick=()=>{mqReset();$("#mq-maq").value=b.dataset.mqnova;mqSyncNova();$("#mq-form").scrollIntoView({block:"start"})});
   $("#mq-cards").querySelectorAll(".mq-hist").forEach(d=>d.ontoggle=()=>{d.open?mqHistAb.add(d.dataset.mqh):mqHistAb.delete(d.dataset.mqh)});
+  horLiga($("#mq-cards"));
   $("#mq-cards").querySelectorAll("[data-mqtodos]").forEach(b=>b.onclick=()=>{const k=b.dataset.mqtodos+"#t"; mqHistAb.has(k)?mqHistAb.delete(k):mqHistAb.add(k); renderMaquinas()});
   $("#mq-cards").querySelectorAll("[data-mqconta]").forEach(b=>b.onclick=()=>window.finAbrirLig?.(b.dataset.mqconta));
   $("#mq-cards").querySelectorAll("[data-mqed]").forEach(b=>b.onclick=()=>mqEditar(b.dataset.mqed));
@@ -3328,7 +3367,8 @@ function maquinasTexto(){
   if(!maquinas.length&&!manut.length) return "";
   const ms=maquinas.map(m=>{const i=infoMaq(m);return `${m.nome} | ${[m.tipo,m.fabricante,m.modelo,m.ano].filter(Boolean).join(", ")||"-"}${m.aquisicao?` | aquisição ${brDate(m.aquisicao)}`:""}${Number(m.valor)>0?` | valor ${brl(m.valor)}`:""} | horímetro atual ${i.horAtual!=null?fmtH(i.horAtual):"não informado"}${m.hor2?` (motor); ${m.hor2.toLowerCase()} ${i.horAtual2!=null?fmtH(i.horAtual2):"não informado"}`:""} | próxima manutenção ${i.comProx?proxTxt(i.comProx):"não definida"}${i.status?` (${STATUS_TXT[i.status]})`:""}`}).join("\n");
   const ls=[...manut].sort((a,b)=>a.data.localeCompare(b.data)).map(x=>`${brDate(x.data)} | ${nomeMaq(x.maquinaId)} | ${(x.servicos||[]).join(", ")||"-"} | horímetro ${horTxt(x)||"-"} | itens: ${(x.itens||[]).map(i=>`${i.desc||"item"}${i.valor!=null?" "+brl(i.valor):""}`).join("; ")||"-"} | total ${brl(x.custoTotal||0)} | oficina ${x.oficina||"-"} | ${(x.descricao||"-").replace(/\n/g," ")}`).join("\n");
-  return `\n\nMáquinas (nome | tipo/modelo/ano | situação):\n${ms||"-"}\n\nManutenções de máquinas (data | máquina | serviços | horímetro | peças e serviços com valor | total | oficina | descrição):\n${ls||"-"}`;
+  const lh=[...horasMaq].sort((a,b)=>a.data.localeCompare(b.data)).map(x=>`${brDate(x.data)} | ${nomeMaq(x.maquinaId)} | ${horTxt(x)||"-"}${x.obs?` | ${x.obs}`:""}`).join("\n");
+  return `\n\nMáquinas (nome | tipo/modelo/ano | situação):\n${ms||"-"}\n\nManutenções de máquinas (data | máquina | serviços | horímetro | peças e serviços com valor | total | oficina | descrição):\n${ls||"-"}${lh?`\n\nLeituras avulsas do horímetro (data | máquina | horas | obs.):\n${lh}`:""}`;
 }
 
 /* ---------- Abastecimento (tanque de diesel) ---------- */
@@ -4053,7 +4093,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[]),...(window.rgConfig?.()?[{id:"plantio",...window.rgConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[]),...(window.rgConfig?.()?[{id:"plantio",...window.rgConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,horas_maq:horasMaq,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -4135,6 +4175,7 @@ function planilhaBackup(){
     return {...o,"Total descontos (kg)":x.bruto>0?x.descTot??"":"","Peso líquido (kg)":x.kg??(x.sacas!=null?Math.round(x.sacas*60):""),"Sacas (60 kg)":x.sacas,"Fotos/PDF":(x.anexos||[]).length||""}})));
   add("Produção por talhão",[...new Set(registros.filter(r=>r.tipo==="colheita").map(r=>safraDe(r.data)))].sort().flatMap(y=>grProducao(y).map(p=>({"Safra":safraLab(y),"Talhão":p.talhao,"Cultura":p.cultura,"Área colhida (ha)":+p.area.toFixed(2),"Sacas":+p.sacas.toFixed(1),"sc/ha":p.area>0?+(p.sacas/p.area).toFixed(1):""}))));
   add("Máquinas",maquinas.map(m=>{const i=infoMaq(m);return {"Máquina":m.nome,"Tipo":m.tipo||"","Fabricante":m.fabricante||"","Modelo":m.modelo||"","Ano":m.ano||"","Aquisição":m.aquisicao?dt(m.aquisicao):"","Valor (R$)":Number(m.valor)||"","Horímetro atual":i.horAtual??"","Próxima manutenção":i.comProx?proxTxt(i.comProx):"","Situação":i.status?STATUS_TXT[i.status]:""}}));
+  add("Leituras do horímetro",[...horasMaq].sort((a,b)=>a.data.localeCompare(b.data)).map(x=>({"Data":dt(x.data),"Máquina":nomeMaq(x.maquinaId),"Horímetro (motor)":x.horimetro??"","2º horímetro":x.horimetro2!=null?`${x.horimetro2} (${hor2Nome(x.maquinaId)})`:"","Observação":x.obs||""})));
   add("Manutenções",[...manut].reverse().map(x=>({"Data":dt(x.data),"Máquina":nomeMaq(x.maquinaId),"Serviços":(x.servicos||[]).join(", "),"Horímetro":x.horimetro??"","2º horímetro":x.horimetro2!=null?`${x.horimetro2} (${hor2Nome(x.maquinaId)})`:"","Peças e serviços":(x.itens||[]).map(i=>`${i.desc}${i.valor!=null?" "+brl(i.valor):""}`).join("; "),"Total (R$)":x.custoTotal||0,"Oficina":x.oficina||"","Próxima":proxTxt(x),"Descrição":x.descricao||""})));
   const {apos}=dsCalc();
   add("Diesel",[...diesel].sort((a,b)=>a.data.localeCompare(b.data)||String(a.criadoEm).localeCompare(String(b.criadoEm))).map(d=>({"Data":dt(d.data),"Tipo":MODOS[d.tipo]||d.tipo,"Máquina":d.maquinaId?nomeMaq(d.maquinaId):"","Litros":d.tipo==="ajuste"?"":(d.tipo==="saida"?-d.litros:d.litros),"Nível medido (L)":d.tipo==="ajuste"?d.nivel:"","Horímetro":d.horimetro??"","2º horímetro":d.horimetro2??"","Operador":d.operador||"","Valor (R$)":d.valorTotal??"","Fornecedor":d.fornecedor||"","NF":d.nf||"","Tanque após (L)":apos[d.id],"Observação":d.obs||""})));
@@ -4860,8 +4901,8 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura",regulagens:"Regulagens"};
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","horas_maq","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",horas_maq:"Leituras do horímetro",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura",regulagens:"Regulagens"};
 const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
@@ -5191,6 +5232,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   db.collection("config").onSnapshot(snap=>{const bk=snap.docs.find(x=>x.id==="backup"); bkInfo=bk?bk.data():null; bkUltimo(); bkAlerta(); const pl=snap.docs.find(x=>x.id==="planilha"); bkPl=pl?pl.data():null; setTimeout(planilhaNuvem,20000); const pd=snap.docs.find(x=>x.id==="propriedade")?.data(); if(pd) aplicaPropriedade(pd); const d=snap.docs.find(x=>x.id==="graos")?.data(); if(d) grAplica(d); renderGraos()},()=>{});
   db.collection("graos").onSnapshot(snap=>{graos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.data&&g.tipo);renderGraos()},()=>{});
   db.collection("notas").onSnapshot(snap=>{notas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(n=>n.data&&n.texto).sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||"").localeCompare(String(a.hora||""))||String(b.criadoEm).localeCompare(String(a.criadoEm)));renderNotas()},()=>{});
+  db.collection("horas_maq").onSnapshot(snap=>{horasMaq=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.data&&x.maquinaId);seguro("maquinas",renderMaquinas)},()=>{});
   db.collection("diesel").onSnapshot(snap=>{diesel=snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.data&&d.tipo);renderDiesel();renderMaquinas()},()=>{});
   col.onSnapshot(snap=>{ setTimeout(bkAlerta,0);
     registros=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.data&&r.tipo)

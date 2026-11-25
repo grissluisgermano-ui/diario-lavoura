@@ -5,7 +5,7 @@
   const box = document.getElementById("lx-box"); if (!box || !window.ponte?.lixeira) return;
   const lista = document.getElementById("lx-lista"), cont = document.getElementById("lx-cont");
   const NOMES_COL = { registros:"Lançamento", estoque:"Produto do estoque", graos:"Movimento de grãos", maquinas:"Máquina", manutencoes:"Manutenção",
-    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", notas:"Anotação", config:"Configuração", nfe:"Nota fiscal (XML)",
+    diesel:"Abastecimento", benfeitorias:"Benfeitoria", servicos_benf:"Serviço em benfeitoria", horas_maq:"Leitura do horímetro", notas:"Anotação", config:"Configuração", nfe:"Nota fiscal (XML)",
     fin_lanc:"Conta do Financeiro", fin_contas:"Conta de banco/caixa", lembretes:"Lembrete", contratos_entrega:"Contrato de entrega", regulagens:"Regulagem", pontos:"Ponto do mapa", talhoes_geo:"Contorno de talhão" };
   const e = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
   const br = iso => { try { const [y, m, d] = String(iso).slice(0, 10).split("-"); return d ? `${d}/${m}/${y}` : "" } catch { return "" } };
@@ -25,6 +25,7 @@
       case "graos": return `${d.tipo || ""} · ${n(d.sacas)} sc${d.cultura ? " de " + d.cultura : ""}${d.local ? " · " + d.local : ""} · ${br(d.data)}`;
       case "maquinas": case "benfeitorias": return d.nome || "";
       case "manutencoes": case "servicos_benf": return `${br(d.data)} · ${(d.servicos || []).join(", ") || d.descricao || ""}`;
+      case "horas_maq": return `${br(d.data)} · ${d.horimetro ?? ""} h${d.horimetro2 ? " · " + d.horimetro2 + " h (2º)" : ""}`;
       case "diesel": return `${d.tipo || ""} · ${n(d.litros ?? d.nivel)} L · ${br(d.data)}`;
       case "notas": return `${d.titulo || String(d.texto || "").slice(0, 70)} · ${br(d.data)}`;
       case "nfe": return `NF ${d.numero || ""} · ${d.emit || ""} · ${br(d.data)}`;
