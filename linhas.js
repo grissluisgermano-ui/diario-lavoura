@@ -12,8 +12,8 @@
     "fn-lista":a=>{const tops=a.querySelectorAll(":scope>.rec-top"), quem=[...a.querySelectorAll(".rec-campos>span")].find(s=>/^(Fornecedor|Comprador)/.test(T(s)));
       return {tit:T(tops[0]?.querySelector(".rec-tipo")), sub:[T(quem).replace(/^(Fornecedor|Comprador)\s*/,""),T(tops[1]?.querySelector(".note"))].filter(Boolean).join(" · ")||T(tops[1]?.firstElementChild), dir:cl(tops[0]?.querySelector(".mov-q"))+cl(tops[1]?.querySelector(".pill"))}},
     "fn-pend": a=>({tit:T(a.querySelector(".rec-tipo")), sub:T(a.querySelector(".rec-campos")).replace(/\s{2,}/g," · "), dir:cl(a.querySelector(".mov-q"))}),
-    "mq-cards":a=>({tit:T(a.querySelector(".pc-nome")), sub:T(a.querySelector(".pc-gen")), dir:`<b class="lx-num">${T(a.querySelector(".pc-saldo b"))}</b><small>${T(a.querySelector(".pc-saldo span"))}</small>`, img:a.querySelector(".ax-capa img")?.getAttribute("src")}),
-    "bf-cards":a=>({tit:T(a.querySelector(".pc-nome")), sub:T(a.querySelector(".pc-gen")), dir:`<b class="lx-num">${T(a.querySelector(".pc-saldo b"))}</b><small>${T(a.querySelector(".pc-saldo span"))}</small>`, img:a.querySelector(".ax-capa img")?.getAttribute("src")}),
+    "mq-cards":a=>({tit:T(a.querySelector(".pc-nome")), sub:T(a.querySelector(".pc-gen")), dir:[...a.querySelectorAll(".pc-saldo b")].map(b=>`<b class="lx-num">${T(b)}</b><small>${T(b.nextElementSibling)}</small>`).join(""), img:a.querySelector(".ax-capa img")?.getAttribute("src")}),
+    "bf-cards":a=>({tit:T(a.querySelector(".pc-nome")), sub:T(a.querySelector(".pc-gen")), dir:[...a.querySelectorAll(".pc-saldo b")].map(b=>`<b class="lx-num">${T(b)}</b><small>${T(b.nextElementSibling)}</small>`).join(""), img:a.querySelector(".ax-capa img")?.getAttribute("src")}),
     "nt-lista":a=>({tit:T(a.querySelector(".nt-tit"))||T(a.querySelector(".rec-desc")).slice(0,80), sub:[T(a.querySelector(".nt-cat")),T(a.querySelector(".rec-top .rec-talhoes"))].filter(Boolean).join(" · "), dir:cl(a.querySelector(".pill"))}),
   };
   function vira(cont,id){
