@@ -3725,7 +3725,7 @@ function romRow(r={}){
     <input class="r-data" type="date" value="${esc(r.data||$("#f-data").value||todayISO())}" aria-label="Data da entrega">
     <input class="r-hora" type="time" value="${esc(r.hora||"")}" aria-label="Hora da entrega">
     <input class="r-local" list="dl-dep" placeholder="Local de entrega (Coamo, C.Vale…)" value="${esc(r.estoque?LOCAL_EST:r.local||ultimoDeposito())}" aria-label="Local de entrega">
-    <div class="r-est"${r.estoque?"":" hidden"}><label>📦 Guardar no estoque como</label><input class="r-prod" list="dl-prod" value="${esc(r.estoque?.nome||"")}" placeholder="Semente própria"><small class="note">Fica no Estoque para usar depois (ex.: semente para o ano que vem). O custo é o da cultura nesta safra, rateado pela produção.</small></div>
+    <div class="r-est"${r.estoque?"":" hidden"}><label>📦 Guardar no estoque como</label><input class="r-prod" list="dl-prod" value="${esc(r.estoque?.nome||"")}" placeholder="Semente própria"><small class="note">Fica no Estoque para usar depois (ex.: semente para o ano que vem). Não entra no saldo de grãos nem na porcentagem dos funcionários. O custo é o da cultura nesta safra, rateado pela produção.</small></div>
     <small class="r-eq note" aria-live="polite">${r.un==="kg"&&r.kg>0?`${num(r.kg)} kg = <b>${num(r.sacas)} sc</b> de 60 kg`:""}</small>
     <details class="r-cls"${r.bruto>0?" open":""}><summary>Peso bruto e descontos (classificação)</summary>
       <div class="field r-bf"><label>Peso bruto (kg)</label><input class="r-bruto" inputmode="decimal" placeholder="Ex.: 32.400" value="${r.bruto>0?esc(String(r.bruto).replace(".",",")):""}"></div>
