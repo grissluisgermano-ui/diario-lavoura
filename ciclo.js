@@ -56,12 +56,24 @@ linhaCampos=function(r){
 
 /* ---------- Lavouras do talhão: culturas (e variedades) plantadas ao mesmo tempo em partes do talhão ----------
    Ex.: Talhão 1 com soja em 40,5 ha e cevada em 38 ha; Talhão 2 com milho de duas variedades.
-   Plantio ativo = executado até a data, sem colheita depois dele da mesma cultura (colheita sem cultura fecha tudo). */
+   Plantio ativo = executado até a data, sem colheita depois dele da mesma cultura (colheita sem cultura fecha tudo),
+   sem plantio de outra cultura por cima e sem dessecação para a cultura seguinte (cobertura: termina na dessecação pré-plantio). */
 function lavouras(t,data){
   const ps=registros.filter(r=>r.tipo==="plantio"&&exec(r)&&tem(r,t)&&r.data<=data).sort((a,b)=>a.data.localeCompare(b.data));
   const cols=registros.filter(r=>r.tipo==="colheita"&&exec(r)&&tem(r,t)&&r.data<=data);
-  const ativos=ps.filter(p=>!cols.some(c=>c.data>=p.data&&(!nk(c.campos?.cultura)||!nk(p.campos?.cultura)||nk(c.campos.cultura)===nk(p.campos.cultura))));
   const ha=haDe(t), areaP=p=>Number(p.areas?.[t])||ha, gs=new Map();
+  /* a lavoura também termina (cobertura que não é colhida, ex. aveia):
+     - com o plantio de OUTRA cultura no mesmo talhão depois dela, se as áreas se sobrepõem (somadas passam do talhão);
+     - com a dessecação para o plantio seguinte: aplicação executada depois dela, de outra cultura (ou "dessecação" no nome/alvo/descrição). */
+  const txt=r=>[r.nome,r.descricao,r.campos?.alvo,r.campos?.obs].filter(Boolean).join(" ");
+  const cultDe=r=>nk(typeof culturaReg==="function"?culturaReg(r):r.campos?.cultura);
+  const encerrada=p=>{const kc=nk(p.campos?.cultura);
+    if(cols.some(c=>c.data>=p.data&&(!nk(c.campos?.cultura)||!kc||nk(c.campos.cultura)===kc))) return true;
+    if(!kc) return false;
+    if(ps.some(q=>q!==p&&q.data>p.data&&nk(q.campos?.cultura)&&nk(q.campos.cultura)!==kc&&areaP(p)+areaP(q)>ha*1.02)) return true;
+    return registros.some(r=>r.tipo==="aplicacao"&&exec(r)&&tem(r,t)&&r.data>p.data&&r.data<=data&&/desseca/i.test(txt(r))&&!/colheita/i.test(txt(r))&&cultDe(r)!==kc&&(!r.areas?.[t]||Number(r.areas[t])+areaP(p)>ha*1.02));
+  };
+  const ativos=ps.filter(p=>!encerrada(p));
   for(const p of ativos){
     const k=nk(p.campos?.cultura); let G=gs.get(k); if(!G){G={k,cultura:p.campos?.cultura||"Cultura",vars:new Map()}; gs.set(k,G)}
     const kv=nk(p.campos?.cultivar); let V=G.vars.get(kv); if(!V){V={k:kv,cultivar:p.campos?.cultivar||"",ps:[]}; G.vars.set(kv,V)} V.ps.push(p);
