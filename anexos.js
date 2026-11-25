@@ -47,14 +47,14 @@
 
   async function envia(c,id,campo,files){
     const k=c+":"+id; msg[k]="";
-    for(const file of files){
+    for(let file of files){
       enviando[k]=(enviando[k]||0)+1; render(c);
       try{
         const ehFoto=/^image\//.test(file.type)||/\.(jpe?g|png|heic|heif|webp)$/i.test(file.name);
         if(campo==="fotos"&&!ehFoto) throw {code:"unsupported_type"};
         let item;
         if(ehFoto){const b=await encolher(file); const r=await assets.upload(b,{type:b.type||"image/jpeg"}); item={id:r.id,tipo:"foto"}}
-        else{const vid=window.anxEhVideo?.(file); const r=await ponte.arquivos.salvar(file,vid?{max:window.anxVidMax}:undefined); item={id:r.id,tipo:"arquivo",mime:r.tipo,tam:r.tam}}
+        else{const vid=window.anxEhVideo?.(file); if(vid&&window.anxReduzVideo){file=await window.anxReduzVideo(file,p=>{msg[k]=`Reduzindo o vídeo… ${p}% — deixe esta tela aberta`; const st=document.querySelector(`details[data-ax="${k}"] .ax-st`); if(st) st.textContent=msg[k]}); msg[k]=""} const r=await ponte.arquivos.salvar(file,vid?{max:window.anxVidMax}:undefined); item={id:r.id,tipo:"arquivo",mime:r.tipo,tam:r.tam}}
         await naFila(k,()=>grava(c,id,d=>{
           if(campo==="fotos"){d.fotos.push(item.id); if(!d.capa) d.capa=item.id}
           else d.docs.push({id:item.id,nome:file.name||"documento",tipo:item.tipo,mime:item.mime||file.type||"",tam:item.tam||file.size||0,em:new Date().toISOString()});
