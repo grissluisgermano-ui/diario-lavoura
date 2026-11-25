@@ -750,7 +750,7 @@ window.finTiraEstoque=async function(e,{cat,maquinaId,benfId}){
     const {id,...doc}=l; await db.collection("fin_lanc").doc(id).set(doc)}
   return {contas:contasMud.size,semFin};
 };
-window.finCatsPagar=()=>cats("pagar");
+window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
 window.finGastosRel=function(F){
   const sit=l=>l.semCaixa?`Já pago no contrato${l.contrato?" "+l.contrato:""}`:l.quitGraos?"Quitada em grãos":l.status==="pago"?"Pago":"Em aberto";
