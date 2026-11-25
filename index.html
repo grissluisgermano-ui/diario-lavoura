@@ -1396,7 +1396,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <script>
 let TALHOES=[{n:"Talhão 1",ha:80},{n:"Talhão 2",ha:50},{n:"Talhão 3",ha:62.5},{n:"Talhão 4",ha:50},{n:"Talhão 5",ha:50},{n:"Potreiro",ha:20}];
 const TIPOS={
-  plantio:{label:"Plantio",campos:["cultura","cultivar","plantadeira","espacamento","emergencia","inicio"],prods:"kg/ha"},
+  plantio:{label:"Plantio",campos:["cultura","cultivar","plantadeira","espacamento","emergencia","inicio","encerrada"],prods:"kg/ha"},
   chuva:{label:"Chuva",campos:["mm","eventos"]},
   aplicacao:{label:"Aplicação",campos:["cultura","alvo","carencia"],prods:"L/ha"},
   adubacao:{label:"Adubação",campos:["cultura"],prods:"kg/ha"},
@@ -1410,6 +1410,7 @@ const CAMPOS={
   plantadeira:{label:"Plantadeira / semeadeira",type:"plt"},
   espacamento:{label:"Espaçamento entre linhas (m)",type:"number",step:"0.01"},
   emergencia:{label:"Emergência (quando nasceu, opcional)",type:"date"},
+  encerrada:{label:"Lavoura encerrada em (opcional)",type:"date",dica:"Para a lavoura sair dos Talhões hoje sem colheita: cobertura dessecada, área replantada com outra cultura… O app já faz isso sozinho na maioria das vezes."},
   inicio:{label:"Início da cultura (manejo antes do plantio, opcional)",type:"date",dica:"Dessecação e outros manejos neste talhão desta data até o plantio contam para esta cultura e esta safra — mesmo que sejam da safra anterior pelo calendário."},
   carencia:{label:"Carência (dias, opcional)",type:"number",step:"1"},
   mm:{label:"Chuva (mm)",type:"number",step:"0.1"},
@@ -2734,6 +2735,8 @@ $("#view-lancar").addEventListener("submit",async e=>{
     const v=$("#c-"+c).value.trim(); if(v!=="") campos[c]=CAMPOS[c].type==="number"?Number(v):v}
   if(campos.inicio&&campos.inicio>data){flash("O início da cultura deve ser antes do plantio (ou no mesmo dia). Confira.");$("#c-inicio").focus();return}
   if(campos.inicio===data) delete campos.inicio;
+  if(campos.encerrada&&campos.encerrada<data){flash("A lavoura não pode ser encerrada antes do plantio. Confira a data.");$("#c-encerrada").focus();return}
+  if(editing){const old=registros.find(r=>r.id===editing); if(old?.campos?.estande&&!campos.estande) campos.estande=old.campos.estande}
   if(TIPOS[tipo].prods){const ps=readProds(); if(ps.length) campos.produtos=ps}
   const body={data,tipo,talhoes:TALHOES.map(t=>t.n).filter(n=>talhoesSel.has(n)),campos,descricao:$("#f-desc").value.trim()};
   if(tipo!=="chuva"){const nm=$("#f-nome").value.trim(); if(nm) body.nome=nm}
@@ -2762,7 +2765,7 @@ $("#view-lancar").addEventListener("submit",async e=>{
 function linhaCampos(r){
   const out=Object.entries(r.campos||{}).map(([k,v])=>{
     const f=CAMPOS[k]; if(!f) return "";
-    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":k==="emergencia"||k==="inicio"?brDate(v):k==="carencia"?num(v)+" dias":k==="espacamento"?String(v).replace(".",",")+" m":v;
+    const val=Array.isArray(v)?v.join(", "):k==="mm"?num(v)+" mm":k==="produtividade"?num(v)+" sc/ha":k==="maquina"?nomeMaq(v):k==="profundidade"?num(v)+" cm":k==="emergencia"||k==="inicio"||k==="encerrada"?brDate(v):k==="carencia"?num(v)+" dias":k==="espacamento"?String(v).replace(".",",")+" m":v;
     return {k:f.label.replace(/ \(.*\)/,""),v:val};
   }).filter(Boolean);
   if(r.tipo!=="chuva"&&(r.talhoes||[]).length) out.push({k:"Área",v:num(areaTotal(r))+" ha"});

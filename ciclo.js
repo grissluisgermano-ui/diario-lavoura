@@ -63,25 +63,38 @@ function lavouras(t,data){
   const cols=registros.filter(r=>r.tipo==="colheita"&&exec(r)&&tem(r,t)&&r.data<=data);
   const ha=haDe(t), areaP=p=>Number(p.areas?.[t])||ha, gs=new Map();
   /* a lavoura também termina (cobertura que não é colhida, ex. aveia):
-     - com o plantio de OUTRA cultura no mesmo talhão depois dela, se as áreas se sobrepõem (somadas passam do talhão);
+     - "Lavoura encerrada em" informada no plantio (campos.encerrada);
      - com a dessecação (ou rolagem) dela: aplicação/mecanização executada depois do plantio com "desseca"/"rolo"/"rolagem"
-       que cita o nome da cultura (ex. "Dessecação Aveia Cobertura") — vale qualquer área —, ou de outra cultura com áreas que se sobrepõem.
+       que cita o nome da cultura (ex. "Dessecação Aveia Cobertura"), ou dessecação de outra cultura na área dela;
+     - pelo ESPAÇO do talhão (o talhão é só referência; as áreas lançadas nem sempre fecham com ele): quando um plantio de outra
+       cultura não cabe no que sobra livre, as lavouras de outra cultura saem para dar lugar — primeiro as de cobertura
+       (aveia, nabo, braquiária…), depois as mais antigas — até caber.
      "Dessecação pré-colheita" não termina (quem termina é a colheita). */
   const sem=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   const txt=r=>sem([r.nome,r.descricao,r.campos?.alvo,r.campos?.obs].filter(Boolean).join(" "));
   const cultDe=r=>nk(typeof culturaReg==="function"?culturaReg(r):r.campos?.cultura);
-  const sobrepoe=(a,b)=>a+b>ha+0.05;
-  const encerrada=p=>{const kc=nk(p.campos?.cultura), ks=sem(p.campos?.cultura).trim();
-    if(cols.some(c=>c.data>=p.data&&(!nk(c.campos?.cultura)||!kc||nk(c.campos.cultura)===kc))) return true;
-    if(!kc) return false;
-    if(ps.some(q=>q!==p&&q.data>p.data&&nk(q.campos?.cultura)&&nk(q.campos.cultura)!==kc&&sobrepoe(areaP(p),areaP(q)))) return true;
-    return registros.some(r=>(r.tipo==="aplicacao"||r.tipo==="mecanizacao")&&exec(r)&&tem(r,t)&&r.data>p.data&&r.data<=data&&(()=>{
-      const x=txt(r); if(!/desseca|rolo|rolagem/.test(x)||/colheita/.test(x)) return false;
-      if(ks&&new RegExp("\\b"+ks.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(x)) return true; // cita a cultura: termina ela
-      if(r.tipo!=="aplicacao"||!/desseca/.test(x)||cultDe(r)===kc) return false;
-      return !r.areas?.[t]||sobrepoe(Number(r.areas[t]),areaP(p));
-    })());
-  };
+  const COB=/aveia|nabo|braqui|brachi|centeio|ervilhaca|crotal|milheto|mourisco|tremo|azevem|cobertura|\bmix\b/;
+  const cob=p=>COB.test(sem(p.campos?.cultura)+" "+sem(p.campos?.cultivar))?1:0;
+  const fimEv=p=>{const kc=nk(p.campos?.cultura), ks=sem(p.campos?.cultura).trim(), ds=[];
+    if(p.campos?.encerrada&&p.campos.encerrada>=p.data) ds.push(p.campos.encerrada);
+    for(const c of cols) if(c.data>=p.data&&(!nk(c.campos?.cultura)||!kc||nk(c.campos.cultura)===kc)) ds.push(c.data);
+    if(kc) for(const r of registros){
+      if(!((r.tipo==="aplicacao"||r.tipo==="mecanizacao")&&exec(r)&&tem(r,t)&&r.data>p.data&&r.data<=data)) continue;
+      const x=txt(r); if(!/desseca|rolo|rolagem/.test(x)||/colheita/.test(x)) continue;
+      if(ks&&new RegExp("\\b"+ks.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(x)){ds.push(r.data); continue} // cita a cultura
+      if(r.tipo==="aplicacao"&&/desseca/.test(x)&&cultDe(r)!==kc&&(!r.areas?.[t]||Number(r.areas[t])+areaP(p)>ha+0.05)) ds.push(r.data);
+    }
+    return ds.sort()[0]||null};
+  const fim=new Map(ps.map(p=>[p,fimEv(p)]));
+  {let ativ=[];
+    for(const q of ps){
+      ativ=ativ.filter(p=>{const f=fim.get(p); return !(f&&f<=q.data)});
+      const kq=nk(q.campos?.cultura);
+      if(kq){let exc=areaP(q)+ativ.reduce((a,p)=>a+areaP(p),0)-ha;
+        if(exc>0.05) for(const p of ativ.filter(p=>nk(p.campos?.cultura)&&nk(p.campos.cultura)!==kq).sort((a,b)=>cob(b)-cob(a)||a.data.localeCompare(b.data))){
+          if(exc<=0.05) break; fim.set(p,q.data); exc-=areaP(p); ativ=ativ.filter(x=>x!==p)}}
+      ativ.push(q)}}
+  const encerrada=p=>{const f=fim.get(p); return !!(f&&f<=data)};
   const ativos=ps.filter(p=>!encerrada(p));
   for(const p of ativos){
     const k=nk(p.campos?.cultura); let G=gs.get(k); if(!G){G={k,cultura:p.campos?.cultura||"Cultura",vars:new Map()}; gs.set(k,G)}
@@ -119,6 +132,9 @@ function ligaChips(root,depois){
 
 /* ---------- Painel: "Talhões hoje" ---------- */
 let abrirEm=null;
+// "Já terminou": encerra a lavoura hoje (grava campos.encerrada nos plantios dela) — para quando o app não percebe sozinho
+const btFim=(t,L)=>{const ids=(L.ps||[]).map(p=>p.id).join(","), tx=`Esta lavoura já terminou`;
+  return ids?`<button type="button" class="link ci-bt ci-fim" data-cifim="${ids}" data-txt="${tx}">${tx}</button>`:""};
 function render(){
   const box=$("#ci-box"); if(!box) return;
   const hoje=todayISO(), ts=TALHOES.map(t=>t.n);
@@ -131,11 +147,11 @@ function render(){
     <div class="ci-lista">${linhas.map(({t,c,ls})=>{
       const id=(typeof propCfg!=="undefined"?propCfg.talhoes.find(x=>x.n===t)?.id:null), mini=id&&window.mpMini?window.mpMini(id,40):"";
       if(!c) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small><span class="ci-ver">Ver atividades da safra ›</span></div></div>`;
-      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita?.data||c.p.data)}${c.colheita?` (${dias(c.colheita.data,hoje)} dias)`:""}</small><span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
+      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${c.colheita?`${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)`:`${esc(c.cultura||"Cultura")} encerrada${c.p.campos?.encerrada?` em ${brDate(c.p.campos.encerrada)}`:""} · plantio em ${brDate(c.p.data)}`}</small><span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
       const sel=selDe(t,ls), L=sel.V||sel.G;
       let corpo;
       if(!L){ // Tudo: uma linha por cultura
-        corpo=ls.map(g=>{const n=numsDe(t,g,r=>casa(r,g,null)); return `<div class="ci-lav"><div class="ci-l1"><b>${esc(g.cultura)}</b><span>${num(g.area)} ha${g.vars.length>1?` · ${g.vars.length} variedades`:g.vars[0]?.cultivar?" · "+esc(g.vars[0].cultivar):""}</span></div><div class="ci-nums">${n.html}</div></div>`}).join("");
+        corpo=ls.map(g=>{const n=numsDe(t,g,r=>casa(r,g,null)); return `<div class="ci-lav"><div class="ci-l1"><b>${esc(g.cultura)}</b><span>${num(g.area)} ha${g.vars.length>1?` · ${g.vars.length} variedades`:g.vars[0]?.cultivar?" · "+esc(g.vars[0].cultivar):""}</span></div><div class="ci-nums">${n.html}</div>${btFim(t,g)}</div>`}).join("");
       }else{
         const filtro=r=>casa(r,sel.G,sel.V), n=numsDe(t,L,filtro), a=n.a, car=a&&Number(a.campos?.carencia)>0?soma(a.data,Number(a.campos.carencia)):null;
         const nome=[sel.G.cultura,sel.V?sel.V.cultivar:(sel.G.vars.length>1?`${sel.G.vars.length} variedades`:"")].filter(Boolean).join(" · ");
@@ -145,7 +161,8 @@ function render(){
           <small class="ci-sub">Plantio em ${brDate(L.p.data)}${L.emergencia?` · emergência em ${brDate(L.emergencia)}`:""}</small>
           ${a?`<small class="ci-sub">Última aplicação ${brDate(a.data)}${prods(a).length?`: ${esc(prods(a).join(" + "))}`:a.nome?`: ${esc(a.nome)}`:""}${car?` · <span class="${car>hoje?"ci-car":"ci-lib"}">${car>hoje?`carência até ${brDate(car)} (faltam ${dias(hoje,car)} dias)`:`carência terminou em ${brDate(car)}`}</span>`:""}</small>`:""}
           ${L.emergencia?"":ab?`<div class="ci-em"><input type="date" id="ci-em-d" value="${hoje}" max="${hoje}" min="${L.p.data}" aria-label="Data da emergência"><button type="button" class="btn fn-mini" data-ciok="${L.p.id}">Salvar</button><button type="button" class="link" data-cix>Cancelar</button></div>`
-            :`<button type="button" class="link ci-bt" data-ciem="${L.p.id}|${esc(t)}">Informar emergência</button>`}`;
+            :`<button type="button" class="link ci-bt" data-ciem="${L.p.id}|${esc(t)}">Informar emergência</button>`}
+          ${btFim(t,L)}`;
       }
       return `<div class="ci-t" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c">
           <div class="ci-l1"><b>${esc(t)}</b>${ls.length===1&&ls[0].vars.length===1?`<span>${esc([ls[0].cultura,ls[0].vars[0].cultivar].filter(Boolean).join(" · "))}</span>`:""}</div>
@@ -158,6 +175,12 @@ function render(){
     const abre=e=>{if(e.target.closest("button,input,a,.ci-chips")) return; abreTalhao(el.dataset.ct)};
     el.addEventListener("click",abre);
     el.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target===el){e.preventDefault(); abreTalhao(el.dataset.ct)}});
+  });
+  box.querySelectorAll("[data-cifim]").forEach(b=>b.onclick=async e=>{e.stopPropagation();
+    if(!b.dataset.conf){b.dataset.conf=1; b.textContent="Toque de novo para encerrar"; b.classList.add("ci-fim-conf"); setTimeout(()=>{if(b.isConnected){delete b.dataset.conf; b.textContent=b.dataset.txt; b.classList.remove("ci-fim-conf")}},4000); return}
+    b.disabled=true; const hoje=todayISO();
+    try{for(const id of b.dataset.cifim.split(",")){const r=registros.find(x=>x.id===id); if(!r) continue; const {id:_,...doc}=r; doc.campos={...doc.campos,encerrada:hoje}; await col.doc(id).set(doc)}
+      window.ponte?.aviso?.("Lavoura encerrada hoje. Para desfazer, edite o plantio e apague \"Lavoura encerrada em\".",true)}catch{b.disabled=false}
   });
   box.querySelectorAll("[data-ciem]").forEach(b=>b.onclick=()=>{abrirEm=b.dataset.ciem; render(); $("#ci-em-d")?.focus()});
   box.querySelectorAll("[data-cix]").forEach(b=>b.onclick=()=>{abrirEm=null; render()});

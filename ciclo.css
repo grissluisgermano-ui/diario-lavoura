@@ -57,3 +57,5 @@ body.ct-aberto{overflow:hidden}
 .ci-lav{display:flex;flex-direction:column;gap:4px;padding:6px 0;border-top:1px dashed var(--line)}
 .ci-lav:first-of-type{border-top:0}
 .ct-env{margin-left:auto}
+.ci-fim{display:block;margin-top:4px;font-size:.8rem;color:var(--muted,#6b6b6b)}
+.ci-fim.ci-fim-conf{color:#b3261e;font-weight:600}
