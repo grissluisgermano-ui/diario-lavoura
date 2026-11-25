@@ -64,14 +64,23 @@ function lavouras(t,data){
   const ha=haDe(t), areaP=p=>Number(p.areas?.[t])||ha, gs=new Map();
   /* a lavoura também termina (cobertura que não é colhida, ex. aveia):
      - com o plantio de OUTRA cultura no mesmo talhão depois dela, se as áreas se sobrepõem (somadas passam do talhão);
-     - com a dessecação para o plantio seguinte: aplicação executada depois dela, de outra cultura (ou "dessecação" no nome/alvo/descrição). */
-  const txt=r=>[r.nome,r.descricao,r.campos?.alvo,r.campos?.obs].filter(Boolean).join(" ");
+     - com a dessecação (ou rolagem) dela: aplicação/mecanização executada depois do plantio com "desseca"/"rolo"/"rolagem"
+       que cita o nome da cultura (ex. "Dessecação Aveia Cobertura") — vale qualquer área —, ou de outra cultura com áreas que se sobrepõem.
+     "Dessecação pré-colheita" não termina (quem termina é a colheita). */
+  const sem=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const txt=r=>sem([r.nome,r.descricao,r.campos?.alvo,r.campos?.obs].filter(Boolean).join(" "));
   const cultDe=r=>nk(typeof culturaReg==="function"?culturaReg(r):r.campos?.cultura);
-  const encerrada=p=>{const kc=nk(p.campos?.cultura);
+  const sobrepoe=(a,b)=>a+b>ha+0.05;
+  const encerrada=p=>{const kc=nk(p.campos?.cultura), ks=sem(p.campos?.cultura).trim();
     if(cols.some(c=>c.data>=p.data&&(!nk(c.campos?.cultura)||!kc||nk(c.campos.cultura)===kc))) return true;
     if(!kc) return false;
-    if(ps.some(q=>q!==p&&q.data>p.data&&nk(q.campos?.cultura)&&nk(q.campos.cultura)!==kc&&areaP(p)+areaP(q)>ha*1.02)) return true;
-    return registros.some(r=>r.tipo==="aplicacao"&&exec(r)&&tem(r,t)&&r.data>p.data&&r.data<=data&&/desseca/i.test(txt(r))&&!/colheita/i.test(txt(r))&&cultDe(r)!==kc&&(!r.areas?.[t]||Number(r.areas[t])+areaP(p)>ha*1.02));
+    if(ps.some(q=>q!==p&&q.data>p.data&&nk(q.campos?.cultura)&&nk(q.campos.cultura)!==kc&&sobrepoe(areaP(p),areaP(q)))) return true;
+    return registros.some(r=>(r.tipo==="aplicacao"||r.tipo==="mecanizacao")&&exec(r)&&tem(r,t)&&r.data>p.data&&r.data<=data&&(()=>{
+      const x=txt(r); if(!/desseca|rolo|rolagem/.test(x)||/colheita/.test(x)) return false;
+      if(ks&&new RegExp("\\b"+ks.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(x)) return true; // cita a cultura: termina ela
+      if(r.tipo!=="aplicacao"||!/desseca/.test(x)||cultDe(r)===kc) return false;
+      return !r.areas?.[t]||sobrepoe(Number(r.areas[t]),areaP(p));
+    })());
   };
   const ativos=ps.filter(p=>!encerrada(p));
   for(const p of ativos){
