@@ -373,6 +373,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .sai-form{border:1px solid var(--line,#ddd);border-radius:12px;padding:12px;margin:10px 0;background:var(--card,#fff)}
 .sai-tit{font-weight:700;margin-bottom:8px}.sai-tipos{margin-bottom:10px}.sai-info{margin:6px 0}
 .ent-sai{background:color-mix(in srgb,var(--accent,#2e7d32) 6%,transparent)}
+.rom .r-est{grid-column:1/-1;display:grid;gap:4px;background:color-mix(in srgb,var(--accent,#2e7d32) 7%,transparent);border-radius:10px;padding:8px}.rom .r-est[hidden]{display:none}
 .mq-anx-l{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0}
 .nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
 .nf-ret span{font-size:.88rem}
@@ -2479,7 +2480,7 @@ function renderEstoque(){
     ${!ab?"":`<div class="es-det">
     ${e.classe?`<div class="pc-gen">${esc(e.classe)}</div>`:""}
     ${reservaBox(e,s)}
-    ${(()=>{if(!(e.classe==="Semente"||ehEmb(e))) return ""; const faltaCont=(e.entradas||[]).some(x=>!x.emb||(x.emb.tipo!=="kg"&&!(x.emb.cont>0))); if(!faltaCont) return "";
+    ${(()=>{if(!(e.classe==="Semente"||ehEmb(e))) return ""; const faltaCont=(e.entradas||[]).some(x=>!x.colheitaId&&!x.saida&&(!x.emb)||!x.colheitaId&&x.emb&&(x.emb.tipo!=="kg"&&!(x.emb.cont>0))); if(!faltaCont) return "";
       const notas=[...new Map((e.entradas||[]).filter(x=>x.chave||x.nf).map(x=>[x.chave||("nf"+x.nf),x])).values()];
       return `<div class="refaz-box"><b>⚠️ Embalagens sem o conteúdo (sementes ou kg)</b><span class="note">Refaça pela nota fiscal: o app lê o XML e separa em bags e sacos com o número de sementes, lote e germinação.</span>
         <div class="row">${notas.map(x=>window.danfeTem?.(x.chave)?`<button type="button" class="btn fn-mini" data-refaz="${esc(x.chave)}">🔁 Refazer pela NF ${esc(x.nf||"")}</button>`:`<label class="btn ghost fn-mini">🔁 Escolher o XML da NF ${esc(x.nf||"")}<input type="file" accept=".xml,text/xml" hidden data-refazxml="${esc(x.chave||"")}" data-refazprod="${esc(e.id)}"></label>`).join("")||`<label class="btn ghost fn-mini">🔁 Escolher o XML da nota<input type="file" accept=".xml,text/xml" hidden data-refazxml="" data-refazprod="${esc(e.id)}"></label>`}</div>
@@ -2496,7 +2497,7 @@ function renderEstoque(){
     ${s.usos&&!s.emb?`<div class="note">Usado em ${s.usos} lançamento${s.usos>1?"s":""}${s.semConv?` · ${s.semConv} sem dose em ${e.unidade}/ha, não descontado${s.semConv>1?"s":""}`:""}</div>`:""}
     ${esUsosBox(e)}
     <details><summary>Entradas (${(e.entradas||[]).length})</summary>
-      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>x.saida&&window.saiLinha?window.saiLinha(e,x,i):`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,Math.abs(x.quantidade)))}${x.lote||x.germ?`<small class="ent-lote">${[x.lote?"lote "+esc(x.lote):"",x.germ?"germ. "+num(x.germ)+"%":""].filter(Boolean).join(" · ")}</small>`:""}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):Number(x.valorTotal)<0?"−"+brl(-x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.juntadoDe?`<span class="ent-orig ent-junt">Veio de ${esc(x.juntadoDe)}${x.qtdOriginal!=null?` (${num(x.qtdOriginal)} ${esc(x.unOriginal||"")})`:""}</span>`:""}${x.devolucao?`<span class="ent-dev">↩️ Devolução${x.refNF?" da NF "+esc(x.refNF):""}</span>`:""}${x.chave&&!x.devolucao&&(e.classe==="Semente"||ehEmb(e))&&window.danfeTem?.(x.chave)?`<button type="button" class="link" data-refaz="${x.chave}">🔁 Refazer pela nota</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
+      ${(e.entradas||[]).map((x,i)=>[x,i]).sort((p,q)=>String(q[0].data||"").localeCompare(String(p[0].data||""))||q[1]-p[1]).map(([x,i])=>x.saida&&window.saiLinha?window.saiLinha(e,x,i):x.colheitaId?`<div class="ent ent-sai"><span>${x.data?brDate(x.data):"–"}</span><span>🌾 ${numP(x.quantidade)} ${e.unidade}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):"–"}</span><button type="button" class="link" data-cheabre="${x.colheitaId}|${e.id}">Ver a colheita</button><span class="ent-orig">${esc(x.origem||"Colheita própria")}${x.custoKg>0?` · custo da ${esc(x.cultura||"cultura")} na safra ${safraLab(x.safra)}: ${brl(x.custoKg)}/kg (rateio pela produção)`:" · custo da cultura ainda não lançado"}</span></div>`:`<div class="ent"><span>${x.data?brDate(x.data):"–"}</span><span>${ehEmb(e)?`${num(x.quantidade)} ${esc(embRot(x.emb,Math.abs(x.quantidade)))}${x.lote||x.germ?`<small class="ent-lote">${[x.lote?"lote "+esc(x.lote):"",x.germ?"germ. "+num(x.germ)+"%":""].filter(Boolean).join(" · ")}</small>`:""}`:`${num(x.quantidade)} ${e.unidade}`}</span><span>${Number(x.valorTotal)>0?brl(x.valorTotal):Number(x.valorTotal)<0?"−"+brl(-x.valorTotal):"–"}</span><button type="button" class="link" data-edent="${e.id}:${i}">Editar</button><button type="button" class="link danger" data-rment="${e.id}:${i}">Remover</button>${x.chave?`<button type="button" class="link" data-danfe="${x.chave}">DANFE</button>`:""}${x.juntadoDe?`<span class="ent-orig ent-junt">Veio de ${esc(x.juntadoDe)}${x.qtdOriginal!=null?` (${num(x.qtdOriginal)} ${esc(x.unOriginal||"")})`:""}</span>`:""}${x.devolucao?`<span class="ent-dev">↩️ Devolução${x.refNF?" da NF "+esc(x.refNF):""}</span>`:""}${x.chave&&!x.devolucao&&(e.classe==="Semente"||ehEmb(e))&&window.danfeTem?.(x.chave)?`<button type="button" class="link" data-refaz="${x.chave}">🔁 Refazer pela nota</button>`:""}${anxLinks(x.anexos)}${x.origem||x.nf?`<span class="ent-orig">${[x.origem?"Origem: "+esc(x.origem):"",x.nf?"NF "+esc(x.nf):""].filter(Boolean).join(" · ")}</span>`:""}</div>`).join("")}
     </details>
     ${esEdit===e.id?peForm(e):""}
     ${window.saiBloco?.(e)||""}
@@ -2505,6 +2506,7 @@ function renderEstoque(){
   </article>`}).join("")+zBt;
   $("#es-lista").querySelectorAll("[data-esab]").forEach(b=>b.onclick=()=>{const id=b.dataset.esab; if(esAbertos.has(id)||esEdit===id){esAbertos.delete(id); if(esEdit===id) esEdit=null} else esAbertos.add(id); renderEstoque()});
   window.saiLiga?.($("#es-lista"));
+  $("#es-lista").querySelectorAll("[data-cheabre]").forEach(b=>b.onclick=()=>{const [c,p]=b.dataset.cheabre.split("|"); esVolta=p; editar(c)});
   $("#es-lista").querySelectorAll("[data-edprod]").forEach(b=>b.onclick=()=>{esEdit=esEdit===b.dataset.edprod?null:b.dataset.edprod; renderEstoque(); if(esEdit) document.querySelector(`.pe-form[data-pe="${esEdit}"] input`)?.focus()});
   $("#es-lista").querySelectorAll(".pe-form").forEach(box=>{
     if(peRasc&&box.dataset.pe===peAtual.dataset.pe){const els=[...box.querySelectorAll("input,select")]; els.forEach((el,k)=>{if(peRasc[k]!=null) el.value=peRasc[k]}); if(peFoco>=0) els[peFoco]?.focus()}
@@ -3722,7 +3724,8 @@ function romRow(r={}){
     <button type="button" class="rm" aria-label="Remover romaneio">×</button>
     <input class="r-data" type="date" value="${esc(r.data||$("#f-data").value||todayISO())}" aria-label="Data da entrega">
     <input class="r-hora" type="time" value="${esc(r.hora||"")}" aria-label="Hora da entrega">
-    <input class="r-local" list="dl-dep" placeholder="Local de entrega (Coamo, C.Vale…)" value="${esc(r.local||ultimoDeposito())}" aria-label="Local de entrega">
+    <input class="r-local" list="dl-dep" placeholder="Local de entrega (Coamo, C.Vale…)" value="${esc(r.estoque?LOCAL_EST:r.local||ultimoDeposito())}" aria-label="Local de entrega">
+    <div class="r-est"${r.estoque?"":" hidden"}><label>📦 Guardar no estoque como</label><input class="r-prod" list="dl-prod" value="${esc(r.estoque?.nome||"")}" placeholder="Semente própria"><small class="note">Fica no Estoque para usar depois (ex.: semente para o ano que vem). O custo é o da cultura nesta safra, rateado pela produção.</small></div>
     <small class="r-eq note" aria-live="polite">${r.un==="kg"&&r.kg>0?`${num(r.kg)} kg = <b>${num(r.sacas)} sc</b> de 60 kg`:""}</small>
     <details class="r-cls"${r.bruto>0?" open":""}><summary>Peso bruto e descontos (classificação)</summary>
       <div class="field r-bf"><label>Peso bruto (kg)</label><input class="r-bruto" inputmode="decimal" placeholder="Ex.: 32.400" value="${r.bruto>0?esc(String(r.bruto).replace(".",",")):""}"></div>
@@ -3771,7 +3774,10 @@ function romCalc(el){
   }
   romEq(el);
 }
-function ultimoDeposito(){const rs=[...document.querySelectorAll("#roms .r-local")].map(i=>i.value.trim()).filter(Boolean);return rs[rs.length-1]||""}
+function ultimoDeposito(){const rs=[...document.querySelectorAll("#roms .r-local")].map(i=>i.value.trim()).filter(v=>v&&v!==LOCAL_EST);return rs[rs.length-1]||""}
+const LOCAL_EST="📦 Estoque próprio (galpão)"; // romaneio guardado na propriedade para uso futuro (semente): vai para o Estoque, não para o saldo de grãos
+const nomeSemProp=()=>`Semente ${normCult($("#c-cultura")?.value||document.querySelector('[data-campo="cultura"]')?.value||"")} (própria)`;
+document.addEventListener("input",ev=>{const l=ev.target.closest?.("#roms .r-local"); if(!l) return; const box=l.closest(".rom").querySelector(".r-est"); const on=l.value.trim()===LOCAL_EST; box.hidden=!on; if(on&&!box.querySelector(".r-prod").value) box.querySelector(".r-prod").value=nomeSemProp()});
 function renderRoms(list){
   const box=$("#roms-box");
   if(!TIPOS[tipo].roms){box.hidden=true;$("#roms").innerHTML="";return}
@@ -3785,6 +3791,7 @@ function readRoms(strict){
     const q=horNum(el.querySelector(".r-sc").value), emKg=el.querySelector(".r-un")?.value==="kg", cls=romCls(el), anx=romAnx.get(el)?.get()||[];
     const r={numero:el.querySelector(".r-num").value.trim(),sacas:q==null?null:emKg?Math.round(q/60*100)/100:q,...(emKg&&q!=null?{kg:q,un:"kg"}:{}),
       ...(cls?.bruto>0?{bruto:cls.bruto,descontos:cls.descontos,descTot:Math.round(cls.descTot*100)/100}:cls?{descontos:cls.descontos}:{}),...(anx.length?{anexos:anx}:{}),data:el.querySelector(".r-data").value,hora:el.querySelector(".r-hora").value,local:el.querySelector(".r-local").value.trim()};
+    if(r.local===LOCAL_EST){r.local="Estoque próprio"; r.estoque={nome:el.querySelector(".r-prod").value.trim()||nomeSemProp()}}
     if(!r.numero&&r.sacas==null&&!el.querySelector(".r-local").value.trim()) continue;
     if(strict){
       if(!(r.sacas>0)){flash(`Informe as sacas ou os kg do romaneio ${r.numero||out.length+1}.`);return null}
@@ -3947,7 +3954,7 @@ let graos=[], grModo="venda";
 const GR_MODOS={venda:"Venda",retirada:"Retirada / consumo",transferencia:"Transferência",arrendamento:"Pagamento do arrendamento",inicial:"Saldo inicial"};
 function grMovs(){
   const m=[];
-  for(const r of registros) if(r.tipo==="colheita"&&!ehProg(r)) for(const rm of r.romaneios||[])
+  for(const r of registros) if(r.tipo==="colheita"&&!ehProg(r)) for(const rm of r.romaneios||[]) if(!rm.estoque)
     m.push({tipo:"romaneio",data:rm.data||r.data,hora:rm.hora,numero:rm.numero,kg:rm.kg,un:rm.un,bruto:rm.bruto,descontos:rm.descontos,descTot:rm.descTot,anexos:rm.anexos,cultura:normCult(r.campos?.cultura),local:rm.local,sacas:Number(rm.sacas)||0,divisao:r.divisao,talhoes:r.talhoes,areas:r.areas,regId:r.id,criadoPor:r.criadoPor,editadoPor:r.editadoPor,editadoEm:r.editadoEm});
   for(const g of graos) m.push({...g,cultura:normCult(g.cultura)});
   return m.sort((a,b)=>b.data.localeCompare(a.data)||String(b.hora||b.criadoEm||"").localeCompare(String(a.hora||a.criadoEm||"")));
@@ -4012,7 +4019,7 @@ function renderGraos(){
   }else $("#gr-prod").innerHTML=`<tbody><tr><td class="note" style="font-family:var(--f-body)">Nenhuma colheita lançada na safra ${safraLab(cur)}.</td></tr></tbody>`;
   // listas de apoio
   const locs=[...new Set([...DEPOSITOS,...movs.flatMap(m=>[m.local,m.destino]).filter(Boolean)])];
-  $("#dl-dep").innerHTML=locs.map(l=>`<option value="${esc(l)}">`).join("");
+  $("#dl-dep").innerHTML=[...locs,LOCAL_EST].map(l=>`<option value="${esc(l)}">`).join("");
   const cults=[...new Set(["Soja","Milho","Trigo",...movs.map(m=>m.cultura)])];
   $("#dl-cult").innerHTML=cults.map(c=>`<option value="${esc(c)}">`).join("");
   const fc=$("#gr-f-cult").value, fl=$("#gr-f-local").value;
@@ -5225,7 +5232,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
   window.errosApp?.liga(rawDb);
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.(); window.cheInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     seguro("estoque",renderEstoque); seguro("produtos",atualizaProdutos); seguro("esSync",esSync); seguro("programacao",renderProgramacao);
@@ -5269,6 +5276,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="ligacoes.js"></script>
 <script src="limpar.js"></script>
 <script src="saida.js"></script>
+<script src="colheita-estoque.js"></script>
 <script>
 (function(){
   const v=window.APP_VERSAO||{n:"?",data:""}, $=s=>document.querySelector(s);

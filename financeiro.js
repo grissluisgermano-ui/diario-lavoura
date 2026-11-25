@@ -141,6 +141,7 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     if(x.doFinanceiro) continue; // lançada a partir de uma conta do Financeiro
     if(x.retirada) continue; // retirada de produto já pago no contrato
     if(x.devolucao) continue; // devolução de compra: abate no contrato/conta, não vira pendência
+    if(x.colheitaId) continue; // semente própria guardada da colheita (valor = custo da cultura, não é compra)
     if(x.nf&&nfs.has(nfKey(x.nf,x.origem))) continue;
     const k=`est|${norm(x.origem)}|${x.nf?String(x.nf).replace(/^0+/,""):x.data}`;
     const p=g.get(k)||{k,natureza:"pagar",data:x.data,nf:x.nf||"",pessoa:x.origem||"",categoria:"insumos",fonte:"Estoque",itens:[],valor:0,chave:x.chave||""};
@@ -749,6 +750,37 @@ window.finTiraEstoque=async function(e,{cat,maquinaId,benfId}){
     const top=Object.entries(t).sort((a,b)=>b[1]-a[1])[0]; if(top&&l.itens.every(i=>i.cat)) l.categoria=top[0];
     const {id,...doc}=l; await db.collection("fin_lanc").doc(id).set(doc)}
   return {contas:contasMud.size,semFin};
+};
+/* Custo total de uma cultura numa safra, com a mesma conta do Resultado da safra (rateio por área):
+   insumos aplicados (registros) ou compras de insumo, + custos diretos da cultura/talhões, + custos gerais rateados pela área plantada.
+   Usado para dar valor à semente própria guardada no estoque (colheita-estoque.js). */
+window.finCustoCultura=function(sy,cult){
+  cult=nc(cult); const naS=d=>d&&safraDe(d)===sy;
+  const lan=fnLanc.filter(l=>l.natureza==="pagar"&&safraLanc(l)===sy);
+  const plant={};
+  for(const r of registros) if((r.tipo==="plantio"||r.tipo==="colheita")&&!ehProg(r)&&naS(r.data)){const c=nc(r.campos?.cultura); if(!c) continue;
+    for(const t of r.talhoes||[]) (plant[c]??={})[t]=Math.max(plant[c]?.[t]||0,Number(r.areas?.[t])||haDe(t))}
+  const areaCult=c=>Object.values(plant[c]||{}).reduce((t,v)=>t+v,0), areaPlant=Object.keys(plant).reduce((t,c)=>t+areaCult(c),0);
+  const naSR=r=>(typeof safraReg==="function"?safraReg(r):safraDe(r.data))===sy, cultR=r=>typeof culturaReg==="function"?culturaReg(r):r.campos?.cultura;
+  let insReg=0, temReg=false;
+  for(const r of registros) if(!ehProg(r)&&naSR(r)&&r.custoHa>0){temReg=true; if(nc(cultR(r))!==cult) continue;
+    for(const t of r.talhoes||[]) insReg+=(Number(r.custoHaLiq??r.custoHa)||0)*(Number(r.areas?.[t])||haDe(t))}
+  const x={ins:temReg?insReg:0,dir:0,ger:0}; let geral=0;
+  for(const l of lan){
+    const its=(l.itens||[]).filter(i=>Number(i.valor)>0), tot=its.reduce((t,i)=>t+Number(i.valor),0);
+    const parts=its.some(i=>i.cat&&i.cat!==l.categoria&&i.cat!=="__est")?Object.entries(its.reduce((g,i)=>{const c=i.cat&&i.cat!=="__est"?i.cat:l.categoria; g[c]=(g[c]||0)+Number(i.valor); return g},{})).map(([c,v])=>[c,v/tot]):[[l.categoria,1]];
+    for(const [catg,fr] of parts){
+      const pp=papel(catg); if(["invest","familia","pecuaria","receita","naoreceita"].includes(pp)) continue;
+      let v=vp(l)*fr; if(pp==="financ") v=jurosDe(l)*fr; if(!(v>0)) continue;
+      const ins=INSUMO_CATS.has(catg); if(ins&&temReg) continue;
+      const campo=ins?"ins":"dir", ts=(l.talhoes||[]), c=nc(l.cultura);
+      if(c){ if(c===cult) x[campo]+=v; continue }
+      if(ts.length){const cs=Object.keys(plant).filter(k=>ts.some(t=>plant[k][t])); if(cs.includes(cult)) x[campo]+=v/cs.length; else if(!cs.length) geral+=v; continue}
+      geral+=v;
+    }
+  }
+  x.ger=areaPlant?geral*areaCult(cult)/areaPlant:0;
+  return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult)};
 };
 window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
