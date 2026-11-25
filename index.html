@@ -367,6 +367,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .rec-prods li span .p-embs{display:block;font-size:.8rem;color:var(--muted);font-family:var(--f-body,inherit);white-space:normal}
 .prod.emb .p-tot{font-size:.88rem;padding-left:6px}
 .nf-cont select{width:auto}
+.mq-anx-l{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0}
 .nf-ret{display:flex;flex-direction:column;gap:2px;border:1px solid #6b8f3a;background:rgba(46,125,50,.08);border-radius:8px;padding:10px 12px;margin:6px 0}
 .nf-ret span{font-size:.88rem}
 .ctr-it{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:4px}.ctr-it:first-of-type{border-top:0}.ctr-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ctr-nums div{background:var(--sunk);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;min-width:0}.ctr-nums span{font-size:.75rem;color:var(--muted)}.ctr-nums b{font-family:var(--f-mono);font-size:.9rem}.ctr-st{font-size:.88rem}.ctr-st.ok{color:var(--ok,#2e7d32)}.ctr-st.atn{color:#b26a00}.ctr-st.ruim{color:var(--danger)}
@@ -966,6 +967,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <div class="thumbs" id="mq-fotos"></div>
         <div class="row"><label class="btn ghost foto-btn" for="mq-foto-in">+ Adicionar fotos</label><input id="mq-foto-in" type="file" accept="image/*" multiple hidden><span class="note" id="mq-foto-status"></span></div>
       </div>
+      <div class="field"><span class="lbl">PDF e vídeos</span><div id="mq-anx"></div><span class="note">Nota, orçamento, manual em PDF ou vídeo do defeito/do serviço (vídeo até 25 MB, uns 20–30 segundos).</span></div>
       <div class="row"><button class="btn" type="submit" id="mq-salvar">Salvar manutenção</button><span class="toast" id="mq-toast" role="status"></span></div>
     </form>
 
@@ -3202,6 +3204,7 @@ function renderMaquinas(){
       <div class="rec-campos">${x.oficina?`<span>Oficina: <b>${esc(x.oficina)}</b></span>`:""}${x.proxData||x.proxHoras?`<span>Próxima: <b>${esc(proxTxt(x))}</b></span>`:""}</div>
       ${x.descricao?`<p class="rec-desc">${esc(x.descricao)}</p>`:""}
       ${(x.fotos||[]).length?`<div class="rec-fotos">${x.fotos.map((id,k)=>`<button type="button" data-foto="${esc(id)}" aria-label="Ampliar foto ${k+1}"><img src="${fotoSrc(esc(id))}" loading="lazy" alt="Foto ${k+1}"></button>`).join("")}</div>`:""}
+      ${(x.anexos||[]).length&&typeof anxLinks==="function"?`<div class="mq-anx-l">${anxLinks(x.anexos)}</div>`:""}
       ${assinatura(x)}
       <div class="rec-actions"><button type="button" class="link" data-mqedit="${x.id}">Editar</button><button type="button" class="link danger" data-mqdelm="${x.id}">Excluir</button></div>
     </article>`).join(""):`<div class="empty">Nenhuma manutenção registrada${mqSel?" para esta máquina":""}.</div>`;
@@ -3247,13 +3250,14 @@ $("#mq-foto-in").addEventListener("change",e=>{
   }
   e.target.value=""; mqRenderFotos();
 });
+const mqAnx=typeof anxCampo==="function"&&document.getElementById("mq-anx")?anxCampo(document.getElementById("mq-anx"),{rotulo:"Anexar PDF ou vídeo",accept:"application/pdf,.pdf,video/*,.mov,.mp4"}):null;
 function mqFlash(m){$("#mq-toast").textContent=m;clearTimeout(mqFlash.t);mqFlash.t=setTimeout(()=>$("#mq-toast").textContent="",3500)}
 function mqReset(descartar=true){
   mqEditing=null; $("#mq-form-title").textContent="Registrar manutenção"; $("#mq-cancel").hidden=true; $("#mq-salvar").textContent="Salvar manutenção";
   ["#mq-hor","#mq-oficina","#mq-prox-data","#mq-prox-hor","#mq-desc","#mq-n-nome","#mq-n-modelo","#mq-n-ano"].forEach(s=>$(s).value="");
   $("#mq-data").value=todayISO(); mqServicos(); mqItens();
   if(descartar) for(const id of mqNovas) assets?.delete(id).catch(()=>{});
-  mqNovas.clear(); mqFotos=[]; mqRenderFotos();
+  mqNovas.clear(); mqFotos=[]; mqRenderFotos(); mqAnx?.limpar();
 }
 $("#mq-cancel").onclick=()=>mqReset();
 function mqEditar(id){
@@ -3263,14 +3267,14 @@ function mqEditar(id){
   $("#mq-data").value=x.data; $("#mq-hor").value=x.horimetro!=null?String(x.horimetro).replace(".",","):"";
   $("#mq-oficina").value=x.oficina||""; $("#mq-prox-data").value=x.proxData||""; $("#mq-prox-hor").value=x.proxHoras!=null?String(x.proxHoras).replace(".",","):"";
   $("#mq-desc").value=x.descricao||""; mqServicos(x.servicos||[]); mqItens(x.itens||[]);
-  mqFotos=(x.fotos||[]).map(f=>({id:f,src:fotoSrc(f)})); mqRenderFotos();
+  mqFotos=(x.fotos||[]).map(f=>({id:f,src:fotoSrc(f)})); mqRenderFotos(); mqAnx?.set(x.anexos||[]);
   $("#mq-form-title").textContent="Editar manutenção"; $("#mq-cancel").hidden=false; $("#mq-salvar").textContent="Salvar alterações";
   $("#mq-form").scrollIntoView({block:"start"});
 }
 $("#mq-form").addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(!db){mqFlash("Sem conexão com o banco de dados.");return}
-  if(mqEnviando){mqFlash("Aguarde as fotos terminarem de enviar.");return}
+  if(mqEnviando||mqAnx?.ocupado()){mqFlash("Aguarde os arquivos terminarem de enviar.");return}
   let maqId=$("#mq-maq").value;
   if(!maqId){mqFlash("Escolha a máquina.");$("#mq-maq").focus();return}
   if(maqId===NOVA&&!$("#mq-n-nome").value.trim()){mqFlash("Informe o nome da nova máquina.");$("#mq-n-nome").focus();return}
@@ -3279,7 +3283,7 @@ $("#mq-form").addEventListener("submit",async ev=>{
   const body={data,servicos:[...$("#mq-serv").querySelectorAll('[aria-pressed="true"]')].map(b=>b.dataset.v),
     horimetro:horNum($("#mq-hor").value),oficina:$("#mq-oficina").value.trim(),itens,custoTotal:itens.reduce((s,i)=>s+(i.valor||0),0),
     proxData:$("#mq-prox-data").value||null,proxHoras:horNum($("#mq-prox-hor").value),descricao:$("#mq-desc").value.trim(),
-    fotos:mqFotos.filter(f=>f.id).map(f=>f.id)};
+    fotos:mqFotos.filter(f=>f.id).map(f=>f.id), anexos:mqAnx?mqAnx.get():[]};
   $("#mq-salvar").disabled=true;
   try{
     if(maqId===NOVA){const ref=await db.collection("maquinas").add({nome:$("#mq-n-nome").value.trim(),tipo:$("#mq-n-tipo").value,modelo:$("#mq-n-modelo").value.trim(),ano:$("#mq-n-ano").value.trim(),criadoEm:new Date().toISOString()});maqId=ref.id}

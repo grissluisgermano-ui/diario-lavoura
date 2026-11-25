@@ -274,8 +274,8 @@
   const cacheArq = new Map();
   ponte.arquivos = {
     max: ARQ_MAX,
-    async salvar(file) {
-      if (file.size > ARQ_MAX) throw { code: "too_large" };
+    async salvar(file, op) {
+      if (file.size > (op?.max || ARQ_MAX)) throw { code: "too_large" };
       const u = await blobParaDataUrl(file), b64 = u.slice(u.indexOf(",") + 1);
       const r = fs.collection("arquivos").doc(), partes = Math.max(1, Math.ceil(b64.length / PARTE));
       const info = { nome: file.name || "arquivo", tipo: file.type || "application/octet-stream", tam: file.size, partes };

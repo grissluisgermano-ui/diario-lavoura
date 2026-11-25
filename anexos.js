@@ -30,7 +30,7 @@
           <button type="button" class="ax-dn" data-axabre="${esc(d.id)}"><span>${esc(d.nome)}</span><small>${[d.em?brDate(d.em.slice(0,10)):"",tamTxt(d.tam)].filter(Boolean).join(" · ")}</small></button>
           <button type="button" class="link danger" data-axddel="${esc(d.id)}" aria-label="Excluir documento">Excluir</button>
         </div>`).join("")}</div>`:`<p class="note">Nenhum documento.</p>`}
-        <label class="btn ghost ax-add">+ Adicionar documento<input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.xml,.txt" multiple data-axin="docs" hidden></label>
+        <label class="btn ghost ax-add">+ Adicionar documento, PDF ou vídeo<input type="file" accept="image/*,application/pdf,.pdf,video/*,.mov,.mp4,.doc,.docx,.xls,.xlsx,.xml,.txt" multiple data-axin="docs" hidden></label>
       </div>
       <p class="note ax-st" role="status">${n?`Enviando ${n} arquivo${n>1?"s":""}…`:esc(msg[k]||"")}</p>
     </details>`;
@@ -54,12 +54,12 @@
         if(campo==="fotos"&&!ehFoto) throw {code:"unsupported_type"};
         let item;
         if(ehFoto){const b=await encolher(file); const r=await assets.upload(b,{type:b.type||"image/jpeg"}); item={id:r.id,tipo:"foto"}}
-        else{const r=await ponte.arquivos.salvar(file); item={id:r.id,tipo:"arquivo",mime:r.tipo,tam:r.tam}}
+        else{const vid=window.anxEhVideo?.(file); const r=await ponte.arquivos.salvar(file,vid?{max:window.anxVidMax}:undefined); item={id:r.id,tipo:"arquivo",mime:r.tipo,tam:r.tam}}
         await naFila(k,()=>grava(c,id,d=>{
           if(campo==="fotos"){d.fotos.push(item.id); if(!d.capa) d.capa=item.id}
           else d.docs.push({id:item.id,nome:file.name||"documento",tipo:item.tipo,mime:item.mime||file.type||"",tam:item.tam||file.size||0,em:new Date().toISOString()});
         }));
-      }catch(err){msg[k]=err?.code==="too_large"&&campo==="docs"&&!/^image\//.test(file.type)?`"${file.name}" passa de 10 MB.`:(ERR_FOTO[err?.code]||`Não foi possível enviar "${file.name}".`)}
+      }catch(err){msg[k]=err?.code==="too_large"&&campo==="docs"&&!/^image\//.test(file.type)?(window.anxErro?window.anxErro(err,file):`"${file.name}" passa de 10 MB.`):(ERR_FOTO[err?.code]||`Não foi possível enviar "${file.name}".`)}
       finally{enviando[k]--; render(c)}
     }
   }
@@ -70,6 +70,8 @@
     msg[k]="Abrindo…"; render(c);
     try{
       const f=await ponte.arquivos.abrir(d.id); msg[k]="";
+      if(window.anxEhVideo?.({type:f.type||d.mime,name:d.nome})){window.anxVerVideo(f,d.nome); render(c); return}
+      if(/pdf/i.test(f.type||d.mime||"")&&window.anxVerPdf&&await window.anxVerPdf(f,d.nome)){render(c); return}
       const celular=/iPhone|iPad|Android/i.test(navigator.userAgent);
       if(!celular){const u=URL.createObjectURL(f), w=window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),120000); if(w){render(c);return}}
       await downloads.save({filename:d.nome,data:f});

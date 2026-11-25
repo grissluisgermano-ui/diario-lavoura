@@ -2,13 +2,16 @@
    Só guarda o arquivo (não lê dados: a leitura automática continua só no XML).
    Formato: anexos:[{id, nome, tipo:"foto"|"arquivo", mime, tam, em}] — foto reduzida em "fotos", PDF em ponte.arquivos. */
 (function(){
-  const ext=a=>a.tipo==="foto"?"FOTO":/pdf/i.test(a.mime||"")||/\.pdf$/i.test(a.nome||"")?"PDF":((a.nome||"").split(".").pop()||"ARQ").slice(0,4).toUpperCase();
+  const ext=a=>a.tipo==="foto"?"FOTO":/^video\//.test(a.mime||"")||/\.(mov|mp4|m4v|3gp|webm)$/i.test(a.nome||"")?"VÍD":/pdf/i.test(a.mime||"")||/\.pdf$/i.test(a.nome||"")?"PDF":((a.nome||"").split(".").pop()||"ARQ").slice(0,4).toUpperCase();
   const ehFoto=f=>/^image\//.test(f.type)||/\.(jpe?g|png|heic|heif|webp)$/i.test(f.name||"");
+  const ehVideo=a=>/^video\//.test(a.type||a.mime||"")||/\.(mov|mp4|m4v|3gp|webm)$/i.test(a.name||a.nome||"");
+  const VID_MAX=25*1024*1024; // vídeo: até 25 MB (uns 20–30 s filmados no celular em 1080p)
+  const erroTxt=(err,f)=>err?.code==="too_large"&&!ehFoto(f)?`"${f.name}" passa de ${ehVideo(f)?"25":"10"} MB.${ehVideo(f)?" Grave um vídeo mais curto ou em qualidade menor (no iPhone: Ajustes → Câmera → Gravar Vídeo → 720p).":""}`:(ERR_FOTO[err?.code]||`Não foi possível enviar "${f.name}".`);
 
   // envia um arquivo e devolve o item do anexo
   async function envia(file){
     if(ehFoto(file)){const b=await encolher(file); const r=await assets.upload(b,{type:b.type||"image/jpeg"}); return {id:r.id,nome:file.name||"foto.jpg",tipo:"foto",mime:"image/jpeg",tam:b.size||0,em:new Date().toISOString()}}
-    const r=await ponte.arquivos.salvar(file); return {id:r.id,nome:file.name||"documento",tipo:"arquivo",mime:r.tipo,tam:r.tam,em:new Date().toISOString()};
+    const r=await ponte.arquivos.salvar(file,ehVideo(file)?{max:VID_MAX}:undefined); return {id:r.id,nome:file.name||"documento",tipo:"arquivo",mime:r.tipo,tam:r.tam,em:new Date().toISOString()};
   }
 
   // abre um anexo: foto na tela, PDF numa aba (computador) ou no compartilhar (celular)
@@ -18,6 +21,7 @@
     try{
       const f=await ponte.arquivos.abrir(a.id); st&&(st.textContent="");
       const pdf=/pdf/i.test(f.type||a.mime||"")||/\.pdf$/i.test(a.nome||"");
+      if(ehVideo({type:f.type||a.mime,name:a.nome})){verVideo(f,a.nome); return}
       if(pdf&&await verPdf(f,a.nome)) return; // visualizador dentro do app (celular e computador)
       if(!/iPhone|iPad|Android/i.test(navigator.userAgent)){const u=URL.createObjectURL(f), w=window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),120000); if(w) return}
       await downloads.save({filename:a.nome,data:f});
@@ -47,11 +51,22 @@
       return true;
     }catch(e){ov.hidden=true; ov.innerHTML=""; return false}
   }
-  window.anxVerPdf=verPdf;
-  window.anxEnviar=envia; window.anxErro=(err,f)=>err?.code==="too_large"&&!ehFoto(f)?`"${f.name}" passa de 10 MB.`:(ERR_FOTO[err?.code]||`Não foi possível enviar "${f.name}".`);
+  window.anxVerPdf=verPdf; window.anxVerVideo=(f,n)=>verVideo(f,n); window.anxEhVideo=ehVideo; window.anxVidMax=25*1024*1024;
+  // vídeo: tocador por cima de tudo (mesma janela do PDF)
+  function verVideo(file,nome){
+    let ov=document.getElementById("ax-pdf");
+    if(!ov){ov=document.createElement("div"); ov.id="ax-pdf"; ov.className="ax-pdf"; ov.setAttribute("role","dialog"); ov.setAttribute("aria-modal","true"); document.body.appendChild(ov);
+      document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!ov.hidden){ov.hidden=true; ov.innerHTML=""}})}
+    const u=URL.createObjectURL(file.type?file:new File([file],nome||"video.mp4",{type:"video/mp4"}));
+    ov.innerHTML=`<div class="ax-pdf-cab"><b>${esc(nome||"Vídeo")}</b><span class="ax-pdf-bt"><button type="button" class="btn ghost fn-mini" id="ax-pdf-sv">${/iPhone|iPad|Android/i.test(navigator.userAgent)?"Compartilhar / salvar":"Baixar"}</button><button type="button" class="ax-pdf-x" id="ax-pdf-x" aria-label="Fechar">✕</button></span></div><div class="ax-pdf-pg"><video controls playsinline autoplay src="${u}" style="max-width:100%;max-height:80vh;display:block;margin:0 auto;background:#000"></video></div>`;
+    ov.hidden=false;
+    ov.querySelector("#ax-pdf-x").onclick=()=>{ov.hidden=true; ov.innerHTML=""; URL.revokeObjectURL(u)};
+    ov.querySelector("#ax-pdf-sv").onclick=()=>downloads.save({filename:nome||"video.mp4",data:file}).catch(()=>{});
+  }
+  window.anxEnviar=envia; window.anxErro=erroTxt;
 
   // links pequenos para mostrar nos cartões/linhas: 📎 nome
-  window.anxLinks=(lista)=>(lista||[]).map(a=>`<button type="button" class="link anx-link" data-anx="${esc(JSON.stringify({id:a.id,tipo:a.tipo,nome:a.nome}))}">📎 ${esc(ext(a)==="FOTO"?"Foto da nota":a.nome)}</button>`).join("");
+  window.anxLinks=(lista)=>(lista||[]).map(a=>`<button type="button" class="link anx-link" data-anx="${esc(JSON.stringify({id:a.id,tipo:a.tipo,nome:a.nome}))}">${ext(a)==="VÍD"?"🎬":ext(a)==="PDF"?"📄":"📎"} ${esc(ext(a)==="FOTO"?"Foto da nota":a.nome)}</button>`).join("");
   document.addEventListener("click",ev=>{const b=ev.target.closest("[data-anx]"); if(!b) return; ev.preventDefault(); try{abre(JSON.parse(b.dataset.anx))}catch{}});
 
   // campo de anexos dentro de um formulário: anxCampo(elemento) → {get, set, limpar, ocupado}
@@ -60,14 +75,14 @@
     const pinta=()=>{
       el.innerHTML=`<div class="anx">
         ${lista.map((a,i)=>`<div class="anx-it"><span class="ax-ext">${ext(a)}</span><button type="button" class="anx-nm" data-i="${i}">${esc(a.nome)}</button><button type="button" class="rm" data-rm="${i}" aria-label="Tirar ${esc(a.nome)}">×</button></div>`).join("")}
-        <label class="btn ghost anx-add">📎 ${lista.length?"Adicionar outro":(op.rotulo||"Anexar foto ou PDF da nota")}<input type="file" accept="image/*,application/pdf,.pdf" multiple hidden></label>
+        <label class="btn ghost anx-add">📎 ${lista.length?"Adicionar outro":(op.rotulo||"Anexar foto ou PDF da nota")}<input type="file" accept="${op.accept||"image/*,application/pdf,.pdf"}" multiple hidden></label>
         <span class="note anx-st" role="status">${enviando?`Enviando ${enviando} arquivo${enviando>1?"s":""}…`:esc(msg)}</span>
       </div>`;
       el.querySelector("input").onchange=async e=>{
         const fs=[...e.target.files]; e.target.value=""; msg="";
         for(const f of fs){enviando++; pinta();
           try{lista.push(await envia(f))}
-          catch(err){msg=err?.code==="too_large"&&!ehFoto(f)?`"${f.name}" passa de 10 MB.`:(ERR_FOTO[err?.code]||`Não foi possível enviar "${f.name}".`)}
+          catch(err){msg=erroTxt(err,f)}
           finally{enviando--; pinta()}}
       };
       el.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{lista.splice(+b.dataset.rm,1); pinta()});
