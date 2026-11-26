@@ -76,10 +76,13 @@ const dias=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/8
    A nota vem com preço cheio; o desconto é dado no vencimento. Em aberto, a conta vale o líquido previsto; no pagamento, o que foi pago. */
 const DESC_CLS=[["defensivos","Defensivos"],["fertilizantes","Fertilizantes e corretivos"],["sementes","Sementes"],["insumos","Outros insumos"]];
 const contratoCfg=c=>c?(fnCfg.contratos||{})[c]||null:null;
+// contrato já pago inteiro (botão "Pagar o contrato" do relatório): notas que chegarem depois são retirada já paga
+const contratoQuitado=c=>{if(!c) return false; const n=String(c).replace(/\D/g,""); return Object.entries(fnCfg.contratos||{}).some(([k,v])=>v?.quitado&&(k===c||(n&&k.replace(/\D/g,"")===n)))};
 const clsDesc=k=>["defensivos","fertilizantes","sementes"].includes(k)?k:"insumos";
 function pctContrato(c,itens,catPadrao){
   const k=contratoCfg(c); if(!k) return 0;
-  const d=k.desc||{}, pc=x=>(Number(d[clsDesc(x)])||0)/100;
+  // "outros insumos" sem % próprio = desconto dos químicos (a cooperativa dá o desconto de químicos em tudo que não é adubo nem semente, ex. regulador)
+  const d=k.desc||{}, pc=x=>{const c=clsDesc(x); return (Number(c==="insumos"&&!(Number(d.insumos)>0)?d.defensivos:d[c])||0)/100};
   const its=(itens||[]).filter(i=>Number(i.valor)>0);
   if(!its.length) return pc(catPadrao);
   let t=0,dd=0; for(const i of its){const v=Number(i.valor); t+=v; dd+=v*pc(classeCat(i.classe,i.desc)||catPadrao)}
@@ -293,6 +296,11 @@ function renderDescontos(){
       <div class="fn-cd-g">${DESC_CLS.map(([ck,cl])=>`<label class="fn-cd-p"><span>${cl}</span><span class="dv-pct"><input class="cd-${ck}" inputmode="decimal" value="${d[ck]!=null?String(d[ck]).replace(".",","):""}" placeholder="0">%</span></label>`).join("")}</div>
       <div class="grid2"><div class="field"><label>Cultura do contrato</label><input class="cd-cult" value="${esc(c.cultura||"")}" placeholder="Ex.: Soja 26/27"></div>
         <div class="field"><label>Observação</label><input class="cd-obs" value="${esc(c.obs||"")}" placeholder="Ex.: desconto no plano safra"></div></div>
+      <div class="grid2"><div class="field"><label>Valor total do contrato (R$)</label><input class="cd-vt" inputmode="decimal" value="${c.valorTotal?fmt2(c.valorTotal):""}" placeholder="Preço cheio, retirado ou não"></div>
+        <div class="field"><label>Vencimento do contrato</label><input class="cd-venc" type="date" value="${esc(c.vencimento||"")}"></div>
+        <div class="field"><label>Desconto por pagar antes (% ao mês)</label><span class="dv-pct"><input class="cd-ant" inputmode="decimal" value="${c.antecipa!=null?String(c.antecipa).replace(".",","):""}" placeholder="0">%</span></div>
+        <div class="field"><label>O que falta retirar é</label><select class="cd-resto">${DESC_CLS.map(([ck,cl])=>`<option value="${ck}"${(c.restoCls||"defensivos")===ck?" selected":""}>${cl}</option>`).join("")}</select></div></div>
+      ${c.quitado?`<p class="note">✓ Contrato pago em ${brDate(c.quitado)}${c.quitadoValor?` · ${brl(c.quitadoValor)}`:""}. As notas que chegarem depois entram no estoque como retirada já paga.</p>`:""}
     </div>`}).join(""):`<div class="empty">Nenhum contrato ainda. Os números aparecem aqui sozinhos quando uma nota com contrato ou pedido é lançada.</div>`;
 }
 function leDescontos(){
@@ -301,7 +309,9 @@ function leDescontos(){
     const k=el.dataset.k, desc={}; let tem=false;
     for(const [ck] of DESC_CLS){const v=num2(el.querySelector(".cd-"+ck).value); if(v!=null){desc[ck]=v; tem=true}}
     const cultura=el.querySelector(".cd-cult").value.trim(), obs=el.querySelector(".cd-obs").value.trim();
-    if(tem||cultura||obs){const g=fnLanc.find(l=>l.contrato===k); out[k]={fornecedor:(fnCfg.contratos||{})[k]?.fornecedor||g?.pessoa||"",cultura,obs,desc}}
+    const vt=num2(el.querySelector(".cd-vt").value), venc=el.querySelector(".cd-venc").value||"", ant=num2(el.querySelector(".cd-ant").value), resto=el.querySelector(".cd-resto").value;
+    const ant0=(fnCfg.contratos||{})[k]||{};
+    if(tem||cultura||obs||vt||venc||ant||ant0.quitado){const g=fnLanc.find(l=>l.contrato===k); out[k]={...ant0,fornecedor:ant0.fornecedor||g?.pessoa||"",cultura,obs,desc,valorTotal:vt,vencimento:venc,antecipa:ant,restoCls:resto}}
   }
   return out;
 }
@@ -795,7 +805,7 @@ window.finCustoCultura=function(sy,cult){
   return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult),det,geral,areaPlant,temReg,porCultura:Object.fromEntries(Object.keys(plant).map(c=>[c,areaCult(c)]))};
 };
 window.finVerContrato=c=>{fnFiltro="todas"; show("fin_contas"); $("#fn-busca").value=c; renderContas()};
-window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id),liqPrev,pctLanc,ctrN:v=>ctrN(v),ctrTxt,contratoCfg:c=>contratoCfg(c),contratosCfg:()=>fnCfg.contratos||{},contas:()=>fnContas};
+window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id),liqPrev,pctLanc,ctrN:v=>ctrN(v),ctrTxt,contratoCfg:c=>contratoCfg(c),contratosCfg:()=>fnCfg.contratos||{},salvaContrato:async(k,dados)=>salvaCfg({contratos:{...(fnCfg.contratos||{}),[k]:{...((fnCfg.contratos||{})[k]||{}),...dados}}}),contas:()=>fnContas};
 window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
 window.finGastosRel=function(F){
@@ -853,7 +863,7 @@ window.finDadosXml=function(doc){
       dest:titulo(g(dest,"xNome")),total:+g(tot,"vNF")||itens.reduce((s,i)=>s+i.valor,0),dups,itens,
       contrato:contratoDoTexto(g(doc,"infCpl")),categoria:catDosItens(itens),
       // nota de retirada: sem duplicata e com contrato ("vencimento conforme os termos do contrato…") = produto já pago no contrato, que estava no depósito
-      retirada:!dups.length&&!!contratoDoTexto(g(doc,"infCpl"))&&/CONTRATO|ENTREGA\s+FUTURA|RETIRAD/i.test(g(doc,"infCpl"))&&!/CONDI[CÇ][AÃ]O DE PAGAMENTO:\s*A VISTA/i.test(g(doc,"infCpl"))};
+      retirada:contratoQuitado(contratoDoTexto(g(doc,"infCpl")))||!dups.length&&!!contratoDoTexto(g(doc,"infCpl"))&&/CONTRATO|ENTREGA\s+FUTURA|RETIRAD/i.test(g(doc,"infCpl"))&&!/CONDI[CÇ][AÃ]O DE PAGAMENTO:\s*A VISTA/i.test(g(doc,"infCpl"))};
   }catch{return null}
 };
 const formaNota=fin=>!fin.dups.length?"avista":fin.dups.some(d=>prazoLongo(fin.data,d.venc))?"safra":"prazo";
