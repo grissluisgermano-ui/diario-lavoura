@@ -51,6 +51,14 @@
       L.colhida=L.cols.length>0; L.encerrada=!L.colhida&&!!enc;
       L.prox=prox||null;
     }
+    // até quando ocupou a terra (para o rateio dos custos gerais): colheita/encerramento; cobertura sem colheita termina
+    // no plantio seguinte de outra cultura nos mesmos talhões; sem fim = até hoje
+    const COB=/aveia|nabo|braqui|brachi|centeio|ervilhaca|crotal|milheto|mourisco|tremo|azevem|cobertura/;
+    for(const L of ls){
+      let f=L.fim;
+      if(!f&&COB.test(nk(L.cultura))){const q=ls.filter(M=>M!==L&&nk(M.cultura)!==nk(L.cultura)&&M.plantio>L.plantio&&M.talhoes.some(t=>L.talhoes.includes(t))).map(M=>M.inicio).sort()[0]; if(q) f=q}
+      L.ocupaAte=f||todayISO();
+    }
     return ls.sort((a,b)=>b.plantio.localeCompare(a.plantio));
   }
 
@@ -102,9 +110,16 @@
     let dirT=0, gerT=0;
     const totA=areaProp()||L.area||1, diasL=Math.max(1,dias(ini,fim)+1);
     const vendaIds=new Set(vendasTodas.map(m=>m.id));
-    const parteGeral=(v,d)=>{ // espalha pela safra da despesa e pega os dias da lavoura nessa safra × área
-      const sy=safraDe(d), a=`${sy}-07-01`, b=`${sy+1}-06-30`, i0=ini>a?ini:a, i1=fim<b?fim:b;
-      const dd=i1>=i0?dias(i0,i1)+1:0; return v*dd/365*L.area/totA};
+    /* rateio total: os custos gerais de cada safra (julho a junho) são divididos entre TODAS as lavouras que ocuparam terra
+       naquela safra, pela área × dias de cada uma dentro da safra (terra parada é absorvida pelas lavouras) */
+    const haDias=(M,sy)=>{const a=`${sy}-07-01`, b=`${sy+1}-06-30`, i0=M.inicio>a?M.inicio:a, f=M.ocupaAte, i1=f<b?f:b; return i1>=i0?(dias(i0,i1)+1)*(M.area||0):0};
+    const meuHD={}, totHD={}, semRegHD={};
+    const parteGeral=(v,d)=>{const sy=safraDe(d);
+      if(totHD[sy]==null){
+        // antes do 1º registro de lavoura no app não se sabe o que estava plantado: conta a propriedade toda ocupada nesse pedaço da safra
+        const a0=`${sy}-07-01`, ap=ls.reduce((m,M)=>M.inicio<m?M.inicio:m,"9999"), semReg=ap>a0?Math.min(365,dias(a0,ap))*(areaProp()||0):0;
+        totHD[sy]=ls.reduce((a,M)=>a+haDias(M,sy),0)+semReg; meuHD[sy]=haDias(L,sy); semRegHD[sy]=semReg}
+      return totHD[sy]>0?v*meuHD[sy]/totHD[sy]:0};
     if(F){
       for(const l of F.lanc()){
         if(l.natureza!=="pagar") continue;
@@ -129,7 +144,8 @@
     ger.sort((a,b)=>b.v-a.v); dir.sort((a,b)=>a.d.localeCompare(b.d));
 
     const custo=ins+dirT+gerT;
-    return {L,ini,fim,diasL,totA,ativ,ins,dir,dirT,ger,gerT,custo,sc,scLav,scFunc,porTit,scGalpao,kgGalpao,vendas,vSc,vVal,preco,arrSc,resta,emAndamento:!L.fim};
+    const safras=Object.keys(totHD).filter(y=>totHD[y]>0).map(y=>({sy:+y,meu:meuHD[y],tot:totHD[y],sem:semRegHD[y],pct:meuHD[y]/totHD[y]})).sort((a,b)=>a.sy-b.sy);
+    return {safras,L,ini,fim,diasL,totA,ativ,ins,dir,dirT,ger,gerT,custo,sc,scLav,scFunc,porTit,scGalpao,kgGalpao,vendas,vSc,vVal,preco,arrSc,resta,emAndamento:!L.fim};
   }
 
   /* ---------- tela ---------- */
@@ -162,7 +178,7 @@
       <div class="rlv-ls">
         ${row("Insumos das atividades","sementes, adubos, defensivos (o que foi aplicado)",brC(x.ins),`${brl(x.ins/a)}/ha · ${x.custo?num(x.ins/x.custo*100):0}%`)}
         ${row("Custos diretos","contas do Financeiro com esta cultura ou talhão, impostos das vendas",brC(x.dirT),`${brl(x.dirT/a)}/ha · ${x.custo?num(x.dirT/x.custo*100):0}%`)}
-        ${row("Custos gerais rateados",`${x.diasL} dias × ${num(L.area)} de ${num(x.totA)} ha da propriedade`,brC(x.gerT),`${brl(x.gerT/a)}/ha · ${x.custo?num(x.gerT/x.custo*100):0}%`)}
+        ${row("Custos gerais rateados",x.safras.map(z=>`${num(z.pct*100)}% da safra ${safraLab(z.sy)}`).join(" · ")||"pela área × dias de cada lavoura na safra",brC(x.gerT),`${brl(x.gerT/a)}/ha · ${x.custo?num(x.gerT/x.custo*100):0}%`)}
         ${row("<b>Total</b>","",`<b>${brC(x.custo)}</b>`,`${brl(x.custo/a)}/ha`,"tot")}
       </div>
 
@@ -183,7 +199,7 @@
       ${x.dir.length?`<div class="rlv-ls">${x.dir.map(g=>row(`${brDate(g.d)} · ${esc(g.l.descricao||F_cat(g.l.categoria))}`,esc([g.l.pessoa,F_cat(g.l.categoria),g.como].filter(Boolean).join(" · ")),brl(g.v),"",""," data-rlfin=\""+g.l.id+"\"")).join("")}</div>`:`<p class="note">Nenhuma conta do Financeiro com a cultura ${esc(L.cultura)} ou com o talhão marcado neste período. Frete, secagem, mão de obra da colheita etc.: marque a cultura na conta para entrar aqui.</p>`}
 
       <h3>Custos gerais rateados <small>${x.ger.length}${x.ger.length?" · "+brC(x.gerT):""}</small></h3>
-      <p class="note">Contas sem cultura nem talhão (luz, salários, manutenção, juros, arrendamento…). Cada uma é espalhada pelos 365 dias da safra dela, e esta lavoura fica com os ${x.diasL} dias em que ocupou a terra × ${num(L.area)} ha de ${num(x.totA)} ha da propriedade. Só entra o que já está lançado no Financeiro.</p>
+      <p class="note">Contas sem cultura nem talhão (luz, salários, manutenção, juros, arrendamento…). Os custos gerais de cada safra (julho a junho) são divididos entre todas as lavouras que ocuparam terra naquela safra, pela área × dias de cada uma. ${x.safras.map(z=>`Safra ${safraLab(z.sy)}: ${esc(L.cultura)} ocupou ${num(z.meu)} ha·dia de ${num(z.tot)} ha·dia de todas as lavouras = <b>${num(z.pct*100)}%</b> dos custos gerais${z.sem?` (o período da safra antes dos primeiros registros no app conta como a propriedade toda plantada, com as lavouras que não foram lançadas)`:""}.`).join(" ")} Enquanto a safra não termina, essa parte muda a cada plantio e a cada dia das lavouras que ainda estão no campo. Só entra o que já está lançado no Financeiro.</p>
       ${x.ger.length?`<div class="rlv-ls">${x.ger.slice(0,nGer).map(g=>g.arr?row(`${brDate(g.d)} · Arrendamento — ${num(g.arr.sacas)} sc de ${esc(g.arr.cultura)}`,`para ${esc(titNome(g.arr.para||"pai"))} · valor pelo preço médio de venda: ${brl(g.tot)}`,brl(g.v),""):row(`${brDate(g.d)} · ${esc(g.l.descricao||F_cat(g.l.categoria))}`,`${esc([g.l.pessoa,F_cat(g.l.categoria)].filter(Boolean).join(" · "))} · conta de ${brl(g.tot)}`,brl(g.v),"","",` data-rlfin="${g.l.id}"`)).join("")}</div>
         ${x.ger.length>nGer?`<button type="button" class="link" id="rlv-mais">Mostrar todas (${x.ger.length})</button>`:""}`:""}
       <p class="note rlv-rod">Gerado em ${brDate(todayISO())} pelo Diário da Lavoura.</p>
