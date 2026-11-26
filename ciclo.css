@@ -57,8 +57,8 @@ body.ct-aberto{overflow:hidden}
 .ci-lav{display:flex;flex-direction:column;gap:4px;padding:6px 0;border-top:1px dashed var(--line)}
 .ci-lav:first-of-type{border-top:0}
 .ct-env{margin-left:auto}
-.ci-fim{display:block;margin-top:4px;font-size:.8rem;color:var(--muted,#6b6b6b)}
-.ci-fim.ci-fim-conf{color:#b3261e;font-weight:600}
+
+.ci-fim.ci-fim-conf{color:#b3261e!important;border-color:#b3261e!important;font-weight:600}
 /* histórico da área / rotação (rotacao.js) */
 .ci-rot{display:block;color:var(--muted,#6b6b6b);font-size:.78rem;margin-top:4px;line-height:1.4}
 .ci-rot b{font-weight:600;color:inherit}
@@ -79,3 +79,10 @@ body.ct-aberto{overflow:hidden}
 .rot-g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rot-bts{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .rot-nota{font-size:.78rem;margin:6px 0 0}
+.ct-fim{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--surface)}
+.ct-fim>summary{cursor:pointer;color:var(--muted)}
+.ci-fimw{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:6px 0;border-top:1px dashed var(--line)}
+.ci-fimw span{flex:1;min-width:120px}
+.ci-fimw label{display:flex;align-items:center;gap:6px;font-size:.85rem;text-transform:none;letter-spacing:0}
+.ci-fimw input{width:auto}
+.ci-desf{display:block;margin-top:4px;font-size:.8rem}

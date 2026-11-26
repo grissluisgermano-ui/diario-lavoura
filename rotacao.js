@@ -36,12 +36,18 @@
       if(!g){g={sy,cultura:cu,cultivares:[],area:0,data:p.data,ep:epocaDe(p.data),cob:COB.test(sem(cu)),prods:[]}; grp.set(k,g)}
       if(p.campos?.cultivar&&!g.cultivares.includes(p.campos.cultivar)) g.cultivares.push(p.campos.cultivar);
       g.area+=Number(p.areas?.[t])||ha;
-      const pr=prodDe(p,t); if(pr) g.prods.push(pr);
     }
-    for(const g of grp.values()){
-      const v=g.prods.filter(x=>x.prod>0);
-      add(g.sy,{sy:g.sy,cultura:g.cultura,cultivares:g.cultivares,area:Math.min(g.area,ha||g.area),prod:v.length?v.reduce((a,x)=>a+x.prod,0)/v.length:null,
-        colhida:g.prods.length>0,cob:g.cob&&!g.prods.length,ep:g.cob&&!g.prods.length?3:g.ep,data:g.data});
+    const gs=[...grp.values()];
+    for(const g of gs){
+      // colheitas da lavoura no talhão: da 1ª data de plantio até o plantio seguinte da mesma cultura; área colhida limitada à plantada
+      const kc=sem(g.cultura), prox=gs.filter(o=>o!==g&&sem(o.cultura)===kc&&o.data>g.data).map(o=>o.data).sort()[0];
+      const cols=registros.filter(r=>r.tipo==="colheita"&&!ehProg(r)&&tem(r,t)&&r.data>=g.data&&(!prox||r.data<prox)&&(!sem(r.campos?.cultura)||sem(r.campos.cultura)===kc));
+      let sc=0, ar=0;
+      for(const c of cols){const at=Object.values(c.areas||{}).reduce((a,b)=>a+(Number(b)||0),0)||ha||1, aq=Number(c.areas?.[t])||ha, s0=(c.romaneios||[]).reduce((a,x)=>a+(Number(x.sacas)||0),0);
+        sc+=s0*aq/at; ar+=aq; if(!s0&&Number(c.campos?.produtividade)>0) sc+=Number(c.campos.produtividade)*aq}
+      const aPl=Math.min(g.area,ha||g.area), aCol=Math.min(ar,aPl||ar);
+      add(g.sy,{sy:g.sy,cultura:g.cultura,cultivares:g.cultivares,area:aPl,prod:sc>0&&aCol>0?sc/aCol:null,
+        colhida:cols.length>0,cob:g.cob&&!cols.length,ep:g.cob&&!cols.length?3:g.ep,data:g.data});
     }
     for(const x of itens) if(x.talhao===t&&Number.isFinite(Number(x.safra))){
       const ep=Math.max(0,EPOCAS.findIndex(e=>e[0]===x.epoca));

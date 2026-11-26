@@ -132,9 +132,26 @@ function ligaChips(root,depois){
 
 /* ---------- Painel: "Talhões hoje" ---------- */
 let abrirEm=null;
-// "Já terminou": encerra a lavoura hoje (grava campos.encerrada nos plantios dela) — para quando o app não percebe sozinho
-const btFim=(t,L)=>{const ids=(L.ps||[]).map(p=>p.id).join(","), tx=`Esta lavoura já terminou`;
-  return ids?`<button type="button" class="link ci-bt ci-fim" data-cifim="${ids}" data-txt="${tx}">${tx}</button>`:""};
+/* Encerrar uma lavoura sem colheita (fica na tela do talhão, não no Painel, para não tocar sem querer):
+   grava campos.encerrada nos plantios dela na data escolhida; "Desfazer o encerramento" (Painel e tela do talhão) apaga. */
+function ligaFim(root){
+  root.querySelectorAll("[data-cifim]").forEach(b=>b.onclick=async e=>{e.stopPropagation();
+    const d=root.querySelector(`[data-cifimd="${b.dataset.cifim}"]`)?.value||todayISO();
+    if(!b.dataset.conf){b.dataset.conf=1; b.textContent=`Confirmar: encerrar em ${brDate(d)}`; b.classList.add("ci-fim-conf"); setTimeout(()=>{if(b.isConnected){delete b.dataset.conf; b.textContent=b.dataset.txt; b.classList.remove("ci-fim-conf")}},5000); return}
+    b.disabled=true;
+    try{for(const id of b.dataset.cifim.split(",")){const r=registros.find(x=>x.id===id); if(!r) continue; const {id:_,...doc}=r; doc.campos={...doc.campos,encerrada:d<r.data?r.data:d}; await col.doc(id).set(doc)}
+      window.ponte?.aviso?.("Lavoura encerrada. Para voltar atrás, toque em \"Desfazer o encerramento\".",true)}catch{b.disabled=false}
+  });
+  root.querySelectorAll("[data-cidesf]").forEach(b=>b.onclick=async e=>{e.stopPropagation();
+    if(!b.dataset.conf){b.dataset.conf=1; b.textContent="Toque de novo para desfazer"; return}
+    const [t,d]=b.dataset.cidesf.split("|"); b.disabled=true;
+    try{for(const r of registros.filter(x=>x.tipo==="plantio"&&(x.talhoes||[]).includes(t)&&x.campos?.encerrada===d)){const {id,...doc}=r; const cp={...doc.campos}; delete cp.encerrada; doc.campos=cp; await col.doc(id).set(doc)}
+      window.ponte?.aviso?.("Encerramento desfeito: a lavoura voltou para os Talhões hoje.",true)}catch{b.disabled=false}
+  });
+}
+// "Já terminou": encerra a lavoura (grava campos.encerrada nos plantios dela) — para quando o app não percebe sozinho
+const btFim=(t,L)=>{const ids=(L.ps||[]).map(p=>p.id).join(",");
+  return ids?`<div class="ci-fimw"><span><b>${esc(L.cultura||"")}</b>${L.area?` · ${num(L.area)} ha`:""}</span><label>em <input type="date" data-cifimd="${ids}" value="${todayISO()}"></label><button type="button" class="btn ghost ci-fim" data-cifim="${ids}" data-txt="Encerrar">Encerrar</button></div>`:""};
 function render(){
   const box=$("#ci-box"); if(!box) return;
   const hoje=todayISO(), ts=TALHOES.map(t=>t.n);
@@ -147,11 +164,11 @@ function render(){
     <div class="ci-lista">${linhas.map(({t,c,ls})=>{
       const id=(typeof propCfg!=="undefined"?propCfg.talhoes.find(x=>x.n===t)?.id:null), mini=id&&window.mpMini?window.mpMini(id,40):"";
       if(!c) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>Sem plantio registrado</small>${window.rotLinha?.(t)||""}<span class="ci-ver">Ver atividades da safra ›</span></div></div>`;
-      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${c.colheita?`${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)`:`${esc(c.cultura||"Cultura")} encerrada${c.p.campos?.encerrada?` em ${brDate(c.p.campos.encerrada)}`:""} · plantio em ${brDate(c.p.data)}`}</small>${window.rotLinha?.(t)||""}<span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
+      if(!ls.length) return `<div class="ci-t vazio" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c"><b>${esc(t)}</b><small>${c.colheita?`${esc(c.cultura||"Cultura")} colhida em ${brDate(c.colheita.data)} (${dias(c.colheita.data,hoje)} dias)`:`${esc(c.cultura||"Cultura")} encerrada${c.p.campos?.encerrada?` em ${brDate(c.p.campos.encerrada)}`:""} · plantio em ${brDate(c.p.data)}`}</small>${!c.colheita&&c.p.campos?.encerrada?`<button type="button" class="link ci-bt ci-desf" data-cidesf="${esc(t)}|${esc(c.p.campos.encerrada)}">Desfazer o encerramento</button>`:""}${window.rotLinha?.(t)||""}<span class="ci-ver">Ver o que foi feito ›</span></div></div>`;
       const sel=selDe(t,ls), L=sel.V||sel.G;
       let corpo;
       if(!L){ // Tudo: uma linha por cultura
-        corpo=ls.map(g=>{const n=numsDe(t,g,r=>casa(r,g,null)); return `<div class="ci-lav"><div class="ci-l1"><b>${esc(g.cultura)}</b><span>${num(g.area)} ha${g.vars.length>1?` · ${g.vars.length} variedades`:g.vars[0]?.cultivar?" · "+esc(g.vars[0].cultivar):""}</span></div><div class="ci-nums">${n.html}</div>${btFim(t,g)}</div>`}).join("");
+        corpo=ls.map(g=>{const n=numsDe(t,g,r=>casa(r,g,null)); return `<div class="ci-lav"><div class="ci-l1"><b>${esc(g.cultura)}</b><span>${num(g.area)} ha${g.vars.length>1?` · ${g.vars.length} variedades`:g.vars[0]?.cultivar?" · "+esc(g.vars[0].cultivar):""}</span></div><div class="ci-nums">${n.html}</div></div>`}).join("");
       }else{
         const filtro=r=>casa(r,sel.G,sel.V), n=numsDe(t,L,filtro), a=n.a, car=a&&Number(a.campos?.carencia)>0?soma(a.data,Number(a.campos.carencia)):null;
         const nome=[sel.G.cultura,sel.V?sel.V.cultivar:(sel.G.vars.length>1?`${sel.G.vars.length} variedades`:"")].filter(Boolean).join(" · ");
@@ -161,8 +178,7 @@ function render(){
           <small class="ci-sub">Plantio em ${brDate(L.p.data)}${L.emergencia?` · emergência em ${brDate(L.emergencia)}`:""}</small>
           ${a?`<small class="ci-sub">Última aplicação ${brDate(a.data)}${prods(a).length?`: ${esc(prods(a).join(" + "))}`:a.nome?`: ${esc(a.nome)}`:""}${car?` · <span class="${car>hoje?"ci-car":"ci-lib"}">${car>hoje?`carência até ${brDate(car)} (faltam ${dias(hoje,car)} dias)`:`carência terminou em ${brDate(car)}`}</span>`:""}</small>`:""}
           ${L.emergencia?"":ab?`<div class="ci-em"><input type="date" id="ci-em-d" value="${hoje}" max="${hoje}" min="${L.p.data}" aria-label="Data da emergência"><button type="button" class="btn fn-mini" data-ciok="${L.p.id}">Salvar</button><button type="button" class="link" data-cix>Cancelar</button></div>`
-            :`<button type="button" class="link ci-bt" data-ciem="${L.p.id}|${esc(t)}">Informar emergência</button>`}
-          ${btFim(t,L)}`;
+            :`<button type="button" class="link ci-bt" data-ciem="${L.p.id}|${esc(t)}">Informar emergência</button>`}`;
       }
       return `<div class="ci-t" data-ct="${esc(t)}" role="button" tabindex="0" aria-label="Ver tudo do talhão ${esc(t)}">${mini?`<span class="ci-mini">${mini}</span>`:""}<div class="ci-c">
           <div class="ci-l1"><b>${esc(t)}</b>${ls.length===1&&ls[0].vars.length===1?`<span>${esc([ls[0].cultura,ls[0].vars[0].cultivar].filter(Boolean).join(" · "))}</span>`:""}</div>
@@ -177,12 +193,7 @@ function render(){
     el.addEventListener("click",abre);
     el.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target===el){e.preventDefault(); abreTalhao(el.dataset.ct)}});
   });
-  box.querySelectorAll("[data-cifim]").forEach(b=>b.onclick=async e=>{e.stopPropagation();
-    if(!b.dataset.conf){b.dataset.conf=1; b.textContent="Toque de novo para encerrar"; b.classList.add("ci-fim-conf"); setTimeout(()=>{if(b.isConnected){delete b.dataset.conf; b.textContent=b.dataset.txt; b.classList.remove("ci-fim-conf")}},4000); return}
-    b.disabled=true; const hoje=todayISO();
-    try{for(const id of b.dataset.cifim.split(",")){const r=registros.find(x=>x.id===id); if(!r) continue; const {id:_,...doc}=r; doc.campos={...doc.campos,encerrada:hoje}; await col.doc(id).set(doc)}
-      window.ponte?.aviso?.("Lavoura encerrada hoje. Para desfazer, edite o plantio e apague \"Lavoura encerrada em\".",true)}catch{b.disabled=false}
-  });
+  ligaFim(box);
   box.querySelectorAll("[data-ciem]").forEach(b=>b.onclick=()=>{abrirEm=b.dataset.ciem; render(); $("#ci-em-d")?.focus()});
   box.querySelectorAll("[data-cix]").forEach(b=>b.onclick=()=>{abrirEm=null; render()});
   box.querySelectorAll("[data-ciok]").forEach(b=>b.onclick=async()=>{
@@ -248,9 +259,12 @@ function telaTalhao(){
       ${Object.keys(porTipo).length?`<p class="note ct-tipos">${Object.entries(porTipo).map(([k,n])=>`${esc(TIPOS[k]?.label||k)}: <b>${n}</b>`).join(" · ")}</p>`:""}
       ${window.rotBloco?.(t)||""}
       <p class="note">Desde ${brDate(ini)}${fim?` até a colheita`:" até hoje (e o que está programado)"}. A chuva é a lançada na propriedade.</p>
+      ${ls&&ls.length?`<details class="ct-fim"><summary>Encerrar lavoura sem colheita</summary><p class="note">Use só quando a lavoura acabou sem colheita (cobertura dessecada, área perdida, replantio de outra cultura) e o app não percebeu sozinho. Dá para desfazer depois.</p>${ls.map(g=>btFim(t,g)).join("")}</details>`:""}
+      ${(()=>{const enc=[...new Set(registros.filter(x=>x.tipo==="plantio"&&(x.talhoes||[]).includes(t)&&x.campos?.encerrada&&x.campos.encerrada>=ini).map(x=>x.campos.cultura+"|"+x.campos.encerrada))]; return enc.map(k=>{const [cu,d]=k.split("|"); return `<p class="note">${esc(cu)} encerrada à mão em ${brDate(d)} <button type="button" class="link ci-desf" data-cidesf="${esc(t)}|${esc(d)}">Desfazer o encerramento</button></p>`}).join("")})()}
       <div class="ct-lista">${rs.length?lista:`<div class="empty">Nenhuma atividade lançada neste talhão ${c?"neste ciclo":"nesta safra"}.</div>`}</div>
     </div>`;
   ligaCards(el); ligaChips(el,()=>{telaTalhao(); render()});
+  ligaFim(el);
   window.rotLiga?.(el,()=>{const y=el.scrollTop; telaTalhao(); el.scrollTop=y});
   el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",fecha));
   $("#ct-volta").onclick=fecha;

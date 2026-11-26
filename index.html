@@ -3982,9 +3982,17 @@ function grProducao(sy){
     const at=areaTotal(r)||1, cult=normCult(r.campos?.cultura);
     for(const n of r.talhoes||[]){
       const a=Number(r.areas?.[n])||haDe(n), k=n+"|"+cult;
-      const l=(linhas[k]??={talhao:n,cultura:cult,area:0,sacas:0,cargas:0});
-      l.area+=a; l.sacas+=tot*a/at; l.cargas+=roms.length;
+      const l=(linhas[k]??={talhao:n,cultura:cult,area:0,sacas:0,cargas:0,ate:r.data});
+      l.area+=a; l.sacas+=tot*a/at; l.cargas+=roms.length; if(r.data>l.ate) l.ate=r.data;
     }
+  }
+  // a mesma área colhida em mais de um lançamento (colheita em dias diferentes) não soma além do que foi plantado:
+  // a área colhida fica limitada à área plantada daquela cultura no talhão (plantios dos 300 dias antes), ou ao talhão
+  for(const l of Object.values(linhas)){
+    const ps=registros.filter(p=>p.tipo==="plantio"&&!ehProg(p)&&(p.talhoes||[]).includes(l.talhao)&&normCult(p.campos?.cultura)===l.cultura&&p.data<=l.ate&&p.data>=new Date(Date.parse(l.ate)-300*864e5).toISOString().slice(0,10));
+    const plant=Math.min(haDe(l.talhao)||Infinity,ps.reduce((s,p)=>s+(Number(p.areas?.[l.talhao])||haDe(l.talhao)),0));
+    const teto=ps.length&&plant>0?plant:haDe(l.talhao);
+    if(teto>0&&l.area>teto+0.01) l.area=teto;
   }
   return Object.values(linhas).sort((a,b)=>a.cultura.localeCompare(b.cultura)||TALHOES.findIndex(t=>t.n===a.talhao)-TALHOES.findIndex(t=>t.n===b.talhao));
 }
