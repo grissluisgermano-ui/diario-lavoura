@@ -777,23 +777,24 @@ window.finCustoCultura=function(sy,cult){
   let insReg=0, temReg=false;
   for(const r of registros) if(!ehProg(r)&&naSR(r)&&r.custoHa>0){temReg=true; if(nc(cultR(r))!==cult) continue;
     for(const t of r.talhoes||[]) insReg+=(Number(r.custoHaLiq??r.custoHa)||0)*(Number(r.areas?.[t])||haDe(t))}
-  const x={ins:temReg?insReg:0,dir:0,ger:0}; let geral=0;
+  const x={ins:temReg?insReg:0,dir:0,ger:0}; let geral=0; const det={ins:[],dir:[],ger:[]};
   for(const l of lan){
     const its=(l.itens||[]).filter(i=>Number(i.valor)>0), tot=its.reduce((t,i)=>t+Number(i.valor),0);
     const parts=its.some(i=>i.cat&&i.cat!==l.categoria&&i.cat!=="__est")?Object.entries(its.reduce((g,i)=>{const c=i.cat&&i.cat!=="__est"?i.cat:l.categoria; g[c]=(g[c]||0)+Number(i.valor); return g},{})).map(([c,v])=>[c,v/tot]):[[l.categoria,1]];
     for(const [catg,fr] of parts){
-      const pp=papel(catg); if(["invest","familia","pecuaria","receita","naoreceita"].includes(pp)) continue;
+      const pp=papel(catg); if(["invest","familia","pecuaria","receita","naoreceita","repasse"].includes(pp)) continue;
       let v=vp(l)*fr; if(pp==="financ") v=jurosDe(l)*fr; if(!(v>0)) continue;
       const ins=INSUMO_CATS.has(catg); if(ins&&temReg) continue;
-      const campo=ins?"ins":"dir", ts=(l.talhoes||[]), c=nc(l.cultura);
-      if(c){ if(c===cult) x[campo]+=v; continue }
-      if(ts.length){const cs=Object.keys(plant).filter(k=>ts.some(t=>plant[k][t])); if(cs.includes(cult)) x[campo]+=v/cs.length; else if(!cs.length) geral+=v; continue}
-      geral+=v;
+      const campo=ins?"ins":"dir", ts=(l.talhoes||[]), c=nc(l.cultura), it=(val,como)=>({id:l.id,data:l.competencia||l.vencimento,descricao:l.descricao,pessoa:l.pessoa,categoria:catNome(catg),valor:val,como,status:l.status});
+      if(c){ if(c===cult){x[campo]+=v; det[campo].push(it(v,"cultura marcada"))} continue }
+      if(ts.length){const cs=Object.keys(plant).filter(k=>ts.some(t=>plant[k][t])); if(cs.includes(cult)){x[campo]+=v/cs.length; det[campo].push(it(v/cs.length,cs.length>1?`talhão marcado, dividido entre ${cs.length} culturas`:"talhão marcado"))} else if(!cs.length){geral+=v; det.ger.push(it(v,"geral"))} continue}
+      geral+=v; det.ger.push(it(v,"geral"));
     }
   }
   x.ger=areaPlant?geral*areaCult(cult)/areaPlant:0;
-  return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult)};
+  return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult),det,geral,areaPlant,temReg,porCultura:Object.fromEntries(Object.keys(plant).map(c=>[c,areaCult(c)]))};
 };
+window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id)};
 window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
 window.finGastosRel=function(F){

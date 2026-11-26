@@ -40,7 +40,7 @@
     }
     for(const g of grp.values()){
       const v=g.prods.filter(x=>x.prod>0);
-      add(g.sy,{cultura:g.cultura,cultivares:g.cultivares,area:Math.min(g.area,ha||g.area),prod:v.length?v.reduce((a,x)=>a+x.prod,0)/v.length:null,
+      add(g.sy,{sy:g.sy,cultura:g.cultura,cultivares:g.cultivares,area:Math.min(g.area,ha||g.area),prod:v.length?v.reduce((a,x)=>a+x.prod,0)/v.length:null,
         colhida:g.prods.length>0,cob:g.cob&&!g.prods.length,ep:g.cob&&!g.prods.length?3:g.ep,data:g.data});
     }
     for(const x of itens) if(x.talhao===t&&Number.isFinite(Number(x.safra))){
@@ -83,7 +83,7 @@
   window.rotBloco=t=>{
     const h=historico(t), sys=[...h.keys()].sort((a,b)=>b-a), cur=safraDe(todayISO());
     const ed=form&&form.t===t?form:null, xEd=ed?.id?itens.find(i=>i.id===ed.id):null;
-    const linha=x=>`<li class="rot-it${x.cob?" rot-cob":""}"><span class="rot-c">${nomeC(x)}${x.cultivares.length?` · ${esc(x.cultivares.join(", "))}`:""}</span><span class="rot-n">${x.area?`${num(x.area)} ha`:""}${x.prod?` · ${num(Math.round(x.prod*10)/10)} sc/ha`:x.colhida===false&&!x.cob&&!x.manual?" · ainda no campo":""}${x.obs?` · ${esc(x.obs)}`:""}${x.manual?` <button type="button" class="link rot-ed" data-roted="${x.id}" aria-label="Editar anotação">editar</button>`:""}</span></li>`;
+    const linha=x=>`<li class="rot-it${x.cob?" rot-cob":""}"><span class="rot-c">${nomeC(x)}${x.cultivares.length?` · ${esc(x.cultivares.join(", "))}`:""}</span><span class="rot-n">${x.area?`${num(x.area)} ha`:""}${x.prod?` · ${num(Math.round(x.prod*10)/10)} sc/ha`:x.colhida===false&&!x.cob&&!x.manual?" · ainda no campo":""}${x.obs?` · ${esc(x.obs)}`:""}${x.manual?` <button type="button" class="link rot-ed" data-roted="${x.id}" aria-label="Editar anotação">editar</button>`:""}${!x.manual&&window.rlAbre?` <button type="button" class="link rot-ed" data-rlab="${window.rlIdDe(x.cultura,x.sy)}">resultado</button>`:""}</span></li>`;
     return `<details class="rot-box"${ed||rotAberto.has(t)?" open":""} data-rott="${esc(t)}">
       <summary>Histórico da área <small>rotação de culturas${sys.length?` · ${sys.length} safra${sys.length===1?"":"s"}`:""}</small></summary>
       ${sys.length?`<ul class="rot-l">${sys.map(y=>`<li class="rot-sf"><b>${safraLab(y)}${y===cur?" <small>(atual)</small>":""}</b><ul>${h.get(y).map(linha).join("")}</ul></li>`).join("")}</ul>`
@@ -97,6 +97,7 @@
     el.querySelectorAll("details.rot-box").forEach(d=>d.addEventListener("toggle",()=>{d.open?rotAberto.add(d.dataset.rott):rotAberto.delete(d.dataset.rott)}));
     el.querySelectorAll("[data-rotnova]").forEach(b=>b.onclick=()=>{form={t:b.dataset.rotnova,id:null}; rotAberto.add(form.t); redesenha(); el.querySelector(".rot-cu")?.focus()});
     el.querySelectorAll("[data-roted]").forEach(b=>b.onclick=()=>{const x=itens.find(i=>i.id===b.dataset.roted); if(!x) return; form={t:x.talhao,id:x.id}; redesenha()});
+    el.querySelectorAll("[data-rlab]").forEach(b=>b.onclick=()=>window.rlAbre?.(b.dataset.rlab));
     el.querySelectorAll("[data-rotx]").forEach(b=>b.onclick=()=>{form=null; redesenha()});
     el.querySelectorAll("[data-rotdel]").forEach(b=>b.onclick=async()=>{
       if(!b.dataset.conf){b.dataset.conf=1; b.textContent="Toque de novo para excluir"; return}
