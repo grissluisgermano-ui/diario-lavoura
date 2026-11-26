@@ -276,7 +276,7 @@ function renderContratos(){
   $("#fn-ctr-n").textContent=`${ab.length} em aberto · ${brl(ab.reduce((t,[,x])=>t+x.aberto,0))}`;
   $("#fn-ctr").innerHTML=ab.slice(0,30).map(([c,x])=>`<button type="button" class="fn-lx fn-ctr-i" data-ctr="${esc(c)}"><div><b>${esc(ctrTxt(c))}${x.pessoa?` · ${esc(x.pessoa)}`:""}</b>
       <small>${esc([...x.cats].join(", "))} · vence ${brDate(x.prox)}</small></div><span class="mono">${brl(x.aberto)}<small>de ${brl(x.total)}</small></span></button>`).join("");
-  $("#fn-ctr").querySelectorAll("[data-ctr]").forEach(b=>b.onclick=()=>{fnFiltro="todas"; show("fin_contas"); $("#fn-busca").value=b.dataset.ctr; renderContas()});
+  $("#fn-ctr").querySelectorAll("[data-ctr]").forEach(b=>b.onclick=()=>window.ctrRelatorio?window.ctrRelatorio(b.dataset.ctr):window.finVerContrato(b.dataset.ctr));
 }
 /* ---------- Descontos dos contratos (editor) ---------- */
 let cdExtra=[];
@@ -794,7 +794,8 @@ window.finCustoCultura=function(sy,cult){
   x.ger=areaPlant?geral*areaCult(cult)/areaPlant:0;
   return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult),det,geral,areaPlant,temReg,porCultura:Object.fromEntries(Object.keys(plant).map(c=>[c,areaCult(c)]))};
 };
-window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id)};
+window.finVerContrato=c=>{fnFiltro="todas"; show("fin_contas"); $("#fn-busca").value=c; renderContas()};
+window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id),liqPrev,pctLanc,ctrN:v=>ctrN(v),ctrTxt,contratoCfg:c=>contratoCfg(c),contratosCfg:()=>fnCfg.contratos||{},contas:()=>fnContas};
 window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
 window.finGastosRel=function(F){
@@ -1204,7 +1205,7 @@ function renderContas(){
     return `<article class="rec fn-rec" style="--c:var(${cor})">
       <div class="rec-top"><span class="rec-tipo">${esc(l.descricao)}${l.parcela?` <small class="note">parcela ${esc(l.parcela)}</small>`:""}</span><span class="mov-q ${r?"in":"out"}">${tr?"":r?"+":"−"}${brl(vp(l))}</span></div>
       <div class="rec-top">${tr?`<span>${esc(nomeConta(l.contaId))} → ${esc(nomeConta(l.contaDestino))} · ${brDate(l.pagoEm)}</span>`:situacao(l)}<span class="note">${tr?"Transferência":esc(catNome(l.categoria))}</span></div>
-      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${(()=>{const p=pctLanc(l); if(!p||tr) return ""; return l.status==="pago"?`<span>Nota <b>${brl(l.valor)}</b></span>${l.valorPago!=null&&Number(l.valorPago)<Number(l.valor)?`<span>Desconto <b>${brl(Number(l.valor)-Number(l.valorPago))}</b></span>`:""}`:`<span>Nota <b>${brl(l.valor)}</b></span><span>Desconto do contrato <b>−${num(p*100)}% (${brl(Number(l.valor)-liqPrev(l))})</b></span>`})()}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.contrato?`<span><b>${esc(ctrTxt(l.contrato))}</b></span>`:""}${destTxt(l)?`<span>Destino <b>${esc(destTxt(l))}</b></span>`:""}${l.status==="pago"&&!l.contaId&&!l.quitGraos?`<span class="note">sem conta (histórico)</span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
+      ${tr?"":`<div class="rec-campos">${l.pessoa?`<span>${r?"Comprador":"Fornecedor"} <b>${esc(l.pessoa)}</b></span>`:""}${l.nf?`<span>NF <b>${esc(l.nf)}</b></span>`:""}${l.forma?`<span>${esc(FN_FORMAS[l.forma]||l.forma)}</span>`:""}${(()=>{const p=pctLanc(l); if(!p||tr) return ""; return l.status==="pago"?`<span>Nota <b>${brl(l.valor)}</b></span>${l.valorPago!=null&&Number(l.valorPago)<Number(l.valor)?`<span>Desconto <b>${brl(Number(l.valor)-Number(l.valorPago))}</b></span>`:""}`:`<span>Nota <b>${brl(l.valor)}</b></span><span>Desconto do contrato <b>−${num(p*100)}% (${brl(Number(l.valor)-liqPrev(l))})</b></span>`})()}${l.categoria==="financ"?`<span>Juros <b>${l.juros!=null?brl(l.juros):"não informado"}</b></span>`:""}${l.titular?`<span>Em nome de <b>${esc(l.titular)}</b></span>`:""}${l.contrato?`<span><b>${esc(ctrTxt(l.contrato))}</b>${window.ctrRelatorio?` <button type="button" class="link" data-ctrrelc="${esc(l.contrato)}">relatório</button>`:""}</span>`:""}${destTxt(l)?`<span>Destino <b>${esc(destTxt(l))}</b></span>`:""}${l.status==="pago"&&!l.contaId&&!l.quitGraos?`<span class="note">sem conta (histórico)</span>`:""}${l.status==="pago"&&l.contaId?`<span>Conta <b>${esc(nomeConta(l.contaId))}</b></span>`:""}${l.quitGraos?`<span>Quitada com <b>${num(l.quitGraos.sacas)} sc de ${esc(l.quitGraos.cultura)}</b></span>`:""}${l.valorPago!=null&&l.status==="pago"&&Math.abs(l.valorPago-l.valor)>0.004?`<span>Previsto <b>${brl(l.valor)}</b></span>`:""}</div>`}
       ${(l.itens||[]).length?`<details class="fn-det"><summary>${l.itens.length} ite${l.itens.length===1?"m":"ns"}</summary>${l.itens.map(i=>`<div class="fn-it"><span>${esc(itTxt(i))}</span><span class="mono">${i.valor!=null?brl(i.valor):""}</span></div>`).join("")}</details>`:""}
       ${(l.anexos||[]).length?`<div class="anx-links">${anxLinks(l.anexos)}</div>`:""}
       ${l.obs?`<p class="rec-desc">${esc(l.obs)}</p>`:""}
@@ -1513,11 +1514,12 @@ function renderCtrRet(sy){
     <p class="note">As notas de retirada (sem duplicata) entram no estoque e no custo das aplicações, mas não no Financeiro: lá vale o <b>pagamento do contrato</b>. Aqui você confere se cada contrato está lançado e quanto ainda está no depósito.</p>
     ${ls.length?ls.map(o=>{const [c,t]=st(o); return `<div class="ctr-it"><b>Contrato ${esc(o.n)}${o.forn?` · ${esc(o.forn)}`:""}</b>
       <div class="ctr-nums"><div><span>Pago</span><b>${brl(o.pago)}</b></div><div><span>A pagar</span><b>${brl(o.aberto)}</b></div><div><span>Retirado</span><b>${brl(o.ret)}</b></div></div>
-      <span class="ctr-st ${c}">${t}</span>
+      <span class="ctr-st ${c}">${t}</span>${window.ctrRelatorio?` <button type="button" class="link" data-ctrrel="${esc(o.n)}">📄 Relatório do contrato</button>`:""}
       ${o.rets.length?`<details><summary class="note">${(n=>`${n} retirada${n>1?"s":""}`)(o.rets.filter(r=>!r.x.devolucao).length)}${o.rets.some(r=>r.x.devolucao)?` · ${o.rets.filter(r=>r.x.devolucao).length} devolução(ões)`:""}</summary><ul class="lg-lista">${o.rets.sort((a,b)=>String(a.x.data).localeCompare(String(b.x.data))).map(({e,x})=>`<li>${brDate(x.data)} · NF ${esc(x.nf||"")} · ${esc(e.comercial)} · ${brl(x.valorTotal)}</li>`).join("")}</ul></details>`:""}
       ${o.ret>0&&o.pago+o.aberto<=0?`<div class="row"><button type="button" class="btn fn-mini" data-ctrl="${esc(o.n)}">Lançar o pagamento do contrato</button></div>`:""}
     </div>`}).join(""):`<p class="note">Nenhum contrato ${ctrTodos?"":"nesta safra "}— o número do contrato vem da nota (informações complementares) ou do campo Contrato da conta.</p>`}`;
   $("#ctr-todos").onchange=e=>{ctrTodos=e.target.checked; renderCtrRet(sy)};
+  box.querySelectorAll("[data-ctrrel]").forEach(b=>b.onclick=()=>window.ctrRelatorio(b.dataset.ctrrel));
   box.querySelectorAll("[data-ctrl]").forEach(b=>b.onclick=()=>{const o=M.get(b.dataset.ctrl); if(!o) return;
     const itens=o.rets.map(({e,x})=>({desc:`${e.comercial} — ${num(x.quantidade)} ${e.unidade==="emb"?"emb":e.unidade}`,valor:Number(x.valorTotal)||0,classe:e.classe}));
     const data=o.rets.map(r=>r.x.data).sort()[0]||hoje();

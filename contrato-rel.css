@@ -1,0 +1,39 @@
+/* Relatório do contrato (contrato-rel.js) */
+.crl-tela{position:fixed;inset:0;z-index:66;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.crl-tela[hidden]{display:none}
+body.crl-aberto{overflow:hidden}
+.crl-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--line)}
+.crl-bar-t{font-weight:600;flex:1}
+.crl-corpo{max-width:860px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:10px;padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.crl-cab{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+.crl-cab h2{margin:0}
+.crl-sel{display:flex;align-items:center;gap:6px;font-size:.85rem;text-transform:none;letter-spacing:0}
+.crl-sel select{width:auto;max-width:60vw}
+.crl-corpo h3{margin:10px 0 0;font-size:1.05rem}
+.crl-corpo h3 small{color:var(--muted);font-weight:400}
+.crl-ks{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media (min-width:700px){.crl-ks{grid-template-columns:repeat(3,1fr)}}
+.crl-k{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.crl-k small{color:var(--muted);font-size:.78rem}
+.crl-k b{font-size:1.1rem;font-variant-numeric:tabular-nums}
+.crl-k span{font-size:.78rem;color:var(--muted)}
+.crl-k.ab b{color:#b3261e}
+.crl-ls{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.crl-l{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-top:1px solid var(--line)}
+.crl-l:first-child{border-top:0}
+.crl-t{min-width:0;flex:1 1 0}
+.crl-t small,.crl-v small{display:block;color:var(--muted);font-size:.8rem;line-height:1.45;overflow-wrap:anywhere}
+.crl-t small b.ok{color:var(--ok,#2e7d32)}
+.crl-t small b.ab{color:#b3261e}
+.crl-v{flex:none;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.crl-tag{font-size:.72rem;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 6px;font-weight:400}
+.crl-click{cursor:pointer}
+.crl-rod{margin-top:12px}
+@media print{
+  body.crl-aberto>*:not(#crl-tela){display:none!important}
+  body.crl-aberto{overflow:visible}
+  .crl-tela{position:static;overflow:visible;background:#fff}
+  .crl-bar,.crl-sel,.crl-t button{display:none!important}
+  .crl-corpo{max-width:none;padding:0}
+  .crl-l,.crl-k{break-inside:avoid}
+}
