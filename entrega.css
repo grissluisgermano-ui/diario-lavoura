@@ -35,3 +35,5 @@
 .gr-m-sd{font-size:.8rem;color:var(--muted,#6b6b6b)}
 .gr-m-sc{text-align:right}
 .gr-conj{flex-basis:100%}
+.gs-zera{grid-column:1/-1;justify-self:end;font-size:.8rem;white-space:normal;text-align:right}
+.gs-zera-c{color:#b3261e;font-weight:600}
