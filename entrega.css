@@ -22,3 +22,16 @@
 #ce-mais summary{cursor:pointer}
 #ce-mais[open] summary{margin-bottom:12px}
 .ce-form{display:flex;flex-direction:column;gap:12px}
+/* venda de várias pessoas juntas (Grãos → Movimentar saldo) */
+.gr-mchk{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.85rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink,#222);cursor:pointer}
+.gr-mchk input{width:auto;margin:0}
+.gr-multi{border:1px solid var(--line,#ddd);border-radius:12px;padding:10px 12px;margin:4px 0 10px;background:var(--card,#fff)}
+.gr-m-t{margin:0 0 6px;font-weight:600}
+.gr-m-t small{font-weight:400;color:var(--muted,#6b6b6b)}
+.gr-m-l{display:grid;grid-template-columns:1fr auto 110px;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--line,#ddd)}
+.gr-m-l:first-of-type{border-top:0}
+.gr-m-l label{display:flex;align-items:center;gap:8px;font-size:.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink,#222)}
+.gr-m-l label input{width:auto;margin:0}
+.gr-m-sd{font-size:.8rem;color:var(--muted,#6b6b6b)}
+.gr-m-sc{text-align:right}
+.gr-conj{flex-basis:100%}

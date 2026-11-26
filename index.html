@@ -1137,7 +1137,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div class="chips" id="gr-modos"></div>
       <div class="grid2">
         <div class="field"><label for="gr-data">Data</label><input type="date" id="gr-data"></div>
-        <div class="field"><label for="gr-tit">De quem</label><select id="gr-tit"></select></div>
+        <div class="field"><label for="gr-tit">De quem</label><select id="gr-tit"></select><label class="gr-mchk" id="gr-multi-l"><input type="checkbox" id="gr-multi"> Várias pessoas na mesma venda</label></div>
         <div class="field"><label for="gr-cult">Cultura</label><input id="gr-cult" list="dl-cult" placeholder="Ex.: Soja"><datalist id="dl-cult"></datalist></div>
         <div class="field"><label for="gr-local" id="gr-local-l">Local</label><input id="gr-local" list="dl-dep" placeholder="Ex.: Coamo"></div>
         <div class="field" data-g="transferencia"><label for="gr-dest">Para o local</label><input id="gr-dest" list="dl-dep" placeholder="Ex.: C.Vale"></div>
@@ -1146,6 +1146,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         <div class="field" data-g="venda"><label for="gr-vt">Valor total (R$)</label><input id="gr-vt" inputmode="decimal" placeholder="0,00"></div>
         <div class="field" data-g="venda"><label for="gr-contrato">Comprador / contrato</label><input id="gr-contrato" placeholder="Opcional"></div>
       </div>
+      <div id="gr-multi-box" class="gr-multi" hidden></div>
       <div class="field"><label for="gr-obs">Observação</label><input id="gr-obs" placeholder="Opcional"></div>
       <p class="note" id="gr-hint"></p>
       <div class="row"><button class="btn" type="submit" id="gr-salvar">Lançar</button><span class="toast" id="gr-toast" role="status"></span></div>
@@ -4033,13 +4034,14 @@ function renderGraos(){
   $("#gr-lista").innerHTML=vis.length?vis.map(m=>`<article class="rec" style="--c:var(${m.tipo==="romaneio"?"--t-colheita":m.tipo==="venda"?"--accent":"--muted"})">
       <div class="rec-top"><span class="rec-tipo">${m.tipo==="romaneio"?`Romaneio${m.numero?" nº "+esc(m.numero):""}`:GR_MODOS[m.tipo]}</span><span class="rec-talhoes mono">${brDate(m.data)}${m.hora?" · "+esc(m.hora):""}</span></div>
       <div class="rec-top"><span>${esc(m.cultura)} · ${esc(m.local||"Sem local")}${m.tipo==="transferencia"?` → ${esc(m.destino)}`:""}</span><span class="mov-q ${sinal(m)==="+"?"in":"out"}">${sinal(m)}${scFmt(m.sacas)}</span></div>
-      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas,m.data))}</b></span>${romClsTxt(m)?`<span>${esc(romClsTxt(m))}</span>`:""}${m.anexos?.length?`<span class="anx-links">${anxLinks(m.anexos)}</span>`:""}`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}</div>
+      <div class="rec-campos">${m.tipo==="romaneio"?`<span>Talhão <b>${esc(talhoesTxt(m.talhoes,m.areas,m.data))}</b></span>${romClsTxt(m)?`<span>${esc(romClsTxt(m))}</span>`:""}${m.anexos?.length?`<span class="anx-links">${anxLinks(m.anexos)}</span>`:""}`+(()=>{const d=divisaoDe(m);return ["lavoura",...Object.keys(d).filter(k=>k!=="lavoura")].filter(t=>d[t]).map(t=>`<span>${esc(titNome(t))} <b>${num(m.sacas*d[t]/100)} sc</b></span>`).join("")})():m.tipo==="arrendamento"?`<span>De <b>Lavoura</b> para <b>${esc(titNome(m.para||"pai"))}</b></span>`:`<span>Titular <b>${esc(titNome(m.titular||"lavoura"))}</b></span>`}${m.tipo==="venda"&&m.valorTotal?`<span>Valor <b>${brl(m.valorTotal)}</b> (${brl(m.valorTotal/m.sacas)}/sc)</span>`:""}${m.contrato?`<span>Contrato <b>${esc(m.contrato)}</b></span>`:""}${m.vendaId?`<span class="gr-conj">${m.tipo==="venda"?"Venda":"Retirada"} conjunta: <b>${scFmt(m.vendaSacas||graos.filter(g=>g.vendaId===m.vendaId).reduce((a,g)=>a+g.sacas,0))}</b> no total (${graos.filter(g=>g.vendaId===m.vendaId).map(g=>`${esc(titNome(g.titular))} ${num(g.sacas)} sc`).join(" · ")})${m.vendaValor?` · ${brl(m.vendaValor)}`:""}</span>`:""}</div>
       ${m.obs?`<p class="rec-desc">${esc(m.obs)}</p>`:""}
       ${assinatura(m)}
-      <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">Excluir</button>`}</div>
+      <div class="rec-actions">${m.tipo==="romaneio"?`<button type="button" class="link" data-grreg="${m.regId}">Editar na colheita</button>`:`<button type="button" class="link danger" data-grdel="${m.id}">${m.vendaId?"Excluir a venda toda":"Excluir"}</button>`}</div>
     </article>`).join(""):`<div class="empty">Nenhuma movimentação${fc||fl?" com esses filtros":""}.</div>`;
   $("#gr-lista").querySelectorAll("[data-grreg]").forEach(b=>b.onclick=()=>editar(b.dataset.grreg));
-  $("#gr-lista").querySelectorAll("[data-grdel]").forEach(b=>b.onclick=()=>ligOu(b,"graos",b.dataset.grdel,async()=>{await db.collection("graos").doc(b.dataset.grdel).delete()}));
+  $("#gr-lista").querySelectorAll("[data-grdel]").forEach(b=>b.onclick=()=>ligOu(b,"graos",b.dataset.grdel,async()=>{const m=graos.find(g=>g.id===b.dataset.grdel), ids=m?.vendaId?graos.filter(g=>g.vendaId===m.vendaId).map(g=>g.id):[b.dataset.grdel];
+    const p=window.ponte; if(p&&ids.length>1) p.lote="gv"+Date.now().toString(36); try{for(const id of ids) await db.collection("graos").doc(id).delete()}finally{if(p) p.lote=null}}));
   grHint();
 }
 ["#gr-safra","#gr-f-cult","#gr-f-local"].forEach(s=>$(s).addEventListener("change",renderGraos));
@@ -4048,7 +4050,35 @@ function grOpcoesTit(){
   el.innerHTML=ops.map(t=>`<option value="${t}" ${t===tv?"selected":""}>${esc(titNome(t))}</option>`).join("");
   $("label[for=gr-tit]").textContent=arr?"Para quem":"De quem";
   el.closest(".field").hidden=arr&&ARRS().length<2;
+  grMultiSync();
 }
+/* venda/retirada de várias pessoas juntas (ex.: toda a cevada vendida de uma vez, parte da Lavoura + dos funcionários):
+   grava um movimento por pessoa com o mesmo vendaId; no Financeiro vira UMA conta a receber + o repasse de cada funcionário. */
+const grMSel={}; // titular → {on, sc, man}
+const grMultiOn=()=>(grModo==="venda"||grModo==="retirada")&&$("#gr-multi").checked;
+const grScTxt=v=>String(Math.round(v*10000)/10000).replace(".",",");
+function grMultiSync(){
+  const pode=grModo==="venda"||grModo==="retirada";
+  $("#gr-multi-l").hidden=!pode;
+  const on=grMultiOn(), box=$("#gr-multi-box");
+  $("#gr-tit").hidden=on; box.hidden=!on; $("#gr-sc").readOnly=on;
+  $("label[for=gr-tit]").textContent=grModo==="arrendamento"?"Para quem":on?"De quem (escolha abaixo)":"De quem";
+  if(!on) return;
+  const c=normCult($("#gr-cult").value), l=$("#gr-local").value.trim(), st=grSaldosTit()[c]||{}, tem=$("#gr-cult").value.trim()&&l;
+  for(const t of TITS){const x=grMSel[t]; if(x?.on&&!(x.sc>0)&&!x.man&&tem){const sd=st[t]?.[l]||0; x.sc=sd>0?Math.round(sd*10000)/10000:null}}
+  box.innerHTML=`<p class="gr-m-t">Quanto sai de cada um${tem?` <small>(${esc(c)} em ${esc(l)})</small>`:""}</p>`+TITS.map(t=>{const x=grMSel[t]||{}, sd=tem?(st[t]?.[l]||0):null;
+    return `<div class="gr-m-l"><label><input type="checkbox" data-gmt="${t}"${x.on?" checked":""}> ${esc(titNome(t))}</label><span class="gr-m-sd">${sd==null?"":`tem ${scFmt(sd)}`}</span><input class="gr-m-sc" data-gms="${t}" inputmode="decimal" placeholder="sacas" value="${x.sc!=null?grScTxt(x.sc):""}"${x.on?"":" disabled"} aria-label="Sacas de ${esc(titNome(t))}"></div>`}).join("")+
+    `<p class="note">Marque quem entra na venda: o app já põe o saldo de cada um (pode mudar). O preço e o valor total valem para a venda toda; cada um fica com a parte proporcional às sacas. No Financeiro vira uma conta só a receber e, para cada funcionário, o repasse a pagar.</p>`;
+  box.querySelectorAll("[data-gmt]").forEach(ch=>ch.onchange=()=>{const t=ch.dataset.gmt, x=(grMSel[t]??={}); x.on=ch.checked;
+    grMultiSync(); grMultiTot()});
+  box.querySelectorAll("[data-gms]").forEach(i=>i.oninput=()=>{const x=(grMSel[i.dataset.gms]??={}); const v=horNum(i.value); x.sc=v>0?v:null; x.man=true; grMultiTot()});
+}
+function grMultiTot(){
+  if(!grMultiOn()) return;
+  const t=TITS.reduce((a,k)=>a+(grMSel[k]?.on&&grMSel[k].sc>0?grMSel[k].sc:0),0);
+  $("#gr-sc").value=t>0?grScTxt(t):""; grLink(); grHint();
+}
+const grMultiPartes=()=>TITS.filter(k=>grMSel[k]?.on&&grMSel[k].sc>0).map(k=>({t:k,sc:grMSel[k].sc}));
 function grSetModo(m){
   grModo=m;
   $("#gr-modos").innerHTML=Object.entries(GR_MODOS).map(([k,l])=>`<button type="button" class="chip" aria-pressed="${k===m}" data-k="${k}">${l}</button>`).join("");
@@ -4064,11 +4094,15 @@ function grHint(){
   const c=normCult($("#gr-cult").value), l=$("#gr-local").value.trim(), sc=horNum($("#gr-sc").value);
   if(!$("#gr-cult").value.trim()||!l){$("#gr-hint").textContent=grModo==="inicial"?"Use para lançar sacas que já estavam depositadas antes de começar a usar o app.":"";return}
   if(grModo==="arrendamento"){const para=$("#gr-tit").value||arrPadrao(), disp=grSaldosTit()[c]?.lavoura?.[l]||0, a=arrInfo(para); $("#gr-hint").textContent=`Sai da parte da Lavoura (${c} em ${l}: ${scFmt(disp)}) e vai para ${titNome(para)}. ${sc>disp?"Atenção: saldo da Lavoura insuficiente neste local. ":""}Falta pagar na safra ${safraLab(a.sy)}: ${scFmt(Math.max(a.falta-(sc>0?sc:0),0))}.`;return}
+  if(grMultiOn()){const ps=grMultiPartes(), st=grSaldosTit()[c]||{};
+    $("#gr-hint").textContent=ps.length?`${c} em ${l}: `+ps.map(p=>{const d=st[p.t]?.[l]||0; return `${titNome(p.t)} sai ${scFmt(p.sc)}${p.sc>d+0.005?` (atenção: só tem ${scFmt(d)})`:` → fica ${scFmt(d-p.sc)}`}`}).join(" · ")+`. Total: ${scFmt(ps.reduce((a,p)=>a+p.sc,0))}.`:"Marque quem entra na venda.";return}
   const t=$("#gr-tit").value||"lavoura", quem=titNome(t), disp=grSaldosTit()[c]?.[t]?.[l]||0;
   if(grModo==="inicial"){$("#gr-hint").textContent=`${c} de ${quem} em ${l} hoje: ${scFmt(disp)}.`;return}
   $("#gr-hint").textContent=sc>disp?`Atenção: o saldo de ${c} de ${quem} em ${l} é ${scFmt(disp)}.`:`Saldo de ${c} de ${quem} em ${l}: ${scFmt(disp)}${sc>0?` → ficará com ${scFmt(disp-sc)}`:""}.`;
 }
 ["#gr-cult","#gr-local","#gr-sc","#gr-tit"].forEach(s=>$(s).addEventListener("input",grHint));
+["#gr-cult","#gr-local"].forEach(s=>$(s).addEventListener("change",()=>{if(grMultiOn()){for(const k in grMSel) if(!grMSel[k].man) grMSel[k].sc=null; for(const k in grMSel) if(grMSel[k].on&&!(grMSel[k].sc>0)){const sd=grSaldosTit()[normCult($("#gr-cult").value)]?.[k]?.[$("#gr-local").value.trim()]||0; grMSel[k].sc=sd>0?Math.round(sd*10000)/10000:null} grMultiSync(); grMultiTot()}}));
+$("#gr-multi").addEventListener("change",()=>{if($("#gr-multi").checked&&!TITS.some(k=>grMSel[k]?.on)){const t=$("#gr-tit").value||"lavoura"; grMSel[t]={on:true,sc:horNum($("#gr-sc").value)>0?horNum($("#gr-sc").value):null,man:horNum($("#gr-sc").value)>0}} if(!$("#gr-multi").checked) $("#gr-sc").readOnly=false; grMultiSync(); grMultiTot(); if(!$("#gr-multi").checked) grHint()});
 let grUlt="preco";
 $("#gr-preco").addEventListener("input",()=>{grUlt="preco";grLink()});
 $("#gr-vt").addEventListener("input",()=>{grUlt="vt";grLink()});
@@ -4087,6 +4121,19 @@ $("#gr-form").addEventListener("submit",async ev=>{
   const body={tipo:grModo,titular:grModo==="arrendamento"?"lavoura":($("#gr-tit").value||"lavoura"),...(grModo==="arrendamento"?{para:$("#gr-tit").value||arrPadrao()}:{}),data:$("#gr-data").value||todayISO(),cultura:normCult(cultura),local,sacas,obs:$("#gr-obs").value.trim(),criadoEm:new Date().toISOString()};
   if(grModo==="transferencia"){const d=$("#gr-dest").value.trim(); if(!d||d===local){grFlash("Informe o local de destino.");$("#gr-dest").focus();return} body.destino=d}
   if(grModo==="venda"){const vt=parseNum($("#gr-vt").value); body.valorTotal=vt>0?vt:null; body.contrato=$("#gr-contrato").value.trim()}
+  if(grMultiOn()){const ps=grMultiPartes();
+    if(!ps.length){grFlash("Marque quem entra na venda e as sacas de cada um.");return}
+    const tot=ps.reduce((a,p)=>a+p.sc,0), vt=body.valorTotal||0, vid="gv"+Date.now().toString(36);
+    let resto=Math.round(vt*100)/100;
+    const docs=ps.map((p,i)=>{const v=i===ps.length-1?resto:Math.round(vt*p.sc/tot*100)/100; resto=Math.round((resto-v)*100)/100;
+      return {...body,titular:p.t,sacas:p.sc,...(grModo==="venda"?{valorTotal:vt>0?v:null}:{}),vendaId:vid,vendaSacas:Math.round(tot*100)/100,...(grModo==="venda"&&vt>0?{vendaValor:vt}:{})}});
+    $("#gr-salvar").disabled=true;
+    try{for(let i=0;i<docs.length;i++) await db.collection("graos").doc(`${vid}_${docs[i].titular}`).set(docs[i]);
+      ["#gr-sc","#gr-preco","#gr-vt","#gr-contrato","#gr-obs","#gr-dest"].forEach(s=>$(s).value=""); for(const k in grMSel) delete grMSel[k]; $("#gr-multi").checked=false; grMultiSync();
+      grFlash(`${GR_MODOS[grModo]} de ${scFmt(tot)} lançada (${ps.map(p=>titNome(p.t)).join(", ")}).`); grHint()}
+    catch(err){grFlash("Não foi possível salvar. Tente de novo.")}
+    finally{$("#gr-salvar").disabled=false}
+    return}
   $("#gr-salvar").disabled=true;
   try{await db.collection("graos").add(body);
     ["#gr-sc","#gr-preco","#gr-vt","#gr-contrato","#gr-obs","#gr-dest"].forEach(s=>$(s).value="");

@@ -20,16 +20,16 @@ const CAT_PADRAO={
     ["maoobra","Salários, ordenados e comissões","custo"],["prolabore","Pró-labore","custo"],["medtrab","Medicina do trabalho","custo"],
     ["arrendamento","Arrendamento","custo"],["servicos","Serviços terceirizados (frete, colheita…)","custo"],["impostos","Impostos (Funrural, FGTS, DARF, ITR…)","custo"],
     ["impveiculo","Imposto de veículo","custo"],["seguro","Seguros","custo"],["energia","Luz","custo"],["comunicacao","Comunicação (telefone, internet)","custo"],
-    ["outras_d","Despesas diversas","custo"],["financ","Financiamentos (parcela — informe os juros)","financ"],["consorcio","Consórcio","invest"],["capital","Cota capital da cooperativa (retenção na venda)","invest"],
+    ["outras_d","Despesas diversas","custo"],["repasse","Repasse de grãos vendidos (parte dos funcionários)","repasse"],["financ","Financiamentos (parcela — informe os juros)","financ"],["consorcio","Consórcio","invest"],["capital","Cota capital da cooperativa (retenção na venda)","invest"],
     ["investimento","Aquisição de máquinas e implementos","invest"],["familia_pai","Finanças Nestor Griss","familia"],["emprestimo","Empréstimos (família)","familia"],
     ["animais","Animais (pecuária)","pecuaria"]],
   receber:[["graos","Venda agrícola (grãos)","receita"],["outras_r","Outras receitas","receita"],["financ_r","Financiamento recebido (custeio)","naoreceita"],["devol_r","Crédito de devolução de compra","naoreceita"],
     ["familia_r","Recebido da família / empréstimo","familia"],["animais_r","Venda de animais","pecuaria"]]};
-const PAPEIS={pagar:{custo:"Custo da lavoura",invest:"Investimento (fora do custo)",financ:"Financiamento: só os juros são custo",familia:"Contas com a família (fora do custo)",pecuaria:"Pecuária (separada da lavoura)"},
+const PAPEIS={pagar:{custo:"Custo da lavoura",invest:"Investimento (fora do custo)",financ:"Financiamento: só os juros são custo",familia:"Contas com a família (fora do custo)",pecuaria:"Pecuária (separada da lavoura)",repasse:"Repasse a terceiros (fora do custo)"},
   receber:{receita:"Receita da lavoura",naoreceita:"Não é receita (empréstimo)",familia:"Contas com a família",pecuaria:"Pecuária"}};
 const CURTO={defensivos:"Defensivos",fertilizantes:"Fertilizantes",sementes:"Sementes",insumos:"Insumos",combustivel:"Combustível",manutencao:"Manutenção",benfeitorias:"Benfeitorias",
   maoobra:"Salários e comissões",prolabore:"Pró-labore",medtrab:"Medicina do trabalho",arrendamento:"Arrendamento",servicos:"Serviços",impostos:"Impostos",capital:"Cota capital",impveiculo:"Imposto de veículo",
-  seguro:"Seguros",energia:"Luz",comunicacao:"Telefone e internet",outras_d:"Despesas diversas",financ:"Juros de financiamentos",consorcio:"Consórcio",investimento:"Máquinas e implementos",
+  seguro:"Seguros",energia:"Luz",comunicacao:"Telefone e internet",outras_d:"Despesas diversas",repasse:"Repasse aos funcionários",financ:"Juros de financiamentos",consorcio:"Consórcio",investimento:"Máquinas e implementos",
   familia_pai:"Finanças Nestor Griss",emprestimo:"Empréstimos",animais:"Animais",graos:"Venda de grãos",outras_r:"Outras receitas",financ_r:"Financiamento recebido",familia_r:"Recebido da família",animais_r:"Venda de animais"};
 const INSUMO_CATS=new Set(["defensivos","fertilizantes","sementes","insumos"]);
 /* lista em uso: a salva em config/financeiro.categorias (editável) ou a padrão */
@@ -158,7 +158,19 @@ function pendencias(modo){ // modo: "atual" (a partir do início), "retro" (ante
     const k="bf|"+x.id; if(livre(k,x.data)) out.push({k,natureza:"pagar",data:x.data,descricao:`${nomeBf(x.benfId)}${(x.servicos||[]).length?" — "+x.servicos.join(", "):""}`,pessoa:x.responsavel||"",nf:"",valor:Number(x.custoTotal),categoria:"benfeitorias",fonte:"Benfeitorias",itens:(x.itens||[]).filter(i=>i.desc||i.valor).map(i=>({desc:i.desc||"Item",valor:i.valor}))})}
   const recG=fnLanc.filter(l=>l.natureza==="receber"&&l.categoria==="graos");
   const vendaNoFin=m=>recG.some(l=>Math.abs(vp(l)-m.valorTotal)<=m.valorTotal*.01&&Math.abs(dias(l.competencia||l.vencimento,m.data))<=5);
-  for(const m of (typeof graos!=="undefined"?graos:[])) if(m.tipo==="venda"&&Number(m.valorTotal)>0&&!m.finId&&!vendaNoFin(m)){
+  // venda de várias pessoas juntas (vendaId): uma conta a receber com o total + o repasse de cada funcionário/arrendatário
+  const conj=new Map(); for(const m of (typeof graos!=="undefined"?graos:[])) if(m.tipo==="venda"&&m.vendaId&&!m.finId) (conj.get(m.vendaId)||conj.set(m.vendaId,[]).get(m.vendaId)).push(m);
+  for(const [vid,ms] of conj){
+    const tot=ms.reduce((a,m)=>a+(Number(m.valorTotal)||0),0), sc=ms.reduce((a,m)=>a+m.sacas,0), m0=ms[0], cu=m0.cultura, quem=m=>typeof titNome==="function"?titNome(m.titular||"lavoura"):(m.titular||"lavoura");
+    if(!(tot>0)) continue;
+    const k="grv|"+vid;
+    if(livre(k,m0.data)&&!vendaNoFin({valorTotal:tot,data:m0.data})) out.push({k,natureza:"receber",data:m0.data,descricao:`Venda de ${num(sc)} sc de ${cu}`,pessoa:m0.contrato||m0.local||"",nf:"",valor:+tot.toFixed(2),categoria:"graos",fonte:"Grãos",
+      itens:ms.map(m=>({desc:`${num(m.sacas)} sc de ${cu} de ${quem(m)} (${m.local||"sem local"}) a ${brl(m.valorTotal/m.sacas)}/sc`,valor:Number(m.valorTotal)||0}))});
+    for(const m of ms) if((m.titular||"lavoura")!=="lavoura"&&Number(m.valorTotal)>0){const kr=`grr|${vid}|${m.titular}`;
+      if(livre(kr,m0.data)) out.push({k:kr,natureza:"pagar",data:m0.data,descricao:`Repasse a ${quem(m)} — ${num(m.sacas)} sc de ${cu} vendidas`,pessoa:quem(m),nf:"",valor:+Number(m.valorTotal).toFixed(2),categoria:"repasse",fonte:"Grãos",
+        itens:[{desc:`Parte de ${quem(m)} na venda de ${num(sc)} sc de ${cu}`,valor:Number(m.valorTotal)}]})}
+  }
+  for(const m of (typeof graos!=="undefined"?graos:[])) if(m.tipo==="venda"&&Number(m.valorTotal)>0&&!m.vendaId&&!m.finId&&!vendaNoFin(m)){
     const k="gr|"+m.id; if(livre(k,m.data)) out.push({k,natureza:"receber",data:m.data,descricao:`Venda de ${num(m.sacas)} sc de ${m.cultura}`,pessoa:m.contrato||m.local||"",nf:"",valor:Number(m.valorTotal),categoria:"graos",fonte:"Grãos",itens:[{desc:`${num(m.sacas)} sc de ${m.cultura} (${m.local||"sem local"}) a ${brl(m.valorTotal/m.sacas)}/sc`,valor:Number(m.valorTotal)}]})}
   return out.sort((a,b)=>b.data.localeCompare(a.data));
 }
@@ -1364,7 +1376,7 @@ function renderSafra(){
   const lan=fnLanc.filter(l=>l.natureza!=="transf"&&safraLanc(l)===sy);
   const area=TALHOES.reduce((t,x)=>t+x.ha,0);
   /* ---- receitas ---- */
-  const vendas=grMovs().filter(m=>m.tipo==="venda"&&naS(m.data)&&Number(m.valorTotal)>0);
+  const vendas=grMovs().filter(m=>m.tipo==="venda"&&naS(m.data)&&Number(m.valorTotal)>0&&!(m.vendaId&&(m.titular||"lavoura")!=="lavoura")); // venda conjunta: a parte dos funcionários é repassada, não é receita
   const recCult={}, recC={};
   const addRec=(cult,lab,v)=>{if(cult) recCult[cult]=(recCult[cult]||0)+v; recC[lab]=(recC[lab]||0)+v};
   for(const m of vendas) addRec(nc(m.cultura),"Venda de "+nc(m.cultura),Number(m.valorTotal));
@@ -1376,13 +1388,14 @@ function renderSafra(){
   for(const l0 of lan) for(const [l,fr] of partes(l0)){
     const pp=papel(l.categoria), v=vp(l0)*fr;
     if(l.natureza==="receber"){
-      if(pp==="receita"){ if(l.categoria==="graos"&&(String(l.origem||"").startsWith("gr|")||vendas.some(m=>Math.abs(m.valorTotal-v)<=m.valorTotal*.01&&Math.abs(dias(m.data,l.competencia||l.vencimento))<=5))) continue; // já contada pela venda do Diário
+      if(pp==="receita"){ if(l.categoria==="graos"&&(/^grv?\|/.test(String(l.origem||""))||vendas.some(m=>Math.abs(m.valorTotal-v)<=m.valorTotal*.01&&Math.abs(dias(m.data,l.competencia||l.vencimento))<=5))) continue; // já contada pela venda do Diário
         const c=nc(l.cultura)||(l.categoria==="graos"?cultDoTexto(l.descricao):""); addRec(c,l.categoria==="graos"?(c?"Venda de "+c:"Venda de grãos"):catNome(l.categoria),v)}
       else if(pp==="familia") fora.fam.entrou+=v; else if(pp==="pecuaria") fora.pec.rec+=v; else fora.emp+=v;
       continue;
     }
     if(pp==="invest"){fora.invest[l.categoria]=(fora.invest[l.categoria]||0)+v; continue}
     if(pp==="familia"){fora.fam.saiu+=v; continue}
+    if(pp==="repasse"){fora.rep=(fora.rep||0)+v; continue}
     if(pp==="pecuaria"){fora.pec.desp+=v; continue}
     let c=v; if(pp==="financ"){const j=jurosDe(l); fora.amort+=v-j; c=j; if(l.juros==null) semJuros++}
     if(c>0){cat[l.categoria]=(cat[l.categoria]||0)+c; custos.push({l,v:c})}
@@ -1456,6 +1469,7 @@ function renderSafra(){
   const fr=[...Object.entries(fora.invest).map(([k,v])=>[catNome(k),v,"Investimento: entra no patrimônio, não no custo da safra"]),
     fora.amort>0?["Amortização de financiamentos",fora.amort,"Parte da parcela que paga a dívida (os juros estão no custo)"]:null,
     fora.emp>0?["Financiamentos e empréstimos recebidos",-fora.emp,"Entrou no caixa, mas não é receita"]:null,
+    fora.rep>0?["Repasse aos funcionários",fora.rep,"Parte deles nos grãos vendidos junto com a Lavoura: não é custo"]:null,
     fora.fam.saiu>0?["Família — saiu da lavoura",fora.fam.saiu,"Veja o saldo de cada um no Resumo"]:null,
     fora.fam.entrou>0?["Família — entrou na lavoura",-fora.fam.entrou,""]:null,
     (fora.pec.desp||fora.pec.rec)?["Pecuária (despesas − vendas)",fora.pec.desp-fora.pec.rec,`Despesas ${brlC(fora.pec.desp)} · vendas ${brlC(fora.pec.rec)}`]:null].filter(Boolean);
