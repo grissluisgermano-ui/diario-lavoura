@@ -308,7 +308,7 @@ function renderDescontos(){
   box.innerHTML=ks.length?ks.map(k=>{const c={...(cs[k]||{}),...(rasc[k]||{})}, g=G[k], d=c.desc||{}, cc=cdCult(c);
     if(!c.fornecedor&&g?.pessoa) c.fornecedor=g.pessoa;
     const cOpts=[...new Set([...culturas,...(cc.cultura?[cc.cultura]:[])])], sOpts=[...new Set([...safras,...(cc.safra?[cc.safra]:[])])].sort((a,b)=>b-a);
-    const nAnx=(c.anexos||[]).length, pcts=DESC_CLS.filter(([ck])=>d[ck]).map(([ck,cl])=>`${String(d[ck]).replace(".",",")}% ${cl.split(" ")[0].toLowerCase()}`).join(" · ");
+    const nAnx=(c.anexos||[]).length+(window.docDoContrato?.(k)||[]).reduce((s,d)=>s+(d.anexos||[]).length,0), pcts=DESC_CLS.filter(([ck])=>d[ck]).map(([ck,cl])=>`${String(d[ck]).replace(".",",")}% ${cl.split(" ")[0].toLowerCase()}`).join(" · ");
     const linha=[c.fornecedor,[cc.cultura,cc.safra?safraLab(cc.safra):""].filter(Boolean).join(" "),c.valorTotal?brl(c.valorTotal):g?`${g.n} nota${g.n>1?"s":""} · ${brl(g.total)}`:"",c.vencimento?"vence "+brDate(c.vencimento):""].filter(Boolean).join(" · ");
     return `<details class="fn-cd" data-k="${esc(k)}"${cdAbertos.has(k)?" open":""}>
       <summary class="fn-cd-top"><span><b>${esc(ctrTxt(k))}</b>${c.quitado?` <span class="fn-cd-ok">✓ pago</span>`:""}${!cs[k]&&!rasc[k]?` <span class="fn-cd-falta">falta cadastrar</span>`:""}<small>${esc(linha||"toque para preencher")}${pcts?`<br>Desconto: ${esc(pcts)}`:""}</small></span><span class="fn-cd-anxn">${nAnx?`📎 ${nAnx}`:""}</span></summary>
@@ -324,6 +324,7 @@ function renderDescontos(){
       <p class="note fn-cd-sub">Desconto no pagamento, por tipo de produto</p>
       <div class="fn-cd-g">${DESC_CLS.map(([ck,cl])=>`<label class="fn-cd-p"><span>${cl}</span><span class="dv-pct"><input class="cd-${ck}" inputmode="decimal" value="${d[ck]!=null?String(d[ck]).replace(".",","):""}" placeholder="0">%</span></label>`).join("")}</div>
       <div class="field"><label>Papéis do contrato (foto, PDF ou arquivo)</label><div class="cd-anx"></div></div>
+      ${(()=>{const ds=window.docDoContrato?.(k)||[]; return ds.length?`<div class="note fn-cd-docs">Em Documentos, ligados a este contrato: ${ds.map(d=>`<span class="fn-cd-doc"><b>${esc(d.titulo)}</b> ${window.anxLinks?window.anxLinks(d.anexos||[],"Foto"):""}</span>`).join("")}</div>`:""})()}
       ${g?`<p class="note">${g.n} conta${g.n>1?"s":""} no Financeiro · ${brl(g.total)} · ${esc([...g.cats].join(", "))}</p>`:""}
       ${c.quitado?`<p class="note">✓ Contrato pago em ${brDate(c.quitado)}${c.quitadoValor?` · ${brl(c.quitadoValor)}`:""}. As notas que chegarem depois entram no estoque como retirada já paga.</p>`:""}
       <div class="row">${window.ctrRelatorio?`<button type="button" class="link" data-cdrel="${esc(k)}">📄 Relatório do contrato</button>`:""}${!g&&(cs[k]||cdExtra.includes(k))?`<button type="button" class="link danger" data-cddel="${esc(k)}">Excluir este cadastro</button>`:""}</div>

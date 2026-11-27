@@ -23,18 +23,20 @@ function docsContratos(){
   return out;
 }
 const todos=()=>[...lista,...docsContratos()];
-const txtBusca=d=>norm([d.titulo,TIPOS_DOC[d.tipo]||"",d.cultura,d.safra?safraLab(d.safra):"",(d.talhoes||[]).join(" "),d.obs,...(d.anexos||[]).map(a=>a.nome)].join(" "));
+const ctrTxt=c=>c?(F()?.ctrTxt?F().ctrTxt(c):c):"";
+const ctrN=c=>F()?.ctrN?F().ctrN(c):String(c||"").replace(/\D/g,"");
+const txtBusca=d=>norm([d.titulo,ctrTxt(d.contrato),TIPOS_DOC[d.tipo]||"",d.cultura,d.safra?safraLab(d.safra):"",(d.talhoes||[]).join(" "),d.obs,...(d.anexos||[]).map(a=>a.nome)].join(" "));
 function filtrados(){
   const ws=norm(q).split(/\s+/).filter(Boolean);
   return todos().filter(d=>(!fTipo||d.tipo===fTipo)&&(!fCult||norm(d.cultura)===norm(fCult))&&(!fSafra||String(d.safra||"")===fSafra)&&(!ws.length||ws.every(w=>txtBusca(d).includes(w))));
 }
-const linhaSub=d=>[TIPOS_DOC[d.tipo]||"",[d.cultura,d.safra?safraLab(d.safra):""].filter(Boolean).join(" "),(d.talhoes||[]).length?(d.talhoes.length>2?`${d.talhoes.length} talhões`:d.talhoes.join(", ")):"",d.data?brDate(d.data):""].filter(Boolean).join(" · ");
+const linhaSub=d=>[TIPOS_DOC[d.tipo]||"",d.contrato&&!d.ctr?ctrTxt(d.contrato):"",[d.cultura,d.safra?safraLab(d.safra):""].filter(Boolean).join(" "),(d.talhoes||[]).length?(d.talhoes.length>2?`${d.talhoes.length} talhões`:d.talhoes.join(", ")):"",d.data?brDate(d.data):""].filter(Boolean).join(" · ");
 const cartao=(d,o={})=>`<article class="dc-it" data-dc="${esc(d.id)}">
   <div class="dc-top"><b>${esc(d.titulo)}</b><span class="dc-n">${(d.anexos||[]).length?`📎 ${(d.anexos||[]).length}`:""}</span></div>
   <small class="dc-sub">${esc(linhaSub(d))}</small>
   ${d.obs?`<p class="dc-obs">${esc(d.obs)}</p>`:""}
   <div class="dc-anx">${window.anxLinks?window.anxLinks(d.anexos||[],"Foto"):""}</div>
-  ${o.semAcoes?"":`<div class="rec-actions">${d.ctr?`<button type="button" class="link" data-dcctr="${esc(d.ctr)}">📄 Abrir o contrato</button>`:`<button type="button" class="link" data-dced="${esc(d.id)}">Editar</button><button type="button" class="link danger" data-dcdel="${esc(d.id)}">Excluir</button>`}</div>`}
+  ${o.semAcoes?"":`<div class="rec-actions">${d.ctr?`<button type="button" class="link" data-dcctr="${esc(d.ctr)}">📄 Abrir o contrato</button>`:`${d.contrato?`<button type="button" class="link" data-dcctr="${esc(d.contrato)}">📄 Abrir o contrato</button>`:""}<button type="button" class="link" data-dced="${esc(d.id)}">Editar</button><button type="button" class="link danger" data-dcdel="${esc(d.id)}">Excluir</button>`}</div>`}
 </article>`;
 
 function render(){
@@ -43,10 +45,11 @@ function render(){
     box.innerHTML=`<details class="sub dc-form" id="dc-mais"><summary><b id="dc-f-tit">+ Guardar documento</b></summary>
       <form id="dc-form" autocomplete="off">
         <div class="field"><label for="dc-tit">Nome do documento</label><input id="dc-tit" required placeholder="Ex.: Planejamento de aplicações da soja"></div>
-        <div class="grid2"><div class="field"><label for="dc-tipo">Tipo</label><select id="dc-tipo">${Object.entries(TIPOS_DOC).filter(([k])=>k!=="contrato").map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></div>
+        <div class="grid2"><div class="field"><label for="dc-tipo">Tipo</label><select id="dc-tipo">${Object.entries(TIPOS_DOC).map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></div>
           <div class="field"><label for="dc-data">Data do documento</label><input id="dc-data" type="date"></div>
           <div class="field"><label for="dc-cult">Cultura</label><select id="dc-cult"></select></div>
           <div class="field"><label for="dc-safra">Safra</label><select id="dc-safra"></select></div></div>
+        <div class="field"><label for="dc-ctr">Contrato ou pedido <small class="note">(opcional — o documento aparece também no contrato)</small></label><select id="dc-ctr"></select></div>
         <div class="field"><label>Talhões <small class="note">(opcional — nenhum = vale para a propriedade toda)</small></label><div class="dc-tal" id="dc-tal"></div></div>
         <div class="field"><label for="dc-obs">Observação</label><textarea id="dc-obs" rows="2" placeholder="Ex.: feito pelo agrônomo, versão de novembro"></textarea></div>
         <div class="field"><label>Arquivos (foto do papel, PDF, planilha…)</label><div id="dc-anx"></div></div>
@@ -58,6 +61,12 @@ function render(){
       <div id="dc-lista" class="dc-lista"></div>`;
     anx=window.anxCampo?window.anxCampo($("#dc-anx"),{rotulo:"Anexar foto, PDF ou arquivo",accept:"image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"}):null;
     $("#dc-form").addEventListener("submit",salvar);
+    // escolheu o contrato: completa cultura e safra do cadastro do contrato (se estiverem vazias)
+    $("#dc-ctr").addEventListener("change",()=>{const k=$("#dc-ctr").value; if(!k) return; const c=F()?.contratoCfg?.(k); const cs=c&&F().cultSafra?F().cultSafra(c):null;
+      if(cs?.cultura&&!$("#dc-cult").value){if(![...$("#dc-cult").options].some(o=>o.value===cs.cultura)) $("#dc-cult").add(new Option(cs.cultura,cs.cultura)); $("#dc-cult").value=cs.cultura}
+      if(cs?.safra){if(![...$("#dc-safra").options].some(o=>o.value===String(cs.safra))) $("#dc-safra").add(new Option(safraLab(cs.safra),String(cs.safra))); $("#dc-safra").value=String(cs.safra)}
+      if(!$("#dc-tipo").dataset.mexido) $("#dc-tipo").value="contrato"});
+    $("#dc-tipo").addEventListener("change",()=>{$("#dc-tipo").dataset.mexido=1});
     $("#dc-cancel").onclick=reset;
     $("#dc-q").addEventListener("input",e=>{q=e.target.value; lista_()});
     for(const [id,set] of [["#dc-ft",v=>fTipo=v],["#dc-fc",v=>fCult=v],["#dc-fs",v=>fSafra=v]]) $(id).onchange=e=>{set(e.target.value); lista_()};
@@ -69,12 +78,22 @@ function render(){
   const keepSel=(id,html)=>{const el=$(id), v=el.value; el.innerHTML=html; if([...el.options].some(o=>o.value===v)) el.value=v};
   keepSel("#dc-cult",`<option value="">Todas / nenhuma</option>${cs.map(c=>`<option>${esc(c)}</option>`).join("")}`);
   keepSel("#dc-safra",`<option value="">—</option>${ss.map(y=>`<option value="${y}">${safraLab(y)}</option>`).join("")}`);
+  ctrOpts();
   keepSel("#dc-ft",`<option value="">Todos os tipos</option>${Object.entries(TIPOS_DOC).map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}`);
   keepSel("#dc-fc",`<option value="">Todas as culturas</option>${[...new Set([...cs,...todos().map(d=>d.cultura).filter(Boolean)])].map(c=>`<option>${esc(c)}</option>`).join("")}`);
   keepSel("#dc-fs",`<option value="">Todas as safras</option>${ss.map(y=>`<option value="${y}">${safraLab(y)}</option>`).join("")}`);
   if(box.dataset.novo){delete box.dataset.novo; reset()}
   pintaTal();
   lista_();
+}
+// lista de contratos e pedidos (Financeiro, cadastro e estoque); guarda o escolhido
+function ctrOpts(extra){
+  const el=$("#dc-ctr"); if(!el) return; const v=extra!=null?extra:el.value;
+  const ls=(window.ctrLista?window.ctrLista():Object.keys(F()?.contratosCfg?.()||{}).map(k=>({k:ctrN(k),txt:k,pessoa:""})));
+  const ops=ls.map(c=>({v:c.txt,l:ctrTxt(c.txt)+(c.pessoa?" · "+c.pessoa:"")}));
+  if(v&&!ops.some(o=>ctrN(o.v)===ctrN(v))) ops.unshift({v,l:ctrTxt(v)});
+  el.innerHTML=`<option value="">Nenhum</option>`+ops.map(o=>`<option value="${esc(o.v)}">${esc(o.l)}</option>`).join("");
+  const m=ops.find(o=>ctrN(o.v)===ctrN(v)); el.value=m?m.v:"";
 }
 function pintaTal(){const el=$("#dc-tal"); if(!el) return; el.innerHTML=talhoesN().map(t=>`<button type="button" class="chip" data-t="${esc(t)}" aria-pressed="${talSel.has(t)}">${esc(t)}</button>`).join("")||`<span class="note">Nenhum talhão cadastrado.</span>`}
 function lista_(){
@@ -95,14 +114,14 @@ function liga(root){
 }
 function reset(){
   edit=null; talSel=new Set();
-  $("#dc-form").reset(); $("#dc-data").value=todayISO(); $("#dc-safra").value=String(y0()); anx?.limpar();
+  $("#dc-form").reset(); $("#dc-data").value=todayISO(); $("#dc-safra").value=String(y0()); $("#dc-ctr").value=""; delete $("#dc-tipo").dataset.mexido; anx?.limpar();
   $("#dc-f-tit").textContent="+ Guardar documento"; $("#dc-salvar").textContent="Guardar documento"; $("#dc-cancel").hidden=true; pintaTal();
 }
 function editar(id){
   const d=lista.find(x=>x.id===id); if(!d) return;
   if(window.show) window.show("documentos");
   edit=id; talSel=new Set(d.talhoes||[]);
-  $("#dc-tit").value=d.titulo||""; $("#dc-tipo").value=d.tipo||"outro"; $("#dc-data").value=d.data||""; $("#dc-cult").value=d.cultura||""; $("#dc-safra").value=d.safra?String(d.safra):""; $("#dc-obs").value=d.obs||""; anx?.set(d.anexos||[]);
+  $("#dc-tit").value=d.titulo||""; $("#dc-tipo").value=d.tipo||"outro"; $("#dc-data").value=d.data||""; $("#dc-cult").value=d.cultura||""; $("#dc-safra").value=d.safra?String(d.safra):""; $("#dc-obs").value=d.obs||""; ctrOpts(d.contrato); $("#dc-ctr").value=d.contrato||""; anx?.set(d.anexos||[]);
   $("#dc-f-tit").textContent="Editar documento"; $("#dc-salvar").textContent="Salvar alterações"; $("#dc-cancel").hidden=false; pintaTal();
   const m=$("#dc-mais"); m.open=true; m.scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -112,7 +131,7 @@ async function salvar(e){
   if(!titulo){$("#dc-tit").focus(); return}
   if(anx?.ocupado()){st.textContent="Espere terminar de enviar o arquivo…"; return}
   if(!anexos.length&&!obs){st.textContent="Anexe a foto ou o arquivo do documento (ou escreva uma observação)."; return}
-  const doc={titulo,tipo:$("#dc-tipo").value,data:$("#dc-data").value||"",cultura:$("#dc-cult").value||"",safra:$("#dc-safra").value?Number($("#dc-safra").value):null,talhoes:talhoesN().filter(t=>talSel.has(t)),obs,anexos};
+  const doc={titulo,tipo:$("#dc-tipo").value,data:$("#dc-data").value||"",cultura:$("#dc-cult").value||"",safra:$("#dc-safra").value?Number($("#dc-safra").value):null,talhoes:talhoesN().filter(t=>talSel.has(t)),obs,anexos,contrato:$("#dc-ctr").value||""};
   const b=$("#dc-salvar"); b.disabled=true;
   try{
     if(edit){const {id:_i,...ant}=lista.find(x=>x.id===edit)||{}; await db.collection("documentos").doc(edit).set({...ant,...doc,criadoEm:ant.criadoEm||new Date().toISOString()})}
@@ -135,10 +154,14 @@ window.docDaLavoura=(cultura,safras,talhoes)=>{const S=new Set(safras||[]), T=ne
   return todos().filter(d=>d.cultura&&norm(d.cultura)===norm(cultura)&&(!d.safra||S.has(d.safra))&&(!(d.talhoes||[]).length||d.talhoes.some(t=>T.has(t))))
     .sort((a,b)=>(a.tipo==="contrato")-(b.tipo==="contrato")||String(a.data).localeCompare(String(b.data)))};
 window.docTipoNome=k=>TIPOS_DOC[k]||k||"";
+// documentos (da tela Documentos) ligados a um contrato ou pedido
+window.docDoContrato=k=>{const n=ctrN(k); return n?lista.filter(d=>d.contrato&&ctrN(d.contrato)===n):[]};
+// abre "+ Guardar documento" já ligado a um contrato
+window.docNovo=o=>{window.show?.("documentos"); setTimeout(()=>{reset(); if(o?.contrato){ctrOpts(o.contrato); $("#dc-ctr").value=[...$("#dc-ctr").options].find(x=>ctrN(x.value)===ctrN(o.contrato))?.value||""; $("#dc-ctr").dispatchEvent(new Event("change"))} const m=$("#dc-mais"); m.open=true; m.scrollIntoView({behavior:"smooth",block:"start"}); setTimeout(()=>$("#dc-tit").focus(),300)},150)};
 
 /* ---------- backup, planilha, Perguntar ---------- */
 window.docColecao=()=>lista.map(d=>({...d}));
-window.docPlanilha=add=>add("Documentos",todos().map(d=>({"Documento":d.titulo,"Tipo":TIPOS_DOC[d.tipo]||d.tipo||"","Cultura":d.cultura||"","Safra":d.safra?safraLab(d.safra):"","Talhões":(d.talhoes||[]).join(", "),"Data":d.data?brDate(d.data):"","Arquivos":(d.anexos||[]).map(a=>a.nome).join("; "),"Observação":d.obs||""})));
+window.docPlanilha=add=>add("Documentos",todos().map(d=>({"Documento":d.titulo,"Tipo":TIPOS_DOC[d.tipo]||d.tipo||"","Cultura":d.cultura||"","Safra":d.safra?safraLab(d.safra):"","Talhões":(d.talhoes||[]).join(", "),"Contrato/pedido":d.contrato?ctrTxt(d.contrato):"","Data":d.data?brDate(d.data):"","Arquivos":(d.anexos||[]).map(a=>a.nome).join("; "),"Observação":d.obs||""})));
 window.docTexto=()=>{const ds=todos(); return ds.length?"\n\nDocumentos guardados (documento | tipo | cultura safra | talhões | arquivos | obs):\n"+ds.map(d=>[d.titulo,TIPOS_DOC[d.tipo]||"",[d.cultura,d.safra?safraLab(d.safra):""].filter(Boolean).join(" "),(d.talhoes||[]).join(", "),(d.anexos||[]).map(a=>a.nome).join("; "),d.obs].map(x=>x||"-").join(" | ")).join("\n"):""};
 
 window.docInicia=function(){

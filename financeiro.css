@@ -159,3 +159,5 @@
 .fi-l3 label[hidden]{display:none}
 .fi-l3 select{min-width:0}
 
+.fn-cd-docs{display:flex;flex-direction:column;gap:4px}
+.fn-cd-doc{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}

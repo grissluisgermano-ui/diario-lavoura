@@ -9,6 +9,14 @@
    Entradas com antiga:true já contam como lidas (histórico de antes deste recurso). */
 (function(){
 const NOVIDADES=[
+  {v:123,data:"27/11/2026",titulo:"Documento ligado a um contrato ou pedido",tags:["contrato","pedido","documento","vincular","ligar"],
+   texto:`Em Painel → Documentos, ao guardar um documento agora tem o campo "Contrato ou pedido".
+
+- Escolha o contrato (ex.: 84865 · Coamo) ou o pedido (ex.: Pedido 3754 · Casarão). A cultura e a safra do cadastro do contrato já vêm preenchidas.
+- O documento aparece também no Relatório do contrato (em "Papéis do contrato") e no cadastro do contrato em Financeiro → Resumo → Contratos e pedidos.
+- No Relatório do contrato tem o atalho "+ Guardar outro documento ligado a este contrato".
+- Na lista de Documentos, o documento ligado mostra o número do contrato e o botão "Abrir o contrato".`,
+   onde:[{view:"documentos",sel:"#dc-mais > summary",l:"Painel → Documentos → + Guardar documento"}]},
   {v:122,data:"27/11/2026",titulo:"PDF do resultado da lavoura com a lista completa",tags:["imprimir","pdf","relatorio"],
    texto:`No "Resultado de cada lavoura", a lista de custos gerais mostra só os 8 maiores na tela (com "Mostrar todas"). Agora, no "Imprimir / PDF", a lista sai sempre completa, mesmo sem tocar em "Mostrar todas".`,
    onde:[{view:"fin_safra",sel:"#rlv-box h3",l:"Financeiro → Resultado → Resultado de cada lavoura"}]},

@@ -47,3 +47,6 @@ body.crl-aberto{overflow:hidden}
 .crl-pap{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
 .crl-cad{font-size:.85rem}
 @media print{.crl-pap .anx-add,.crl-pap .anx-st,.crl-cad{display:none!important}}
+.crl-docs{display:flex;flex-direction:column;gap:4px}
+.crl-doc{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+@media print{.crl-docs [data-crldoc]{display:none!important}}
