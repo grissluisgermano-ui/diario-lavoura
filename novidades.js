@@ -9,6 +9,9 @@
    Entradas com antiga:true já contam como lidas (histórico de antes deste recurso). */
 (function(){
 const NOVIDADES=[
+  {v:122,data:"27/11/2026",titulo:"PDF do resultado da lavoura com a lista completa",tags:["imprimir","pdf","relatorio"],
+   texto:`No "Resultado de cada lavoura", a lista de custos gerais mostra só os 8 maiores na tela (com "Mostrar todas"). Agora, no "Imprimir / PDF", a lista sai sempre completa, mesmo sem tocar em "Mostrar todas".`,
+   onde:[{view:"fin_safra",sel:"#rlv-box h3",l:"Financeiro → Resultado → Resultado de cada lavoura"}]},
   {v:121,data:"27/11/2026",titulo:"Documentos no resultado da lavoura",tags:["relatorio","resultado","foto","arquivo","documento"],
    texto:`O "Resultado de cada lavoura" (Financeiro → Resultado → Resultado de cada lavoura) agora mostra também os papéis da lavoura.
 

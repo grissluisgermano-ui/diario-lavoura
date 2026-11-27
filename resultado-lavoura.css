@@ -56,3 +56,7 @@ body.rlv-aberto{overflow:hidden}
 @media print{.rlv-ls{border-color:#ccc}.rlv-l{break-inside:avoid}}
 .rlv-anx{display:inline-flex;flex-wrap:wrap;gap:2px 12px;margin-top:2px}
 .rlv-anx .anx-link{font-size:.85rem}
+/* "Mostrar todas": na tela esconde o resto; no PDF/impressão sai tudo */
+.rlv-l.rlv-oculta{display:none}
+.rlv-impr-nota{margin-left:10px;font-size:.8rem;color:var(--muted)}
+@media print{.rlv-l.rlv-oculta{display:flex!important}#rlv-mais,.rlv-impr-nota{display:none!important}}
