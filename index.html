@@ -563,6 +563,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <link rel="stylesheet" href="layout.css">
 <link rel="stylesheet" href="linhas.css">
 <link rel="stylesheet" href="compartilhar.css">
+<link rel="stylesheet" href="novidades.css">
 
 <div class="wrap">
   <header class="head">
@@ -5310,7 +5311,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
   window.errosApp?.liga(rawDb);
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.(); window.cheInicia?.(); window.rotInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.(); window.cheInicia?.(); window.rotInicia?.(); window.nvInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     seguro("estoque",renderEstoque); seguro("produtos",atualizaProdutos); seguro("esSync",esSync); seguro("programacao",renderProgramacao);
@@ -5345,6 +5346,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="entrega.js"></script>
 <script src="agrofit.js"></script>
 <script src="layout.js"></script>
+<script src="novidades.js"></script>
 <script src="lixeira.js"></script>
 <script src="graos-nota.js"></script>
 <script src="lote-notas.js"></script>
