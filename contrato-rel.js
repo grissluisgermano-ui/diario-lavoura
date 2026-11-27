@@ -100,7 +100,8 @@
     <div class="crl-corpo">
       <div class="crl-cab"><h2>${esc(F().ctrTxt(x.txt))}</h2>
         <label class="crl-sel">Outro contrato <select id="crl-outro">${lista.map(c=>`<option value="${esc(c.k)}"${c.k===x.k?" selected":""}>${esc(F().ctrTxt(c.txt))}${c.pessoa?" · "+esc(c.pessoa):""}</option>`).join("")}</select></label></div>
-      <p class="note">${[x.pessoa,x.cfg?.cultura?`cultura ${x.cfg.cultura}`:"",x.cfg?.obs].filter(Boolean).map(esc).join(" · ")}${x.pctTxt?`<br>Desconto do contrato no vencimento: <b>${esc(x.pctTxt)}</b>`:`<br>Sem desconto cadastrado para este contrato (Financeiro → Resumo → Descontos dos contratos).`}</p>
+      <p class="note">${(()=>{const cs=x.cfg&&F().cultSafra?F().cultSafra(x.cfg):{cultura:x.cfg?.cultura,safra:null}; return [x.pessoa,cs.cultura?`cultura ${cs.cultura}${cs.safra?" "+safraLab(cs.safra):""}`:"",x.cfg?.obs].filter(Boolean).map(esc).join(" · ")})()}${x.pctTxt?`<br>Desconto do contrato no vencimento: <b>${esc(x.pctTxt)}</b>`:`<br>Sem desconto cadastrado para este contrato.`} <button type="button" class="link crl-cad" data-crlcad="1">Editar o cadastro</button></p>
+      <div class="crl-pap"><b>📎 Papéis do contrato</b><div id="crl-anx"></div></div>
       <div class="crl-ks">
         ${card(x.saldoPago?"Contrato (preço cheio)":"Comprado (notas)",brl(x.cheio),`${x.ns.filter(n=>!n.parc.some(l=>l.saldoContrato)).length} nota${x.ns.length===1?"":"s"}${x.saldoPago?" + saldo a retirar":""} · preço cheio`)}
         ${card("Desconto",brl(x.descPrev+x.descObt),x.descObt?`${brl(x.descObt)} já obtido${x.descPrev?` + ${brl(x.descPrev)} previsto`:""}`:x.descPrev?"previsto no vencimento":"–")}
@@ -156,6 +157,11 @@
     el.querySelector("#crl-print").onclick=()=>window.print();
     el.querySelector("#crl-outro").onchange=e=>abre(e.target.value);
     ligaPag(el,k);
+    { const x=calcula(k), key=x.cfgKey||x.txt;
+      const ax=window.anxCampo?.(el.querySelector("#crl-anx"),{rotulo:"Anexar foto ou PDF do contrato",accept:"image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx",
+        muda:l=>F().salvaContrato(key,{anexos:l}).then(()=>window.ponte?.aviso?.("Papel do contrato guardado.",true)).catch(()=>{})});
+      ax?.set(x.cfg?.anexos||[]);
+      el.querySelector("[data-crlcad]").onclick=()=>{fecha(); F().abrirCadastro?.(key)}; }
     el.querySelectorAll("[data-ctrfin]").forEach(b=>b.onclick=()=>{fecha(); F().abrir(b.dataset.ctrfin)});
     el.querySelectorAll("[data-ctrprod]").forEach(d=>{d.classList.add("crl-click"); d.onclick=ev=>{if(ev.target.closest("button")) return; fecha(); window.esAbrir?.(d.dataset.ctrprod)}});
   }

@@ -274,44 +274,83 @@ function renderContratos(){
   const G={};
   for(const l of fnLanc) if(l.contrato&&l.natureza!=="transf"){const x=G[l.contrato]||={pessoa:l.pessoa,total:0,aberto:0,prox:"",n:0,cats:new Set()}; x.total+=vp(l); x.n++; x.cats.add(catNome(l.categoria));
     if(l.status!=="pago"){x.aberto+=vp(l); if(!x.prox||l.vencimento<x.prox) x.prox=l.vencimento}}
+  // cadastrados que ainda não têm nota (contrato novo): aparecem pelo valor total do cadastro
+  for(const [k,c] of Object.entries(fnCfg.contratos||{})) if(c&&!G[k]&&!c.quitado&&(c.valorTotal||c.vencimento||c.fornecedor)){const cc=cdCult(c); G[k]={pessoa:c.fornecedor||"",total:Number(c.valorTotal)||0,aberto:Number(c.valorTotal)||0.005,prox:c.vencimento||"9999-12-31",n:0,cats:new Set([[cc.cultura,cc.safra?safraLab(cc.safra):""].filter(Boolean).join(" ")||"cadastrado"]),semNota:true}}
   const ab=Object.entries(G).filter(([,x])=>x.aberto>0.004).sort((a,b)=>a[1].prox.localeCompare(b[1].prox));
   $("#fn-ctr-box").hidden=!ab.length; if(!ab.length) return;
   $("#fn-ctr-n").textContent=`${ab.length} em aberto · ${brl(ab.reduce((t,[,x])=>t+x.aberto,0))}`;
   $("#fn-ctr").innerHTML=ab.slice(0,30).map(([c,x])=>`<button type="button" class="fn-lx fn-ctr-i" data-ctr="${esc(c)}"><div><b>${esc(ctrTxt(c))}${x.pessoa?` · ${esc(x.pessoa)}`:""}</b>
-      <small>${esc([...x.cats].join(", "))} · vence ${brDate(x.prox)}</small></div><span class="mono">${brl(x.aberto)}<small>de ${brl(x.total)}</small></span></button>`).join("");
+      <small>${esc([...x.cats].join(", "))}${x.prox&&x.prox<"9999"?` · vence ${brDate(x.prox)}`:""}${x.semNota?" · ainda sem notas":""}</small></div><span class="mono">${x.semNota?(x.total?brl(x.total):"–")+"<small>contrato</small>":`${brl(x.aberto)}<small>de ${brl(x.total)}</small>`}</span></button>`).join("");
   $("#fn-ctr").querySelectorAll("[data-ctr]").forEach(b=>b.onclick=()=>window.ctrRelatorio?window.ctrRelatorio(b.dataset.ctr):window.finVerContrato(b.dataset.ctr));
 }
 /* ---------- Descontos dos contratos (editor) ---------- */
 let cdExtra=[];
+const cdAnx={}; let cdAbertos=new Set();
+// cultura antiga em texto livre ("Soja 26/27") vira cultura + safra
+const cdCult=c=>{const t=String(c?.cultura||"").trim(), m=t.match(/(\d{2})\s*\/\s*(\d{2})/);
+  return {cultura:t.replace(/\s*(safra\s*)?\d{2}\s*\/\s*\d{2}\s*/i," ").trim(), safra:c?.safra!=null&&c.safra!==""?Number(c.safra):m?2000+Number(m[1]):null}};
+const cdCompleto=c=>!!(c&&c.fornecedor&&c.cultura&&(c.valorTotal||c.vencimento));
 function renderDescontos(){
   const box=$("#fn-cdesc"); if(!box) return;
+  // guarda o que está sendo digitado (e os arquivos já enviados) antes de redesenhar
+  const rasc=box.querySelector(".fn-cd")?leDescontos(true):{};
+  box.querySelectorAll(".fn-cd[open]").forEach(d=>cdAbertos.add(d.dataset.k));
   const G={};
   for(const l of fnLanc) if(l.contrato&&l.natureza==="pagar"){const x=G[l.contrato]||={pessoa:l.pessoa,n:0,total:0,cats:new Set()}; x.n++; x.total+=Number(l.valor)||0; x.cats.add(catNome(l.categoria))}
   const cs=fnCfg.contratos||{};
-  const ks=[...new Set([...Object.keys(cs),...Object.keys(G),...cdExtra])].sort((a,b)=>(cs[b]?1:0)-(cs[a]?1:0)||a.localeCompare(b,"pt-BR",{numeric:true}));
-  $("#fn-cdesc-n").textContent=`${Object.keys(cs).length} com desconto cadastrado`;
-  box.innerHTML=ks.length?ks.map(k=>{const c=cs[k]||{}, g=G[k], d=c.desc||{};
-    return `<div class="fn-cd" data-k="${esc(k)}">
-      <div class="fn-cd-top"><b>${esc(ctrTxt(k))}</b><span class="note">${esc(c.fornecedor||g?.pessoa||"")}${g?` · ${g.n} conta${g.n>1?"s":""} · ${brl(g.total)}`:""}</span></div>
-      <div class="fn-cd-g">${DESC_CLS.map(([ck,cl])=>`<label class="fn-cd-p"><span>${cl}</span><span class="dv-pct"><input class="cd-${ck}" inputmode="decimal" value="${d[ck]!=null?String(d[ck]).replace(".",","):""}" placeholder="0">%</span></label>`).join("")}</div>
-      <div class="grid2"><div class="field"><label>Cultura do contrato</label><input class="cd-cult" value="${esc(c.cultura||"")}" placeholder="Ex.: Soja 26/27"></div>
-        <div class="field"><label>Observação</label><input class="cd-obs" value="${esc(c.obs||"")}" placeholder="Ex.: desconto no plano safra"></div></div>
-      <div class="grid2"><div class="field"><label>Valor total do contrato (R$)</label><input class="cd-vt" inputmode="decimal" value="${c.valorTotal?fmt2(c.valorTotal):""}" placeholder="Preço cheio, retirado ou não"></div>
-        <div class="field"><label>Vencimento do contrato</label><input class="cd-venc" type="date" value="${esc(c.vencimento||"")}"></div>
+  const ks=[...new Set([...cdExtra,...Object.keys(cs),...Object.keys(G)])].sort((a,b)=>(cdExtra.includes(b)?1:0)-(cdExtra.includes(a)?1:0)||(cs[b]?1:0)-(cs[a]?1:0)||a.localeCompare(b,"pt-BR",{numeric:true}));
+  const y0=safraDe(todayISO()), safras=[y0+1,y0,y0-1,y0-2,y0-3];
+  const culturas=(typeof propCfg!=="undefined"?propCfg.culturas:null)||["Soja","Milho","Feijão","Trigo","Cevada","Aveia"];
+  const forn=new Set([...(typeof propCfg!=="undefined"?propCfg.depositos:[]),...fnLanc.filter(l=>l.natureza==="pagar"&&l.contrato&&l.pessoa).map(l=>l.pessoa),...Object.values(cs).map(c=>c?.fornecedor).filter(Boolean)]);
+  $("#fn-cd-forn").innerHTML=[...forn].map(x=>`<option value="${esc(x)}">`).join("");
+  const nCad=Object.keys(cs).length;
+  $("#fn-cdesc-n").textContent=`${ks.length} contrato${ks.length===1?"":"s"}/pedido${ks.length===1?"":"s"}${nCad<ks.length?` · ${ks.length-nCad} sem cadastro`:""}`;
+  box.innerHTML=ks.length?ks.map(k=>{const c={...(cs[k]||{}),...(rasc[k]||{})}, g=G[k], d=c.desc||{}, cc=cdCult(c);
+    if(!c.fornecedor&&g?.pessoa) c.fornecedor=g.pessoa;
+    const cOpts=[...new Set([...culturas,...(cc.cultura?[cc.cultura]:[])])], sOpts=[...new Set([...safras,...(cc.safra?[cc.safra]:[])])].sort((a,b)=>b-a);
+    const nAnx=(c.anexos||[]).length, pcts=DESC_CLS.filter(([ck])=>d[ck]).map(([ck,cl])=>`${String(d[ck]).replace(".",",")}% ${cl.split(" ")[0].toLowerCase()}`).join(" · ");
+    const linha=[c.fornecedor,[cc.cultura,cc.safra?safraLab(cc.safra):""].filter(Boolean).join(" "),c.valorTotal?brl(c.valorTotal):g?`${g.n} nota${g.n>1?"s":""} · ${brl(g.total)}`:"",c.vencimento?"vence "+brDate(c.vencimento):""].filter(Boolean).join(" · ");
+    return `<details class="fn-cd" data-k="${esc(k)}"${cdAbertos.has(k)?" open":""}>
+      <summary class="fn-cd-top"><span><b>${esc(ctrTxt(k))}</b>${c.quitado?` <span class="fn-cd-ok">✓ pago</span>`:""}${!cs[k]&&!rasc[k]?` <span class="fn-cd-falta">falta cadastrar</span>`:""}<small>${esc(linha||"toque para preencher")}${pcts?`<br>Desconto: ${esc(pcts)}`:""}</small></span><span class="fn-cd-anxn">${nAnx?`📎 ${nAnx}`:""}</span></summary>
+      <div class="fn-cd-corpo">
+      <div class="grid2"><div class="field"><label>Fornecedor</label><input class="cd-forn" list="fn-cd-forn" value="${esc(c.fornecedor||"")}" placeholder="Ex.: Coamo, Casarão"></div>
+        <div class="field"><label>Cultura</label><select class="cd-cult"><option value="">—</option>${cOpts.map(x=>`<option${x===cc.cultura?" selected":""}>${esc(x)}</option>`).join("")}</select></div>
+        <div class="field"><label>Safra</label><select class="cd-safra"><option value="">—</option>${sOpts.map(y=>`<option value="${y}"${y===cc.safra?" selected":""}>${safraLab(y)}</option>`).join("")}</select></div>
+        <div class="field"><label>Observação</label><input class="cd-obs" value="${esc(c.obs||"")}" placeholder="Ex.: plano safra, entrega futura"></div></div>
+      <div class="grid2"><div class="field"><label>Valor total (R$)</label><input class="cd-vt" inputmode="decimal" value="${c.valorTotal?fmt2(c.valorTotal):""}" placeholder="Preço cheio, retirado ou não"></div>
+        <div class="field"><label>Vencimento</label><input class="cd-venc" type="date" value="${esc(c.vencimento||"")}"></div>
         <div class="field"><label>Desconto por pagar antes (% ao mês)</label><span class="dv-pct"><input class="cd-ant" inputmode="decimal" value="${c.antecipa!=null?String(c.antecipa).replace(".",","):""}" placeholder="0">%</span></div>
         <div class="field"><label>O que falta retirar é</label><select class="cd-resto">${DESC_CLS.map(([ck,cl])=>`<option value="${ck}"${(c.restoCls||"defensivos")===ck?" selected":""}>${cl}</option>`).join("")}</select></div></div>
+      <p class="note fn-cd-sub">Desconto no pagamento, por tipo de produto</p>
+      <div class="fn-cd-g">${DESC_CLS.map(([ck,cl])=>`<label class="fn-cd-p"><span>${cl}</span><span class="dv-pct"><input class="cd-${ck}" inputmode="decimal" value="${d[ck]!=null?String(d[ck]).replace(".",","):""}" placeholder="0">%</span></label>`).join("")}</div>
+      <div class="field"><label>Papéis do contrato (foto, PDF ou arquivo)</label><div class="cd-anx"></div></div>
+      ${g?`<p class="note">${g.n} conta${g.n>1?"s":""} no Financeiro · ${brl(g.total)} · ${esc([...g.cats].join(", "))}</p>`:""}
       ${c.quitado?`<p class="note">✓ Contrato pago em ${brDate(c.quitado)}${c.quitadoValor?` · ${brl(c.quitadoValor)}`:""}. As notas que chegarem depois entram no estoque como retirada já paga.</p>`:""}
-    </div>`}).join(""):`<div class="empty">Nenhum contrato ainda. Os números aparecem aqui sozinhos quando uma nota com contrato ou pedido é lançada.</div>`;
+      <div class="row">${window.ctrRelatorio?`<button type="button" class="link" data-cdrel="${esc(k)}">📄 Relatório do contrato</button>`:""}${!g&&(cs[k]||cdExtra.includes(k))?`<button type="button" class="link danger" data-cddel="${esc(k)}">Excluir este cadastro</button>`:""}</div>
+      </div>
+    </details>`}).join(""):`<div class="empty">Nenhum contrato ainda. Use "+ Novo contrato ou pedido" acima; os números também aparecem aqui sozinhos quando uma nota com contrato ou pedido é lançada.</div>`;
+  for(const el of box.querySelectorAll(".fn-cd")){const k=el.dataset.k, c={...(cs[k]||{}),...(rasc[k]||{})};
+    // o arquivo fica guardado na hora (não precisa tocar em Salvar)
+    cdAnx[k]=window.anxCampo?window.anxCampo(el.querySelector(".cd-anx"),{rotulo:"Anexar foto ou PDF do contrato",accept:"image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx",muda:()=>cdSalvaAnx(k)}):null;
+    cdAnx[k]?.set(c.anexos||[]);
+  }
+  box.querySelectorAll("[data-cdrel]").forEach(b=>b.onclick=()=>window.ctrRelatorio(b.dataset.cdrel));
+  box.querySelectorAll("[data-cddel]").forEach(b=>b.onclick=()=>confirmar(b,"Confirmar: excluir o cadastro",async()=>{const k=b.dataset.cddel; cdExtra=cdExtra.filter(x=>x!==k); const r={...(fnCfg.contratos||{})}; delete r[k]; await salvaCfg({contratos:r}); delete cdAnx[k]; box.querySelector(`.fn-cd[data-k="${CSS.escape(k)}"]`)?.remove(); renderDescontos()}));
 }
-function leDescontos(){
+async function cdSalvaAnx(k){
+  try{const el=$(`#fn-cdesc .fn-cd[data-k="${CSS.escape(k)}"]`), r=leDescontos(true)[k]||{}; await salvaCfg({contratos:{...(fnCfg.contratos||{}),[k]:{...((fnCfg.contratos||{})[k]||{}),...r}}}); flash("#fn-cdesc-st","Papel do contrato guardado."); if(el) el.querySelector(".fn-cd-anxn").textContent=(r.anexos||[]).length?`📎 ${r.anexos.length}`:""}
+  catch(e){flash("#fn-cdesc-st",erroTxt(e))}
+}
+function leDescontos(tudo){
   const out={}, num2=v=>{const n=parseNum(v); return Number.isFinite(n)&&n>0?+n.toFixed(4):null};
   for(const el of document.querySelectorAll("#fn-cdesc .fn-cd")){
     const k=el.dataset.k, desc={}; let tem=false;
     for(const [ck] of DESC_CLS){const v=num2(el.querySelector(".cd-"+ck).value); if(v!=null){desc[ck]=v; tem=true}}
-    const cultura=el.querySelector(".cd-cult").value.trim(), obs=el.querySelector(".cd-obs").value.trim();
-    const vt=num2(el.querySelector(".cd-vt").value), venc=el.querySelector(".cd-venc").value||"", ant=num2(el.querySelector(".cd-ant").value), resto=el.querySelector(".cd-resto").value;
+    const q=s=>el.querySelector(s), fornecedor=q(".cd-forn").value.trim(), cultura=q(".cd-cult").value.trim(), sf=q(".cd-safra").value, safra=sf?Number(sf):null, obs=q(".cd-obs").value.trim();
+    const vt=num2(q(".cd-vt").value), venc=q(".cd-venc").value||"", ant=num2(q(".cd-ant").value), resto=q(".cd-resto").value, anexos=cdAnx[k]?.get()||[];
     const ant0=(fnCfg.contratos||{})[k]||{};
-    if(tem||cultura||obs||vt||venc||ant||ant0.quitado){const g=fnLanc.find(l=>l.contrato===k); out[k]={...ant0,fornecedor:ant0.fornecedor||g?.pessoa||"",cultura,obs,desc,valorTotal:vt,vencimento:venc,antecipa:ant,restoCls:resto}}
+    if(tudo||tem||fornecedor||cultura||safra||obs||vt||venc||ant||anexos.length||ant0.quitado||ant0.criado||cdExtra.includes(k)){
+      out[k]={...ant0,fornecedor,cultura,safra,obs,desc,valorTotal:vt,vencimento:venc,antecipa:ant,restoCls:resto,anexos,...(ant0.criado||!cdExtra.includes(k)?{}:{criado:new Date().toISOString()})}}
   }
   return out;
 }
@@ -805,7 +844,7 @@ window.finCustoCultura=function(sy,cult){
   return {...x,custo:x.ins+x.dir+x.ger,area:areaCult(cult),det,geral,areaPlant,temReg,porCultura:Object.fromEntries(Object.keys(plant).map(c=>[c,areaCult(c)]))};
 };
 window.finVerContrato=c=>{fnFiltro="todas"; show("fin_contas"); $("#fn-busca").value=c; renderContas()};
-window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id),liqPrev,pctLanc,ctrN:v=>ctrN(v),ctrTxt,contratoCfg:c=>contratoCfg(c),contratosCfg:()=>fnCfg.contratos||{},salvaContrato:async(k,dados)=>salvaCfg({contratos:{...(fnCfg.contratos||{}),[k]:{...((fnCfg.contratos||{})[k]||{}),...dados}}}),contas:()=>fnContas};
+window.finApi={lanc:()=>fnLanc,papel,catNome,vp,jurosDe,insumo:k=>INSUMO_CATS.has(k),abrir:id=>window.finEditar?.(id),liqPrev,pctLanc,ctrN:v=>ctrN(v),ctrTxt,contratoCfg:c=>contratoCfg(c),contratosCfg:()=>fnCfg.contratos||{},cultSafra:c=>cdCult(c),abrirCadastro:k=>{show("fin_resumo"); const d=$("#fn-cdesc-box"); d.open=true; renderDescontos(); const el=$(`#fn-cdesc .fn-cd[data-k="${CSS.escape(k)}"]`); if(el){el.open=true; setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),200)}},salvaContrato:async(k,dados)=>salvaCfg({contratos:{...(fnCfg.contratos||{}),[k]:{...((fnCfg.contratos||{})[k]||{}),...dados}}}),contas:()=>fnContas};
 window.finCatsPagar=()=>cats("pagar"); window.finCatsReceber=()=>cats("receber").filter(c=>c.papel==="receita"||c.k==="outras_r");
 /* Relatório "Gastos por categoria": cada conta a pagar pela data da nota (competência), dividida pelos itens que têm categoria própria */
 window.finGastosRel=function(F){
@@ -1607,8 +1646,11 @@ $("#fn-est")?.addEventListener("change",estVis);
 $("#fn-cancel").onclick=()=>fnReset();
 $("#fn-catbox").addEventListener("toggle",()=>{if($("#fn-catbox").open) renderCats()});
 $("#fn-cdesc-box").addEventListener("toggle",()=>{if($("#fn-cdesc-box").open) renderDescontos()});
-$("#fn-cdesc-add").onclick=()=>{const i=$("#fn-cdesc-novo"); const v=i.value.trim(); if(!v){i.focus();return} const k=/^\d/.test(v)?v.replace(/\D/g,""):/^pedido/i.test(v)?"Pedido "+v.replace(/\D/g,""):v; if(!cdExtra.includes(k)) cdExtra.push(k); fnCfg={...fnCfg,contratos:{...(fnCfg.contratos||{}),...leDescontos()}}; i.value=""; renderDescontos()};
-$("#fn-cdesc-salvar").onclick=async()=>{const b=$("#fn-cdesc-salvar"); b.disabled=true; try{await salvaCfg({contratos:leDescontos()}); cdExtra=[]; renderDescontos(); flash("#fn-cdesc-st","Descontos salvos."); window.finAgenda()}catch(e){flash("#fn-cdesc-st",erroTxt(e))} finally{b.disabled=false}};
+$("#fn-cdesc-add").onclick=async()=>{const i=$("#fn-cdesc-novo"); const v=i.value.trim(); if(!v){i.focus();return}
+  const dig=v.replace(/\D/g,""), k=$("#fn-cdesc-tipo").value==="pedido"?"Pedido "+(dig||v):(dig||v);
+  if(!cdExtra.includes(k)) cdExtra.push(k); cdAbertos.add(k); i.value=""; renderDescontos();
+  const el=$(`#fn-cdesc .fn-cd[data-k="${CSS.escape(k)}"]`); if(el){el.open=true; el.scrollIntoView({behavior:"smooth",block:"start"}); setTimeout(()=>el.querySelector(".cd-forn")?.focus(),300)}};
+$("#fn-cdesc-salvar").onclick=async()=>{const b=$("#fn-cdesc-salvar"); b.disabled=true; try{await salvaCfg({contratos:{...(fnCfg.contratos||{}),...leDescontos()}}); cdExtra=[]; $("#fn-cdesc").innerHTML=""; renderDescontos(); flash("#fn-cdesc-st","Contratos salvos."); window.finAgenda()}catch(e){flash("#fn-cdesc-st",erroTxt(e))} finally{b.disabled=false}};
 $("#fn-cats-salvar").onclick=salvarCats;
 {const tip=$("#pn-tip"); if(tip&&tip.parentElement!==document.body) document.body.appendChild(tip)}
 $("#fn-item-add").onclick=()=>{itensRender([...itensLer(),{desc:"",valor:null}]); const r=[...document.querySelectorAll("#fn-itens .i-desc")].pop(); r?.focus()};

@@ -1,0 +1,18 @@
+/* Documentos (docs.js) */
+.dc-form{margin-bottom:12px}
+.dc-form form{display:flex;flex-direction:column;gap:10px;padding-top:8px}
+.dc-tal{display:flex;flex-wrap:wrap;gap:6px}
+.dc-tal .chip[aria-pressed="true"]{background:var(--accent,#2f6b3a);color:#fff;border-color:transparent}
+.dc-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.dc-filtros input{flex:1 1 220px;min-width:0}
+.dc-filtros select{flex:1 1 140px;width:auto;min-width:0}
+.dc-lista{display:flex;flex-direction:column;gap:8px}
+.dc-g{margin:12px 0 2px}
+.dc-g small{font-weight:400;color:var(--muted)}
+.dc-it{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.dc-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.dc-n{font-size:.85rem;color:var(--muted);white-space:nowrap}
+.dc-sub{color:var(--muted);font-size:.82rem}
+.dc-obs{margin:2px 0;font-size:.9rem}
+.dc-anx{display:flex;flex-wrap:wrap;gap:2px 12px}
+.dc-ct .dc-lista{margin-top:8px}

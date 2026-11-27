@@ -258,6 +258,7 @@ function telaTalhao(){
       </div>
       ${Object.keys(porTipo).length?`<p class="note ct-tipos">${Object.entries(porTipo).map(([k,n])=>`${esc(TIPOS[k]?.label||k)}: <b>${n}</b>`).join(" · ")}</p>`:""}
       ${window.rotBloco?.(t)||""}
+      ${window.docBloco?.(t,ls&&ls.length?ls.map(g=>({cultura:g.cultura,safra:safraDe(g.vars[0].ps[0].data)})):(c?[{cultura:c.cultura,safra:safraDe(c.p.data)}]:[]))||""}
       <p class="note">Desde ${brDate(ini)}${fim?` até a colheita`:" até hoje (e o que está programado)"}. A chuva é a lançada na propriedade.</p>
       ${ls&&ls.length?`<details class="ct-fim"><summary>Encerrar lavoura sem colheita</summary><p class="note">Use só quando a lavoura acabou sem colheita (cobertura dessecada, área perdida, replantio de outra cultura) e o app não percebeu sozinho. Dá para desfazer depois.</p>${ls.map(g=>btFim(t,g)).join("")}</details>`:""}
       ${(()=>{const enc=[...new Set(registros.filter(x=>x.tipo==="plantio"&&(x.talhoes||[]).includes(t)&&x.campos?.encerrada&&x.campos.encerrada>=ini).map(x=>x.campos.cultura+"|"+x.campos.encerrada))]; return enc.map(k=>{const [cu,d]=k.split("|"); return `<p class="note">${esc(cu)} encerrada à mão em ${brDate(d)} <button type="button" class="link ci-desf" data-cidesf="${esc(t)}|${esc(d)}">Desfazer o encerramento</button></p>`}).join("")})()}
@@ -336,7 +337,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&aberto) fecha()});
 window.abreTalhao=abreTalhao;
 
 const agenda=()=>{clearTimeout(agenda.t); agenda.t=setTimeout(()=>{try{render(); if(aberto){const el=$("#ct-tela"), y=el?.scrollTop||0; telaTalhao(); if(el) el.scrollTop=y}}catch(e){console.error(e)}},120)};
-window.ciAgenda=agenda;
+window.ciAgenda=agenda; window.ciFecha=fecha;
 const origLista=renderLista;
 renderLista=function(){const r=origLista.apply(this,arguments); agenda(); return r};
 document.addEventListener("visibilitychange",()=>{if(!document.hidden) agenda()});

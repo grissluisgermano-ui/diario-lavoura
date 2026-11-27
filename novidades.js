@@ -9,6 +9,19 @@
    Entradas com antiga:true já contam como lidas (histórico de antes deste recurso). */
 (function(){
 const NOVIDADES=[
+  {v:120,data:"27/11/2026",titulo:"Contratos e pedidos com os papéis, e a tela Documentos",tags:["arquivo","arquivos","pdf","foto","papel","papeis","receita","planejamento","guardar"],
+   texto:`Contratos e pedidos: em Financeiro → Resumo, a caixa que se chamava "Descontos dos contratos" agora é "Contratos e pedidos".
+
+- "+ Novo contrato ou pedido": escolha Contrato ou Pedido, digite o número e preencha fornecedor (Coamo, Casarão…), cultura, safra, valor, vencimento e descontos.
+- "Papéis do contrato": tire a foto ou escolha o PDF do contrato. O arquivo fica guardado na hora, sem precisar tocar em Salvar. Os papéis também aparecem no Relatório do contrato, onde dá para anexar mais.
+- O contrato cadastrado já aparece em "Contratos e pedidos em aberto", mesmo antes de chegar a primeira nota.
+
+Documentos (Painel → Documentos): lugar para guardar receitas, planejamentos de aplicação, recomendações do agrônomo, análises de solo e outros papéis.
+
+- "+ Guardar documento": nome, tipo, cultura, safra, talhões (opcional) e a foto ou o PDF.
+- Busca por palavra e filtros por tipo, cultura e safra. Os papéis dos contratos aparecem junto.
+- Na tela do talhão (Painel → Talhões hoje → tocar no talhão) aparece "Documentos da cultura", com os documentos da cultura e da safra que estão naquele talhão.`,
+   onde:[{view:"fin_resumo",sel:"#fn-cdesc-box > summary",l:"Financeiro → Resumo → Contratos e pedidos"},{view:"documentos",sel:"#dc-mais > summary",l:"Painel → Documentos"}]},
   {v:119,data:"27/11/2026",titulo:"Busca no histórico de atualizações",tags:["procurar","pesquisar","buscar"],
    texto:`O "Histórico de atualizações" (Configurações, abaixo do "Procurar atualização") ganhou uma caixa de busca.
 
@@ -132,6 +145,7 @@ const norm=x=>String(x||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase(
 const ASSUNTOS=[
   "financeiro dinheiro conta contas pagar pagamento pago paga receber recebimento custo custos gasto gastos despesa desconto descontos valor preco lucro resultado reais parcela parcelas vencimento juros",
   "graos grao saca sacas venda vender vendido vendida deposito soja milho cevada trigo feijao colheita romaneio sobra repasse funcionario funcionarios",
+  "documento documentos arquivo arquivos papel papeis pdf foto receita receitas planejamento",
   "estoque produto produtos insumo insumos defensivo defensivos quimico quimicos adubo fertilizante semente sementes nota notas aplicado aplicacao",
   "contrato contratos coamo cooperativa pedido retirada retirado antecipacao",
   "talhao talhoes area lavoura lavouras cultura culturas plantio plantado rotacao safra safras cobertura aveia encerrar encerrada encerramento dessecacao colhida",

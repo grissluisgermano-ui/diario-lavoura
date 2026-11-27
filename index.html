@@ -564,6 +564,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <link rel="stylesheet" href="linhas.css">
 <link rel="stylesheet" href="compartilhar.css">
 <link rel="stylesheet" href="novidades.css">
+<link rel="stylesheet" href="docs.css">
 
 <div class="wrap">
   <header class="head">
@@ -1038,6 +1039,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   </section>
 
   <!-- BENFEITORIAS -->
+  <section class="panel" id="view-documentos" hidden>
+    <h2>Documentos</h2>
+    <p class="note">Receitas, planejamentos de aplicação, recomendações do agrônomo, análises e outros papéis da lavoura, por cultura e safra. Tire a foto do papel ou escolha o PDF. Os papéis dos contratos (Financeiro → Contratos e pedidos) também aparecem aqui.</p>
+    <div id="dc-box"></div>
+  </section>
   <section class="panel" id="view-regulagens" hidden>
     <h2>Regulagens</h2>
     <p class="note">Calculadoras da plantadeira e da semeadeira, regulagens salvas para usar no plantio e conferência do estande.</p>
@@ -1183,11 +1189,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div id="fn-contas" class="fn-cards"></div>
     <div id="fn-fam-box" hidden><h3 class="sub-h">Contas com a família</h3><p class="note">Dinheiro que saiu da lavoura para a família ou entrou dela. Fica fora do custo da safra.</p><div id="fn-fam" class="fn-cards"></div></div>
     <div id="fn-ctr-box" hidden><div class="row" style="justify-content:space-between"><h3 class="sub-h">Contratos e pedidos em aberto</h3><span class="note" id="fn-ctr-n"></span></div><div class="fn-lx-lista" id="fn-ctr"></div></div>
-    <details class="fn-catbox sub" id="fn-cdesc-box"><summary><b>Descontos dos contratos</b> <span class="note" id="fn-cdesc-n"></span></summary>
-      <p class="note">A nota vem com o preço cheio e o desconto do contrato é dado no vencimento. Informe o % de cada tipo de produto: as contas em aberto passam a mostrar o valor com desconto, o pagamento já vem sugerido com ele e o Estoque mostra o custo com e sem desconto. Pedido sem desconto fixo (ex.: Casarão, pagamento adiantado): deixe em branco e ajuste o valor na hora de pagar.</p>
+    <details class="fn-catbox sub" id="fn-cdesc-box"><summary><b>Contratos e pedidos</b> <span class="note" id="fn-cdesc-n"></span></summary>
+      <p class="note">Cadastre cada contrato de insumos (Coamo) ou pedido (Casarão…): fornecedor, cultura, safra, valor, vencimento, descontos e os papéis (foto ou PDF). Os que vieram nas notas aparecem aqui sozinhos; toque num deles para completar. A nota vem com o preço cheio e o desconto do contrato é dado no pagamento: com o % de cada tipo de produto, as contas em aberto já mostram o valor com desconto. Pedido sem desconto fixo: deixe em branco e ajuste o valor na hora de pagar.</p>
+      <div class="fn-cd-novo"><select id="fn-cdesc-tipo" aria-label="Contrato ou pedido"><option value="contrato">Contrato</option><option value="pedido">Pedido</option></select><input id="fn-cdesc-novo" inputmode="numeric" placeholder="Número" aria-label="Número do contrato ou pedido"><button type="button" class="btn ghost fn-mini" id="fn-cdesc-add">+ Novo contrato ou pedido</button></div>
       <div id="fn-cdesc" class="fn-cd-lista"></div>
-      <div class="row"><input id="fn-cdesc-novo" placeholder="Nº do contrato ou Pedido 123" style="flex:1;min-width:160px"><button type="button" class="btn ghost fn-mini" id="fn-cdesc-add">+ Adicionar</button></div>
-      <div class="row"><button type="button" class="btn" id="fn-cdesc-salvar">Salvar descontos</button><span class="toast" id="fn-cdesc-st" role="status"></span></div>
+      <datalist id="fn-cd-forn"></datalist>
+      <div class="row"><button type="button" class="btn" id="fn-cdesc-salvar">Salvar contratos</button><span class="toast" id="fn-cdesc-st" role="status"></span></div>
     </details>
     <div id="fn-recs-box" hidden><h3 class="sub-h">Contas que se repetem todo mês</h3><p class="note">O app cria a conta de cada mês sozinho; você só confirma o pagamento.</p><div id="fn-recs" class="es-lista"></div></div>
     <div class="row" style="justify-content:space-between"><h3 class="sub-h">Do Diário para o Financeiro</h3><span class="note" id="fn-pend-n"></span></div>
@@ -1464,8 +1471,8 @@ const todayISO=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezone
 let db=null, col=null, registros=[], tipo="plantio", talhoesSel=new Set(), editing=null;
 
 /* ---------- Tabs ---------- */
-const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios","mapa"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias","regulagens"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
-const NOMES={painel:"Painel",relatorios:"Relatórios",mapa:"Mapa",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",regulagens:"Regulagens",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
+const GRUPOS={chuvas:{l:"Chuvas",v:["chuvas"],oculto:true},painel:{l:"Painel",v:["painel","relatorios","mapa","documentos"]},lavoura:{l:"Lavoura",v:["lancar","programacao","estoque","graos","historico"]},estrutura:{l:"Estrutura",v:["maquinas","diesel","benfeitorias","regulagens"]},financeiro:{l:"Financeiro",v:["fin_resumo","fin_contas","fin_caixa","fin_safra"]},notas:{l:"Lembretes",v:["lembretes","notas"]},perguntar:{l:"Perguntar",v:["perguntar"]}};
+const NOMES={painel:"Painel",relatorios:"Relatórios",mapa:"Mapa",documentos:"Documentos",lancar:"Lançar",programacao:"Programação",chuvas:"Chuvas",estoque:"Estoque",graos:"Grãos",historico:"Histórico",maquinas:"Máquinas",diesel:"Abastecimento",regulagens:"Regulagens",benfeitorias:"Benfeitorias",notas:"Anotações",lembretes:"Lembretes",perguntar:"Perguntar",fin_resumo:"Resumo",fin_contas:"Contas",fin_caixa:"Livro caixa",fin_safra:"Resultado"};
 const VIEWS=Object.values(GRUPOS).flatMap(g=>g.v);
 const ultimaDoGrupo={};
 function show(view){
@@ -4184,7 +4191,7 @@ function graosTexto(){
 
 /* ---------- Backup ---------- */
 let downloads=null;
-const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[]),...(window.rgConfig?.()?[{id:"plantio",...window.rgConfig()}]:[]),...(window.rotConfig?.()?[{id:"rotacao",...window.rotConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,horas_maq:horasMaq,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
+const COLECOES=()=>({config:[{id:"graos",...grCfg},{id:"propriedade",nome:propCfg.nome,talhoes:propCfg.talhoes,depositos:propCfg.depositos,culturas:propCfg.culturas,tanque:propCfg.tanque},...(window.finConfig?[{id:"financeiro",...window.finConfig()}]:[]),...(window.vcConfig?[{id:"estoque",...window.vcConfig()}]:[]),...(window.rgConfig?.()?[{id:"plantio",...window.rgConfig()}]:[]),...(window.rotConfig?.()?[{id:"rotacao",...window.rotConfig()}]:[])],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,horas_maq:horasMaq,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[],documentos:window.docColecao?.()||[]});
 let bkInfo; // undefined = ainda carregando; null = nunca feito
 const bkFmt=b=>{try{const d=new Date(b.ultimo);return `${d.toLocaleDateString("pt-BR")} às ${d.toTimeString().slice(0,5)}${b.nome?`, por ${b.nome}`:""}`}catch{return ""}};
 function bkUltimo(){
@@ -4275,7 +4282,7 @@ function planilhaBackup(){
   window.finPlanilha?.(add,dt);
   window.lmPlanilha?.(add,dt);
   window.mpPlanilha?.(add,dt);
-  window.cePlanilha?.(add,dt); window.rgPlanilha?.(add); window.rotPlanilha?.(add);
+  window.cePlanilha?.(add,dt); window.rgPlanilha?.(add); window.rotPlanilha?.(add); window.docPlanilha?.(add);
   if(window.errosLista?.length) add("Erros do app",window.errosLista.slice(-300).map(e=>({"Quando":e.em,"Onde":e.onde,"Erro":e.msg,"Versão":e.versao||"","Tela":e.tela||"","Detalhe":(e.pilha||"").slice(0,800),"Aparelho":e.nav||""})));
   add("Anotações",[...notas].sort((a,b)=>a.data.localeCompare(b.data)).map(n=>({"Data":dt(n.data),"Hora":n.hora||"","Categoria":(CAT_NT[n.categoria]||CAT_NT.geral).l,"Título":n.titulo||"","Pessoas":n.pessoas||"","Local":n.local||"","Prazo":dt(n.prazo),"Resolvido":n.prazo?(n.resolvida?"Sim":"Não"):"","Anotação":n.texto,"Fotos":(n.fotos||[]).length||"","Lançado por":quem(n.criadoPor)})));
   return XLSX.write(wb,{bookType:"xlsx",type:"array"});
@@ -4992,9 +4999,9 @@ async function rlSalvar(blob,ext,btn){
 
 /* ---------- Restaurar backup e baixar fotos ---------- */
 let rawDb=null, rsDados=null;
-const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","horas_maq","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega"];
-const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",horas_maq:"Leituras do horímetro",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura",regulagens:"Regulagens"};
-const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[]});
+const RS_COLS=["config","registros","notas","estoque","graos","maquinas","manutencoes","diesel","benfeitorias","servicos_benf","horas_maq","fin_contas","fin_lanc","nfe","lembretes","talhoes_geo","pontos","contratos_entrega","regulagens","documentos"];
+const RS_NOMES={config:"Configurações",registros:"Registros e chuvas",notas:"Anotações",estoque:"Produtos do estoque",graos:"Movimentos de grãos",maquinas:"Máquinas",manutencoes:"Manutenções",diesel:"Diesel",benfeitorias:"Benfeitorias",servicos_benf:"Serviços em benfeitorias",horas_maq:"Leituras do horímetro",fin_contas:"Contas bancárias e caixas",fin_lanc:"Lançamentos financeiros",nfe:"Notas fiscais (XML)",lembretes:"Lembretes",talhoes_geo:"Contornos dos talhões",pontos:"Pontos do mapa",contratos_entrega:"Contratos de entrega futura",regulagens:"Regulagens",documentos:"Documentos"};
+const atuais=()=>({config:[{id:"graos"}],registros,notas,estoque,graos,maquinas,manutencoes:manut,diesel,benfeitorias:benf,servicos_benf:bfServ,...(window.finColecoes?.()||{}),nfe:window.danfeColecao?.()||[],lembretes:window.lmColecao?.()||[],...(window.mpColecoes?.()||{}),contratos_entrega:window.ceColecao?.()||[],regulagens:window.rgColecao?.()||[],documentos:window.docColecao?.()||[]});
 $("#rs-in").addEventListener("change",async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
   const box=$("#rs-prev"); box.hidden=false;
@@ -5269,7 +5276,7 @@ $("#ask").onclick=async()=>{
 Talhões e áreas: ${TALHOES.map(t=>`${t.n} (${num(t.ha)} ha)`).join(", ")}. Total ${num(TALHOES.reduce((s,t)=>s+t.ha,0))} ha.
 
 Registros (data | tipo | talhões | detalhes | descrição):
-${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}${window.ceTexto?.()||""}${window.rgTexto?.()||""}${window.rotTexto?.()||""}
+${regTexto()}${estoqueTexto()}${maquinasTexto()}${dieselTexto()}${benfTexto()}${graosTexto()}${notasTexto()}${window.lmTexto?.()||""}${window.mpTexto?.()||""}${window.ceTexto?.()||""}${window.rgTexto?.()||""}${window.rotTexto?.()||""}${window.docTexto?.()||""}
 
 Pergunta: ${q}`;
   ctl=new AbortController();
@@ -5311,7 +5318,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
   rawDb=db; db=envolveDb(db);
   col=db.collection("registros");
   window.errosApp?.liga(rawDb);
-  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.(); window.cheInicia?.(); window.rotInicia?.(); window.nvInicia?.();
+  window.finInicia?.(); window.danfeInicia?.(); window.lmInicia?.(); window.vcInicia?.(); window.mpInicia?.(); window.ceInicia?.(); window.rgInicia?.(); window.cheInicia?.(); window.rotInicia?.(); window.nvInicia?.(); window.docInicia?.();
   db.collection("estoque").onSnapshot(snap=>{
     estoque=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.comercial).sort((a,b)=>a.comercial.localeCompare(b.comercial,"pt-BR"));
     seguro("estoque",renderEstoque); seguro("produtos",atualizaProdutos); seguro("esSync",esSync); seguro("programacao",renderProgramacao);
@@ -5346,6 +5353,7 @@ chReset(); resetForm(); renderStats(); renderLista(); renderChuvas(); renderProg
 <script src="entrega.js"></script>
 <script src="agrofit.js"></script>
 <script src="layout.js"></script>
+<script src="docs.js"></script>
 <script src="novidades.js"></script>
 <script src="lixeira.js"></script>
 <script src="graos-nota.js"></script>

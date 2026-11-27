@@ -125,8 +125,9 @@
           try{lista.push(await envia(f,p=>{pct=p; const st=el.querySelector(".anx-st"); if(st) st.textContent=`Reduzindo o vídeo… ${p}% — deixe esta tela aberta`})); pct=null}
           catch(err){pct=null; msg=erroTxt(err,f)}
           finally{enviando--; pinta()}}
+        if(fs.length) op.muda?.(lista.map(a=>({...a})));
       };
-      el.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{lista.splice(+b.dataset.rm,1); pinta()});
+      el.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{lista.splice(+b.dataset.rm,1); pinta(); op.muda?.(lista.map(a=>({...a})))});
       el.querySelectorAll(".anx-nm").forEach(b=>b.onclick=()=>abre(lista[+b.dataset.i],el.querySelector(".anx-st")));
     };
     pinta();

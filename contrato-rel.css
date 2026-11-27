@@ -44,3 +44,6 @@ body.crl-aberto{overflow:hidden}
 .crl-pg label{display:grid;gap:2px;font-size:.82rem}
 .crl-ok{background:var(--surface);border-left:3px solid var(--ok,#2e7d32);padding:8px 10px;border-radius:6px}
 @media print{.crl-pag{display:none}}
+.crl-pap{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.crl-cad{font-size:.85rem}
+@media print{.crl-pap .anx-add,.crl-pap .anx-st,.crl-cad{display:none!important}}
