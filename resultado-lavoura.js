@@ -156,7 +156,12 @@
     const {L}=x, a=L.area||1, rec=x.vVal, res=rec-x.custo, est=x.preco&&x.resta>0.05?x.resta*x.preco:0;
     const tipoN=r=>TIPOS[r.tipo]?.label||r.tipo;
     const prodTxt=r=>(r.campos?.produtos||[]).filter(p=>p.nome).map(p=>`${esc(p.nome)}${p.dose!=null&&p.dose!==""?` ${num(Number(p.dose))} ${esc(p.unidade||"")}`:""}`).join(" + ");
-    const linhaAtiv=({r,ts,v,obs})=>row(`${brDate(r.data)} · ${esc(tipoN(r))}${r.campos?.alvo?` — ${esc(r.campos.alvo)}`:""}`,[prodTxt(r),esc(ts.join(", ")),obs?`<i>${esc(obs)}</i>`:""].filter(Boolean).join("<br>"),v>0?brl(v):"–",v>0?`${brl(v/a)}/ha`:"","",` data-rlreg="${r.id}"`);
+    // fotos do lançamento, anexos e papéis dos romaneios
+    const anxDe=r=>{const l=[...(r.fotos||[]).map((id,i)=>({id,tipo:"foto",nome:`foto-${i+1}.jpg`})),...(r.anexos||[]),...(r.romaneios||[]).flatMap(x=>x.anexos||[])]; return l.length&&window.anxLinks?`<span class="rlv-anx">${window.anxLinks(l,"Foto")}</span>`:""};
+    const linhaAtiv=({r,ts,v,obs})=>row(`${brDate(r.data)} · ${esc(tipoN(r))}${r.campos?.alvo?` — ${esc(r.campos.alvo)}`:""}`,[prodTxt(r),esc(ts.join(", ")),obs?`<i>${esc(obs)}</i>`:"",anxDe(r)].filter(Boolean).join("<br>"),v>0?brl(v):"–",v>0?`${brl(v/a)}/ha`:"","",` data-rlreg="${r.id}"`);
+    const sfs=[]; for(let y=safraDe(L.inicio||L.plantio); y<=safraDe(L.fim||todayISO()); y++) sfs.push(y);
+    const docs=window.docDaLavoura?window.docDaLavoura(L.cultura,sfs,L.talhoes):[];
+    const nAnxAt=x.ativ.filter(({r})=>(r.fotos||[]).length||(r.anexos||[]).length||(r.romaneios||[]).some(m=>(m.anexos||[]).length)).length;
     const nGer=verTudo[L.id]?x.ger.length:8;
     const titTxt=Object.entries(x.porTit).filter(([,v])=>v>0.005).map(([t,v])=>`${esc(titNome(t))} ${num(v)} sc`).join(" · ");
     return `<div class="rlv-bar"><button type="button" class="btn ghost" id="rlv-volta">‹ Voltar</button><span class="rlv-bar-t">Resultado da lavoura</span><button type="button" class="btn" id="rlv-print">🖨 Imprimir / PDF</button></div>
@@ -192,6 +197,9 @@
         ${x.resta>0.05?row("Ainda no depósito (Lavoura)","",`${num(x.resta)} sc`,est?"≈ "+brC(est):""):""}
       </div>
 
+      <h3>📎 Documentos da lavoura <small>${docs.length}${nAnxAt?` · e ${nAnxAt} atividade${nAnxAt===1?"":"s"} com foto ou arquivo (na lista de atividades)`:""}</small></h3>
+      ${docs.length?`<div class="rlv-ls">${docs.map(d=>row(esc(d.titulo),[esc([window.docTipoNome(d.tipo),d.safra?"safra "+safraLab(d.safra):"",(d.talhoes||[]).join(", "),d.data?brDate(d.data):""].filter(Boolean).join(" · ")),d.obs?`<i>${esc(d.obs)}</i>`:"",window.anxLinks?`<span class="rlv-anx">${window.anxLinks(d.anexos||[],"Foto")}</span>`:""].filter(Boolean).join("<br>"),(d.anexos||[]).length?`📎 ${(d.anexos||[]).length}`:"","")).join("")}</div>`:`<p class="note">Nenhum documento da ${esc(L.cultura)} guardado. Receitas, planejamentos e recomendações: Painel → Documentos (cultura ${esc(L.cultura)}, safra ${sfs.map(safraLab).join(" ou ")}). Papéis de contrato: Financeiro → Resumo → Contratos e pedidos.</p>`}
+
       <h3>Atividades <small>${x.ativ.length} · insumos ${brC(x.ins)} (${brl(x.ins/a)}/ha)</small></h3>
       <div class="rlv-ls">${x.ativ.map(linhaAtiv).join("")}</div>
 
@@ -214,7 +222,7 @@
     el.innerHTML=html(calcula(L)); el.hidden=false; el.scrollTop=0; document.body.classList.add("rlv-aberto");
     el.querySelector("#rlv-volta").onclick=fecha;
     el.querySelector("#rlv-print").onclick=()=>window.print();
-    el.querySelectorAll("[data-rlreg]").forEach(d=>{d.classList.add("rlv-click"); d.onclick=()=>{fecha(); editar(d.dataset.rlreg)}});
+    el.querySelectorAll("[data-rlreg]").forEach(d=>{d.classList.add("rlv-click"); d.onclick=ev=>{if(ev.target.closest("[data-anx]")) return; fecha(); editar(d.dataset.rlreg)}});
     el.querySelectorAll("[data-rlfin]").forEach(d=>{d.classList.add("rlv-click"); d.onclick=()=>{fecha(); window.finApi?.abrir(d.dataset.rlfin)}});
     el.querySelector("#rlv-mais")?.addEventListener("click",()=>{verTudo[id]=true; const y=el.scrollTop; abre(id); el.scrollTop=y});
   }

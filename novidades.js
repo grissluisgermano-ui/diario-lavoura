@@ -9,6 +9,13 @@
    Entradas com antiga:true já contam como lidas (histórico de antes deste recurso). */
 (function(){
 const NOVIDADES=[
+  {v:121,data:"27/11/2026",titulo:"Documentos no resultado da lavoura",tags:["relatorio","resultado","foto","arquivo","documento"],
+   texto:`O "Resultado de cada lavoura" (Financeiro → Resultado → Resultado de cada lavoura) agora mostra também os papéis da lavoura.
+
+- "📎 Documentos da lavoura": os documentos guardados com a mesma cultura e safra (receitas, planejamentos, recomendações) e os papéis dos contratos e pedidos daquela cultura. Toque no nome para abrir a foto ou o PDF.
+- Na lista de atividades, cada lançamento com foto ou arquivo (inclusive o papel do romaneio da colheita) mostra o 📷/📄 para abrir ali mesmo.
+- No "Imprimir / PDF" sai a lista com o nome de cada documento.`,
+   onde:[{view:"fin_safra",sel:"#rlv-box h3",l:"Financeiro → Resultado → Resultado de cada lavoura"}]},
   {v:120,data:"27/11/2026",titulo:"Contratos e pedidos com os papéis, e a tela Documentos",tags:["arquivo","arquivos","pdf","foto","papel","papeis","receita","planejamento","guardar"],
    texto:`Contratos e pedidos: em Financeiro → Resumo, a caixa que se chamava "Descontos dos contratos" agora é "Contratos e pedidos".
 

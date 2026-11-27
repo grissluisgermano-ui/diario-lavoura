@@ -107,7 +107,10 @@
   window.anxEnviar=envia; window.anxErro=erroTxt;
 
   // links pequenos para mostrar nos cartões/linhas: 📎 nome
-  window.anxLinks=(lista)=>(lista||[]).map(a=>`<button type="button" class="link anx-link" data-anx="${esc(JSON.stringify({id:a.id,tipo:a.tipo,nome:a.nome}))}">${ext(a)==="VÍD"?"🎬":ext(a)==="PDF"?"📄":"📎"} ${esc(ext(a)==="FOTO"?"Foto da nota":a.nome)}</button>`).join("");
+  // fotoRot: nome mostrado para foto (padrão "Foto da nota"); com mais de uma foto, numera ("Foto 1", "Foto 2")
+  window.anxLinks=(lista,fotoRot)=>{const l=lista||[], nf=l.filter(a=>ext(a)==="FOTO").length; let i=0;
+    return l.map(a=>{const fo=ext(a)==="FOTO", rot=fo?(fotoRot?fotoRot+(nf>1?" "+(++i):""):"Foto da nota"):a.nome;
+      return `<button type="button" class="link anx-link" data-anx="${esc(JSON.stringify({id:a.id,tipo:a.tipo,nome:a.nome}))}">${ext(a)==="VÍD"?"🎬":ext(a)==="PDF"?"📄":fo?"📷":"📎"} ${esc(rot)}</button>`}).join("")};
   document.addEventListener("click",ev=>{const b=ev.target.closest("[data-anx]"); if(!b) return; ev.preventDefault(); try{abre(JSON.parse(b.dataset.anx))}catch{}});
 
   // campo de anexos dentro de um formulário: anxCampo(elemento) → {get, set, limpar, ocupado}

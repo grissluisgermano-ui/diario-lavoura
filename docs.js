@@ -33,7 +33,7 @@ const cartao=(d,o={})=>`<article class="dc-it" data-dc="${esc(d.id)}">
   <div class="dc-top"><b>${esc(d.titulo)}</b><span class="dc-n">${(d.anexos||[]).length?`📎 ${(d.anexos||[]).length}`:""}</span></div>
   <small class="dc-sub">${esc(linhaSub(d))}</small>
   ${d.obs?`<p class="dc-obs">${esc(d.obs)}</p>`:""}
-  <div class="dc-anx">${window.anxLinks?window.anxLinks(d.anexos||[]):""}</div>
+  <div class="dc-anx">${window.anxLinks?window.anxLinks(d.anexos||[],"Foto"):""}</div>
   ${o.semAcoes?"":`<div class="rec-actions">${d.ctr?`<button type="button" class="link" data-dcctr="${esc(d.ctr)}">📄 Abrir o contrato</button>`:`<button type="button" class="link" data-dced="${esc(d.id)}">Editar</button><button type="button" class="link danger" data-dcdel="${esc(d.id)}">Excluir</button>`}</div>`}
 </article>`;
 
@@ -128,6 +128,13 @@ window.docBloco=function(t,cs){
   return `<details class="rot-box dc-ct"><summary>📎 Documentos da cultura (${ds.length})</summary><div class="dc-lista">${ds.map(d=>cartao(d,{semAcoes:true})).join("")}</div><p class="note"><button type="button" class="link" data-dcver="1">Ver todos os documentos</button></p></details>`;
 };
 document.addEventListener("click",e=>{if(e.target.closest("[data-dcver]")){window.ciFecha?.(); window.show?.("documentos")}});
+
+/* documentos de uma lavoura (relatório "Resultado da lavoura"): mesma cultura, safra entre as que a lavoura ocupou (ou sem safra),
+   e talhões em comum (ou sem talhão) */
+window.docDaLavoura=(cultura,safras,talhoes)=>{const S=new Set(safras||[]), T=new Set(talhoes||[]);
+  return todos().filter(d=>d.cultura&&norm(d.cultura)===norm(cultura)&&(!d.safra||S.has(d.safra))&&(!(d.talhoes||[]).length||d.talhoes.some(t=>T.has(t))))
+    .sort((a,b)=>(a.tipo==="contrato")-(b.tipo==="contrato")||String(a.data).localeCompare(String(b.data)))};
+window.docTipoNome=k=>TIPOS_DOC[k]||k||"";
 
 /* ---------- backup, planilha, Perguntar ---------- */
 window.docColecao=()=>lista.map(d=>({...d}));
