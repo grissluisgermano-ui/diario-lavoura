@@ -9,6 +9,13 @@
    Entradas com antiga:true já contam como lidas (histórico de antes deste recurso). */
 (function(){
 const NOVIDADES=[
+  {v:119,data:"27/11/2026",titulo:"Busca no histórico de atualizações",tags:["procurar","pesquisar","buscar"],
+   texto:`O "Histórico de atualizações" (Configurações, abaixo do "Procurar atualização") ganhou uma caixa de busca.
+
+- Digite uma palavra ou assunto: financeiro, contrato, grãos, estoque, talhão…
+- Não precisa acento, e palavras do mesmo assunto também valem: "dinheiro" ou "pagar" acham as novidades do Financeiro; "soja" ou "venda" acham as de Grãos.
+- As palavras encontradas ficam marcadas em amarelo.`,
+   onde:[{view:"config",sel:".nv-h-busca",l:"Configurações → Histórico de atualizações"}]},
   {v:118,data:"27/11/2026",titulo:"Avisos das atualizações",
    texto:`Agora, toda vez que o app for atualizado, aparece esta faixa amarela logo abaixo da linha das chuvas, contando o que mudou.
 
@@ -120,16 +127,55 @@ function abreModal(lista,tit){
 }
 
 /* ---------- histórico em Configurações ---------- */
+// busca no histórico: sem acento, pelo começo das palavras, e entende palavras do mesmo assunto ("dinheiro" acha o financeiro)
+const norm=x=>String(x||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const ASSUNTOS=[
+  "financeiro dinheiro conta contas pagar pagamento pago paga receber recebimento custo custos gasto gastos despesa desconto descontos valor preco lucro resultado reais parcela parcelas vencimento juros",
+  "graos grao saca sacas venda vender vendido vendida deposito soja milho cevada trigo feijao colheita romaneio sobra repasse funcionario funcionarios",
+  "estoque produto produtos insumo insumos defensivo defensivos quimico quimicos adubo fertilizante semente sementes nota notas aplicado aplicacao",
+  "contrato contratos coamo cooperativa pedido retirada retirado antecipacao",
+  "talhao talhoes area lavoura lavouras cultura culturas plantio plantado rotacao safra safras cobertura aveia encerrar encerrada encerramento dessecacao colhida",
+  "aviso avisos atualizacao atualizacoes novidade novidades bolinha historico versao"
+].map(g=>g.split(" "));
+const casa=(tok,w)=>tok.startsWith(w)||(w.length>=4&&w.startsWith(tok)&&tok.length>=4);
+function termos(q){ // cada palavra digitada vira a lista de palavras que valem por ela
+  // a digitada vale pelo começo ("contr" acha contrato); as do mesmo assunto só a palavra inteira (ou plural)
+  return norm(q).split(/[^a-z0-9]+/).filter(w=>w.length>=2).map(w=>{
+    const t=[{w,p:true}]; for(const g of ASSUNTOS) if(g.some(x=>casa(x,w))) for(const x of g) if(x!==w) t.push({w:x,p:false}); return t});
+}
+const bate=(tok,o)=>o.p?casa(tok,o.w):(tok===o.w||tok===o.w+"s"||tok===o.w+"es");
+const tokens=n=>norm([n.titulo,n.texto,...(n.onde||[]).map(o=>o.l||""),...(n.tags||[]),"versao "+n.v].join(" ")).split(/[^a-z0-9]+/).filter(Boolean);
+const acha=(n,T)=>{const tk=tokens(n); return T.every(ws=>ws.some(o=>tk.some(t=>bate(t,o))))};
+function marcaTexto(el,T){ // destaca as palavras encontradas
+  const ws=T.flat(); if(!ws.length) return;
+  const tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT), nos=[]; while(tw.nextNode()) nos.push(tw.currentNode);
+  for(const no of nos){const tx=no.nodeValue, nz=norm(tx); if(nz.length!==tx.length) continue;
+    const re=/[a-z0-9]+/g, par=[]; let m; while((m=re.exec(nz))) if(ws.some(o=>bate(m[0],o))) par.push([m.index,m.index+m[0].length]);
+    if(!par.length) continue;
+    const fr=document.createDocumentFragment(); let i=0;
+    for(const [x,y] of par){fr.append(tx.slice(i,x)); const mk=document.createElement("mark"); mk.className="nv-mk"; mk.textContent=tx.slice(x,y); fr.append(mk); i=y}
+    fr.append(tx.slice(i)); no.replaceWith(fr)}
+}
+let busca="";
 function hist(){
   let d=$("#nv-hist");
   if(!d){const vb=$("#versao-box"); if(!vb) return;
     d=document.createElement("details"); d.id="nv-hist"; d.className="nv-hist"; vb.after(d);
+    d.innerHTML=`<summary></summary><div class="nv-h-busca"><input type="search" id="nv-q" placeholder="Buscar: financeiro, contrato, grãos, talhão…" aria-label="Buscar nas atualizações" autocomplete="off"><span class="note" id="nv-q-n" role="status"></span></div><div class="nv-h-lista" id="nv-h-lista"></div>`;
+    const q=d.querySelector("#nv-q");
+    q.addEventListener("input",()=>{busca=q.value; lista()});
+    d.querySelector("summary").addEventListener("click",e=>{if(e.target.closest(".nv-h-ler")){e.preventDefault(); marcaLidas(naoLidas())}});
   }
-  const nl=naoLidas().length, ab=d.open;
-  d.innerHTML=`<summary>Histórico de atualizações <small>(${NOVIDADES.length}${nl?` · ${nl} não lida${nl>1?"s":""}`:""})</small></summary><div class="nv-h-lista">${NOVIDADES.map(n=>cartao(n,!lida(n))).join("")}</div>`;
-  d.open=ab;
-  if(nl) d.querySelector("summary").insertAdjacentHTML("beforeend",`<button type="button" class="link nv-h-ler">Marcar como lidas</button>`);
-  d.querySelector(".nv-h-ler")?.addEventListener("click",e=>{e.preventDefault(); marcaLidas(naoLidas())});
+  const nl=naoLidas().length;
+  d.querySelector("summary").innerHTML=`Histórico de atualizações <small>(${NOVIDADES.length}${nl?` · ${nl} não lida${nl>1?"s":""}`:""})</small>${nl?`<button type="button" class="link nv-h-ler">Marcar como lidas</button>`:""}`;
+  lista();
+}
+function lista(){
+  const box=$("#nv-h-lista"); if(!box) return;
+  const T=termos(busca), achou=T.length?NOVIDADES.filter(n=>acha(n,T)):NOVIDADES;
+  box.innerHTML=achou.length?achou.map(n=>cartao(n,!lida(n))).join(""):`<p class="note nv-h-nada">Nenhuma atualização com “${esc(busca.trim())}”. Tente outra palavra (ex.: financeiro, estoque, grãos, contrato, talhão).</p>`;
+  if(T.length) marcaTexto(box,T);
+  $("#nv-q-n").textContent=T.length?(achou.length?`${achou.length} de ${NOVIDADES.length}`:""):"";
 }
 
 /* ---------- pintar faixa, bolinhas e histórico ---------- */

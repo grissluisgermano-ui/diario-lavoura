@@ -32,3 +32,9 @@ body.nv-aberto{overflow:hidden}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .nv-alerta,:root:not([data-theme="light"]) .nv-m-bar{background:#3D3510;color:#F6E7A6;border-color:#7A6A1E}}
 :root[data-theme="dark"] .nv-alerta,:root[data-theme="dark"] .nv-m-bar{background:#3D3510;color:#F6E7A6;border-color:#7A6A1E}
 .tabs-s .nv-dot,.tabs-g .nv-dot{margin-left:4px;width:8px;height:8px}
+.nv-h-busca{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:0 12px 10px}
+.nv-h-busca input{flex:1 1 220px;min-width:0}
+.nv-mk{background:#FFE36B;color:inherit;border-radius:3px;padding:0 1px}
+.nv-h-nada{padding:4px 2px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .nv-mk{background:#7A6410}}
+:root[data-theme="dark"] .nv-mk{background:#7A6410}
